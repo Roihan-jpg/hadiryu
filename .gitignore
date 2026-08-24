@@ -1,0 +1,13 @@
+AGENTS.md
+MEMORY.md
+PRD.md
+TASKS.md
+TechDesign.md
+
+node_modules/
+dist/
+coverage/
+.angular/
+.env
+*.log
+apps/web/.cache/

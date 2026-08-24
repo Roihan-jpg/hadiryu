@@ -1,0 +1,28 @@
+{
+  "name": "absensi",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names api,web \"npm run dev --workspace @absensi/api\" \"npm run dev --workspace @absensi/web\"",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:web": "npm run test --workspace @absensi/web",
+    "test:api": "npm run test --workspace @absensi/api",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0",
+    "npm": ">=11.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.0",
+    "eslint": "^10.0.3",
+    "typescript-eslint": "^8.68.0"
+  }
+}
