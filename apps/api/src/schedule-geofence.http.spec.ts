@@ -132,6 +132,30 @@ class FakeSettingsService implements SettingsService {
     this.geofenceCreate = { actorId, input };
     return geofence;
   }
+
+  async listCalendarExceptions(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async createCalendarException(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async updateCalendarException(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async deleteCalendarException(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async getPayroll(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async createPayrollVersion(): Promise<never> {
+    throw new Error('not used');
+  }
 }
 
 function testApp(authService = new FakeAuthService()) {

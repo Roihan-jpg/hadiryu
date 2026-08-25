@@ -1,19 +1,28 @@
 import {
+  CalendarExceptionInputSchema,
+  CreatePayrollVersionRequestSchema,
   CreateGeofenceVersionRequestSchema,
   CreateScheduleVersionRequestSchema,
   GeofenceSettingsResponseSchema,
   GeofenceSettingsQuerySchema,
+  PayrollSettingsQuerySchema,
   ScheduleSettingsResponseSchema,
   ScheduleSettingsQuerySchema,
   type AuthUser,
+  type CalendarException,
+  type CalendarExceptionInput,
+  type CalendarExceptionsResponse,
+  type CreatePayrollVersionRequest,
   type CreateGeofenceVersionRequest,
   type CreateScheduleVersionRequest,
   type GeofenceRule,
   type GeofenceSettingsResponse,
+  type PayrollSettingsResponse,
   type ScheduleRule,
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
+import { z } from 'zod';
 
 import {
   AppError,
@@ -81,6 +90,22 @@ export interface SettingsService {
     actorId: string,
     input: CreateGeofenceVersionRequest,
   ): Promise<GeofenceSettingsResponse>;
+  listCalendarExceptions(): Promise<CalendarExceptionsResponse>;
+  createCalendarException(
+    actorId: string,
+    input: CalendarExceptionInput,
+  ): Promise<CalendarException>;
+  updateCalendarException(
+    actorId: string,
+    id: string,
+    input: CalendarExceptionInput,
+  ): Promise<CalendarException>;
+  deleteCalendarException(actorId: string, id: string): Promise<void>;
+  getPayroll(effectiveOn: string): Promise<PayrollSettingsResponse>;
+  createPayrollVersion(
+    actorId: string,
+    input: CreatePayrollVersionRequest,
+  ): Promise<PayrollSettingsResponse>;
 }
 
 function actorId(request: Request): string {
@@ -92,6 +117,8 @@ function actorId(request: Request): string {
 function validationError(message: string, details: unknown): AppError {
   return new AppError(400, 'VALIDATION_ERROR', message, details);
 }
+
+const IdParamSchema = z.strictObject({ id: z.uuid() });
 
 export function registerSettingsRoutes(
   app: Express,
@@ -177,6 +204,113 @@ export function registerSettingsRoutes(
             actorId(request),
             parsed.data,
           ),
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.get(
+    '/api/admin/settings/calendar',
+    ...adminGuards,
+    async (_request, response, next) => {
+      try {
+        response.status(200).json(await settingsService.listCalendarExceptions());
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.post(
+    '/api/admin/settings/calendar',
+    ...adminGuards,
+    async (request, response, next) => {
+      try {
+        const parsed = CalendarExceptionInputSchema.safeParse(request.body);
+        if (!parsed.success) {
+          throw validationError('Aturan kalender tidak valid', parsed.error.flatten());
+        }
+        response.status(201).json(
+          await settingsService.createCalendarException(actorId(request), parsed.data),
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.patch(
+    '/api/admin/settings/calendar/:id',
+    ...adminGuards,
+    async (request, response, next) => {
+      try {
+        const params = IdParamSchema.safeParse(request.params);
+        const body = CalendarExceptionInputSchema.safeParse(request.body);
+        if (!params.success || !body.success) {
+          throw validationError(
+            'Aturan kalender tidak valid',
+            !params.success ? params.error.flatten() : body.error?.flatten(),
+          );
+        }
+        response.status(200).json(
+          await settingsService.updateCalendarException(
+            actorId(request),
+            params.data.id,
+            body.data,
+          ),
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.delete(
+    '/api/admin/settings/calendar/:id',
+    ...adminGuards,
+    async (request, response, next) => {
+      try {
+        const params = IdParamSchema.safeParse(request.params);
+        if (!params.success) {
+          throw validationError('ID aturan kalender tidak valid', params.error.flatten());
+        }
+        await settingsService.deleteCalendarException(actorId(request), params.data.id);
+        response.status(204).end();
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.get(
+    '/api/admin/settings/payroll',
+    ...adminGuards,
+    async (request, response, next) => {
+      try {
+        const parsed = PayrollSettingsQuerySchema.safeParse(request.query);
+        if (!parsed.success) {
+          throw validationError('Tanggal aturan upah tidak valid', parsed.error.flatten());
+        }
+        response.status(200).json(await settingsService.getPayroll(parsed.data.effectiveOn));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.post(
+    '/api/admin/settings/payroll',
+    ...adminGuards,
+    async (request, response, next) => {
+      try {
+        const parsed = CreatePayrollVersionRequestSchema.safeParse(request.body);
+        if (!parsed.success) {
+          throw validationError('Aturan upah tidak valid', parsed.error.flatten());
+        }
+        response.status(201).json(
+          await settingsService.createPayrollVersion(actorId(request), parsed.data),
         );
       } catch (error) {
         next(error);

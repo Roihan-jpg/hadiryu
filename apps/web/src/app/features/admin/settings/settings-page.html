@@ -3,7 +3,7 @@
     <div>
       <a class="back-link" routerLink="/admin">← Kembali ke administrasi</a>
       <p class="eyebrow">Aturan operasional</p>
-      <h1 id="settings-title">Jadwal dan geofence</h1>
+      <h1 id="settings-title">Pengaturan operasional</h1>
       <p class="intro">
         Buat versi baru dengan tanggal mulai berlaku. Versi yang sudah dipakai
         tetap tersimpan untuk laporan historis.
@@ -96,6 +96,24 @@
             </dl>
           } @else {
             <p class="empty-inline">Belum ada geofence untuk tanggal ini.</p>
+          }
+        </article>
+
+        <article class="payroll-summary">
+          <div class="summary-title">
+            <h3>Upah kinerja</h3>
+            @if (payroll()?.payrollRule; as rule) {
+              <strong>Rp{{ rule.basePerformancePay | number: '1.2-2' }}</strong>
+            }
+          </div>
+          @if (payroll()?.payrollRule; as rule) {
+            <dl>
+              <div><dt>Potongan per menit</dt><dd>Rp{{ rule.deductionRatePerMinute | number: '1.2-2' }}</dd></div>
+              <div><dt>Mulai berlaku</dt><dd>{{ rule.effectiveFrom }}</dd></div>
+              <div><dt>Status</dt><dd>{{ rule.effectiveTo ? 'Versi tertutup' : 'Versi terbuka' }}</dd></div>
+            </dl>
+          } @else {
+            <p class="empty-inline">Belum ada aturan upah untuk tanggal ini.</p>
           }
         </article>
       </div>
@@ -217,6 +235,125 @@
           [disabled]="actionInProgress() !== null"
         >
           {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : 'Buat versi geofence' }}
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="setting-section" aria-labelledby="calendar-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Tanggal khusus</p>
+        <h2 id="calendar-form-title">Kalender sekolah</h2>
+      </div>
+      <p>Hari libur dan hari kerja pengganti hanya dapat diubah sebelum tanggalnya berlalu.</p>
+    </div>
+
+    <form [formGroup]="calendarForm" (ngSubmit)="saveCalendarException()">
+      <div class="calendar-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Tanggal</mat-label>
+          <input matInput type="date" [min]="minimumEffectiveDate" formControlName="workDate" />
+          <mat-error>Tanggal wajib diisi.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Jenis aturan</mat-label>
+          <select matNativeControl formControlName="exceptionType">
+            <option value="HOLIDAY">Hari libur</option>
+            <option value="WORKING_DAY">Hari kerja khusus</option>
+          </select>
+        </mat-form-field>
+        @if (calendarForm.controls.exceptionType.value === 'WORKING_DAY') {
+          <mat-form-field appearance="outline">
+            <mat-label>Pakai jadwal</mat-label>
+            <select matNativeControl formControlName="scheduleType">
+              <option [ngValue]="null" disabled>Pilih jadwal</option>
+              <option value="WEEKDAY">Senin–Jumat</option>
+              <option value="SATURDAY">Sabtu</option>
+            </select>
+            <mat-error>Pilih jadwal untuk hari kerja khusus.</mat-error>
+          </mat-form-field>
+        }
+        <mat-form-field appearance="outline" class="calendar-name">
+          <mat-label>Nama / keterangan</mat-label>
+          <input matInput maxlength="200" formControlName="name" />
+          <mat-error>Keterangan wajib diisi (maks. 200 karakter).</mat-error>
+        </mat-form-field>
+      </div>
+      <div class="form-actions">
+        <span>{{ editingCalendarId() ? 'Simpan perubahan untuk tanggal yang belum berlalu.' : 'Setiap tanggal hanya dapat memiliki satu aturan.' }}</span>
+        <div class="button-pair">
+          @if (editingCalendarId()) {
+            <button mat-stroked-button type="button" (click)="cancelCalendarEdit()">Batal</button>
+          }
+          <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">
+            {{ actionInProgress() === 'calendar' ? 'Menyimpan…' : editingCalendarId() ? 'Simpan perubahan' : 'Tambah aturan kalender' }}
+          </button>
+        </div>
+      </div>
+    </form>
+
+    @if (calendar()?.exceptions?.length) {
+      <div class="calendar-table-wrap">
+        <table class="calendar-table">
+          <thead><tr><th>Tanggal</th><th>Aturan</th><th>Keterangan</th><th aria-label="Tindakan"></th></tr></thead>
+          <tbody>
+            @for (exception of calendar()!.exceptions; track exception.id) {
+              <tr>
+                <td>{{ exception.workDate }}</td>
+                <td>{{ exception.exceptionType === 'HOLIDAY' ? 'Libur' : 'Kerja · ' + (exception.scheduleType === 'SATURDAY' ? 'Jadwal Sabtu' : 'Jadwal Senin–Jumat') }}</td>
+                <td>{{ exception.name }}</td>
+                <td class="table-actions">
+                  <button mat-button type="button" (click)="editCalendarException(exception)" [disabled]="actionInProgress() !== null">Ubah</button>
+                  <button mat-button type="button" (click)="deleteCalendarException(exception)" [disabled]="actionInProgress() !== null">Hapus</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="empty-inline">Belum ada hari libur atau hari kerja khusus.</p>
+    }
+  </section>
+
+  <section class="setting-section" aria-labelledby="payroll-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Versi bulanan global</p>
+        <h2 id="payroll-form-title">Upah kinerja</h2>
+      </div>
+      <p>Aturan baru selalu berlaku pada tanggal 1 dan tidak membatasi hasil upah akhir menjadi nol.</p>
+    </div>
+
+    <form [formGroup]="payrollForm" (ngSubmit)="savePayroll()">
+      <div class="payroll-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Mulai berlaku</mat-label>
+          <input matInput type="date" [min]="minimumEffectiveDate" formControlName="effectiveFrom" />
+          @if (payrollForm.controls.effectiveFrom.hasError('monthStart')) {
+            <mat-error>Tanggal mulai harus tanggal 1.</mat-error>
+          } @else {
+            <mat-error>Tanggal mulai berlaku wajib diisi.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Upah dasar bulanan</mat-label>
+          <input matInput type="number" min="0" step="0.01" formControlName="basePerformancePay" />
+          <span matTextPrefix>Rp&nbsp;</span>
+          <mat-error>Nilai wajib nol atau lebih.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Potongan per menit</mat-label>
+          <input matInput type="number" min="0" step="0.01" formControlName="deductionRatePerMinute" />
+          <span matTextPrefix>Rp&nbsp;</span>
+          <mat-error>Nilai wajib nol atau lebih.</mat-error>
+        </mat-form-field>
+      </div>
+      <div class="form-actions">
+        <span>Potongan dan upah akhir resmi dihitung oleh backend saat laporan dibuat.</span>
+        <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">
+          {{ actionInProgress() === 'payroll' ? 'Menyimpan…' : 'Buat versi upah' }}
         </button>
       </div>
     </form>

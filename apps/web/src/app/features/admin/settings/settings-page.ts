@@ -1,11 +1,17 @@
 import {
+  CalendarExceptionInputSchema,
+  type CalendarException,
+  type CalendarExceptionsResponse,
+  CreatePayrollVersionRequestSchema,
   CreateGeofenceVersionRequestSchema,
   CreateScheduleVersionRequestSchema,
   type GeofenceSettingsResponse,
+  type PayrollSettingsResponse,
   type ScheduleRuleInput,
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
+import { DecimalPipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import {
   AbstractControl,
@@ -48,6 +54,11 @@ const scheduleOrderValidator: ValidatorFn = (
     : null;
 };
 
+const monthStartValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
+  typeof control.value === 'string' && control.value !== '' && !control.value.endsWith('-01')
+    ? { monthStart: true }
+    : null;
+
 function scheduleRuleForm() {
   return new FormGroup(
     {
@@ -86,6 +97,7 @@ function scheduleRuleForm() {
 
 @Component({
   imports: [
+    DecimalPipe,
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
@@ -146,10 +158,46 @@ export class SettingsPage implements OnInit {
       validators: [Validators.required, Validators.min(5), Validators.max(200)],
     }),
   });
+  readonly calendarForm = new FormGroup({
+    workDate: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
+    exceptionType: new FormControl<'HOLIDAY' | 'WORKING_DAY'>('HOLIDAY', {
+      nonNullable: true,
+    }),
+    name: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.maxLength(200)],
+    }),
+    scheduleType: new FormControl<'WEEKDAY' | 'SATURDAY' | null>(null),
+  }, { validators: (control) =>
+    control.get('exceptionType')?.value === 'WORKING_DAY' && !control.get('scheduleType')?.value
+      ? { scheduleRequired: true }
+      : null });
+  readonly payrollForm = new FormGroup({
+    effectiveFrom: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, monthStartValidator],
+    }),
+    basePerformancePay: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    deductionRatePerMinute: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+  });
   readonly schedules = signal<ScheduleSettingsResponse | null>(null);
   readonly geofence = signal<GeofenceSettingsResponse | null>(null);
+  readonly calendar = signal<CalendarExceptionsResponse | null>(null);
+  readonly payroll = signal<PayrollSettingsResponse | null>(null);
+  readonly editingCalendarId = signal<string | null>(null);
   readonly loading = signal(true);
-  readonly actionInProgress = signal<'schedule' | 'geofence' | null>(null);
+  readonly actionInProgress = signal<
+    'schedule' | 'geofence' | 'calendar' | 'payroll' | null
+  >(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
 
@@ -227,16 +275,113 @@ export class SettingsPage implements OnInit {
     }
   }
 
+  async saveCalendarException(): Promise<void> {
+    if (this.actionInProgress() !== null) return;
+    if (this.calendarForm.invalid) {
+      this.calendarForm.markAllAsTouched();
+      return;
+    }
+    const input = CalendarExceptionInputSchema.parse({
+      ...this.calendarForm.getRawValue(),
+      name: this.calendarForm.controls.name.value.trim(),
+      scheduleType:
+        this.calendarForm.controls.exceptionType.value === 'HOLIDAY'
+          ? null
+          : this.calendarForm.controls.scheduleType.value,
+    });
+    this.actionInProgress.set('calendar');
+    this.clearFeedback();
+    try {
+      const existingId = this.editingCalendarId();
+      if (existingId) {
+        await this.service.updateCalendarException(existingId, input);
+      } else {
+        await this.service.createCalendarException(input);
+      }
+      this.resetCalendarForm();
+      if (await this.loadForDate(this.inspectionDate.value)) {
+        this.successMessage.set(
+          existingId
+            ? 'Aturan kalender berhasil diperbarui.'
+            : 'Aturan kalender berhasil ditambahkan.',
+        );
+      }
+    } catch (error) {
+      this.errorMessage.set(this.errorText(error, 'Aturan kalender tidak dapat disimpan.'));
+    } finally {
+      this.actionInProgress.set(null);
+    }
+  }
+
+  editCalendarException(exception: CalendarException): void {
+    this.editingCalendarId.set(exception.id);
+    this.calendarForm.setValue({
+      workDate: exception.workDate,
+      exceptionType: exception.exceptionType,
+      name: exception.name,
+      scheduleType: exception.scheduleType,
+    });
+  }
+
+  cancelCalendarEdit(): void {
+    this.resetCalendarForm();
+  }
+
+  async deleteCalendarException(exception: CalendarException): Promise<void> {
+    if (this.actionInProgress() !== null) return;
+    if (!window.confirm(`Hapus aturan kalender “${exception.name}”?`)) return;
+    this.actionInProgress.set('calendar');
+    this.clearFeedback();
+    try {
+      await this.service.deleteCalendarException(exception.id);
+      if (this.editingCalendarId() === exception.id) this.resetCalendarForm();
+      if (await this.loadForDate(this.inspectionDate.value)) {
+        this.successMessage.set('Aturan kalender berhasil dihapus.');
+      }
+    } catch (error) {
+      this.errorMessage.set(this.errorText(error, 'Aturan kalender tidak dapat dihapus.'));
+    } finally {
+      this.actionInProgress.set(null);
+    }
+  }
+
+  async savePayroll(): Promise<void> {
+    if (this.actionInProgress() !== null) return;
+    if (this.payrollForm.invalid) {
+      this.payrollForm.markAllAsTouched();
+      return;
+    }
+    const input = CreatePayrollVersionRequestSchema.parse(this.payrollForm.getRawValue());
+    this.actionInProgress.set('payroll');
+    this.clearFeedback();
+    try {
+      await this.service.createPayroll(input);
+      this.inspectionDate.setValue(input.effectiveFrom);
+      this.payrollForm.controls.effectiveFrom.reset('');
+      if (await this.loadForDate(input.effectiveFrom)) {
+        this.successMessage.set('Versi upah baru berhasil dibuat.');
+      }
+    } catch (error) {
+      this.errorMessage.set(this.errorText(error, 'Versi upah tidak dapat dibuat.'));
+    } finally {
+      this.actionInProgress.set(null);
+    }
+  }
+
   private async loadForDate(effectiveOn: string): Promise<boolean> {
     this.loading.set(true);
     this.clearFeedback();
     try {
-      const [schedules, geofence] = await Promise.all([
+      const [schedules, geofence, calendar, payroll] = await Promise.all([
         this.service.getSchedules(effectiveOn),
         this.service.getGeofence(effectiveOn),
+        this.service.getCalendarExceptions(),
+        this.service.getPayroll(effectiveOn),
       ]);
       this.schedules.set(schedules);
       this.geofence.set(geofence);
+      this.calendar.set(calendar);
+      this.payroll.set(payroll);
       if (schedules.weekday) {
         this.scheduleForm.controls.weekday.patchValue(
           this.scheduleInput(schedules.weekday),
@@ -253,6 +398,12 @@ export class SettingsPage implements OnInit {
           longitude: geofence.geofence.longitude,
           radiusMeters: geofence.geofence.radiusMeters,
           maxAccuracyMeters: geofence.geofence.maxAccuracyMeters,
+        });
+      }
+      if (payroll.payrollRule) {
+        this.payrollForm.patchValue({
+          basePerformancePay: payroll.payrollRule.basePerformancePay,
+          deductionRatePerMinute: payroll.payrollRule.deductionRatePerMinute,
         });
       }
       return true;
@@ -281,6 +432,16 @@ export class SettingsPage implements OnInit {
   private clearFeedback(): void {
     this.errorMessage.set('');
     this.successMessage.set('');
+  }
+
+  private resetCalendarForm(): void {
+    this.editingCalendarId.set(null);
+    this.calendarForm.reset({
+      workDate: '',
+      exceptionType: 'HOLIDAY',
+      name: '',
+      scheduleType: null,
+    });
   }
 
   private errorText(error: unknown, fallback: string): string {

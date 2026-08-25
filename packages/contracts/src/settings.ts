@@ -119,3 +119,100 @@ export const GeofenceSettingsResponseSchema = z.strictObject({
 export type GeofenceSettingsResponse = z.infer<
   typeof GeofenceSettingsResponseSchema
 >;
+
+export const CalendarExceptionTypeSchema = z.enum(['HOLIDAY', 'WORKING_DAY']);
+export type CalendarExceptionType = z.infer<typeof CalendarExceptionTypeSchema>;
+
+const CalendarExceptionNameSchema = z.string().trim().min(1).max(200);
+
+export const CalendarExceptionInputSchema = z.discriminatedUnion('exceptionType', [
+  z.strictObject({
+    workDate: LocalDateSchema,
+    exceptionType: z.literal('HOLIDAY'),
+    name: CalendarExceptionNameSchema,
+    scheduleType: z.null(),
+  }),
+  z.strictObject({
+    workDate: LocalDateSchema,
+    exceptionType: z.literal('WORKING_DAY'),
+    name: CalendarExceptionNameSchema,
+    scheduleType: ScheduleTypeSchema,
+  }),
+]);
+export type CalendarExceptionInput = z.infer<typeof CalendarExceptionInputSchema>;
+
+export const CalendarExceptionSchema = CalendarExceptionInputSchema.and(
+  z.strictObject({ id: z.uuid() }),
+);
+export type CalendarException = z.infer<typeof CalendarExceptionSchema>;
+
+export const CalendarExceptionsResponseSchema = z.strictObject({
+  exceptions: z.array(CalendarExceptionSchema),
+});
+export type CalendarExceptionsResponse = z.infer<
+  typeof CalendarExceptionsResponseSchema
+>;
+
+export const CalendarDayResolutionSchema = z.strictObject({
+  workDate: LocalDateSchema,
+  isWorkingDay: z.boolean(),
+  scheduleType: ScheduleTypeSchema.nullable(),
+  exception: CalendarExceptionSchema.nullable(),
+});
+export type CalendarDayResolution = z.infer<typeof CalendarDayResolutionSchema>;
+
+const MoneySchema = z
+  .number()
+  .finite()
+  .min(0)
+  .max(999_999_999_999.99)
+  .refine((value) => Math.round(value * 100) === value * 100, {
+    message: 'Nilai uang maksimal memiliki dua angka desimal',
+  });
+
+export const PayrollRuleInputSchema = z.strictObject({
+  basePerformancePay: MoneySchema,
+  deductionRatePerMinute: MoneySchema,
+});
+export type PayrollRuleInput = z.infer<typeof PayrollRuleInputSchema>;
+
+export const PayrollRuleSchema = z.strictObject({
+  id: z.uuid(),
+  ...PayrollRuleInputSchema.shape,
+  effectiveFrom: LocalDateSchema,
+  effectiveTo: LocalDateSchema.nullable(),
+});
+export type PayrollRule = z.infer<typeof PayrollRuleSchema>;
+
+export const CreatePayrollVersionRequestSchema = z
+  .strictObject({
+    effectiveFrom: LocalDateSchema,
+    ...PayrollRuleInputSchema.shape,
+  })
+  .refine((value) => value.effectiveFrom.endsWith('-01'), {
+    message: 'Tanggal mulai upah harus tanggal 1',
+    path: ['effectiveFrom'],
+  });
+export type CreatePayrollVersionRequest = z.infer<
+  typeof CreatePayrollVersionRequestSchema
+>;
+
+export const PayrollSettingsQuerySchema = ScheduleSettingsQuerySchema;
+export type PayrollSettingsQuery = ScheduleSettingsQuery;
+
+export const PayrollSettingsResponseSchema = z.strictObject({
+  effectiveOn: LocalDateSchema,
+  payrollRule: PayrollRuleSchema.nullable(),
+});
+export type PayrollSettingsResponse = z.infer<typeof PayrollSettingsResponseSchema>;
+
+export const PerformancePayCalculationSchema = z.strictObject({
+  totalWorkDeficitMinutes: z.number().int().nonnegative(),
+  basePerformancePay: MoneySchema,
+  deductionRatePerMinute: MoneySchema,
+  deductionAmount: MoneySchema,
+  finalPerformancePay: z.number().finite(),
+});
+export type PerformancePayCalculation = z.infer<
+  typeof PerformancePayCalculationSchema
+>;

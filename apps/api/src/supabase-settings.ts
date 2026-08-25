@@ -1,10 +1,19 @@
 import {
+  CalendarExceptionSchema,
+  CalendarExceptionsResponseSchema,
   GeofenceRuleSchema,
+  PayrollRuleSchema,
   ScheduleRuleSchema,
+  type CalendarException,
+  type CalendarExceptionInput,
+  type CalendarExceptionsResponse,
+  type CreatePayrollVersionRequest,
   type CreateGeofenceVersionRequest,
   type CreateScheduleVersionRequest,
   type GeofenceRule,
   type GeofenceSettingsResponse,
+  type PayrollRule,
+  type PayrollSettingsResponse,
   type ScheduleRule,
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
@@ -17,6 +26,7 @@ import {
   resolveScheduleSettings,
   type SettingsService,
 } from './schedule-geofence.js';
+import { resolvePayrollSettings } from './calendar-payroll.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
 const ScheduleRowSchema = z.strictObject({
@@ -48,6 +58,32 @@ const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
   'id,latitude,longitude,radius_meters,max_accuracy_meters,effective_from,effective_to';
+const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
+const PAYROLL_FIELDS =
+  'id,base_performance_pay,deduction_rate_per_minute,effective_from,effective_to';
+
+const CalendarExceptionRowSchema = z.strictObject({
+  id: z.uuid(),
+  work_date: z.string(),
+  exception_type: z.enum(['HOLIDAY', 'WORKING_DAY']),
+  name: z.string(),
+  schedule_type: z.enum(['WEEKDAY', 'SATURDAY']).nullable(),
+});
+const CalendarExceptionRpcRowSchema = CalendarExceptionRowSchema.extend({
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+const CalendarExceptionResultRowSchema = z.union([
+  CalendarExceptionRowSchema,
+  CalendarExceptionRpcRowSchema,
+]);
+const PayrollRuleRowSchema = z.strictObject({
+  id: z.uuid(),
+  base_performance_pay: NumericDatabaseValueSchema,
+  deduction_rate_per_minute: NumericDatabaseValueSchema,
+  effective_from: z.string(),
+  effective_to: z.string().nullable(),
+});
 
 function clientOptions() {
   return {
@@ -93,6 +129,28 @@ function toGeofenceRule(value: unknown): GeofenceRule {
   });
 }
 
+function toCalendarException(value: unknown): CalendarException {
+  const row = CalendarExceptionResultRowSchema.parse(value);
+  return CalendarExceptionSchema.parse({
+    id: row.id,
+    workDate: row.work_date,
+    exceptionType: row.exception_type,
+    name: row.name,
+    scheduleType: row.schedule_type,
+  });
+}
+
+function toPayrollRule(value: unknown): PayrollRule {
+  const row = PayrollRuleRowSchema.parse(value);
+  return PayrollRuleSchema.parse({
+    id: row.id,
+    basePerformancePay: Number(row.base_performance_pay),
+    deductionRatePerMinute: Number(row.deduction_rate_per_minute),
+    effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to,
+  });
+}
+
 function mutationError(error: { code?: string; message?: string } | null): AppError {
   const inPast = error?.message?.includes('EFFECTIVE_DATE_IN_PAST');
   const conflict =
@@ -111,6 +169,30 @@ function mutationError(error: { code?: string; message?: string } | null): AppEr
       : conflict
       ? 'Tanggal mulai harus setelah versi terbaru'
       : 'Versi pengaturan tidak dapat dibuat',
+  );
+}
+
+function calendarMutationError(error: { code?: string; message?: string } | null): AppError {
+  const missing = error?.message?.includes('CALENDAR_EXCEPTION_NOT_FOUND');
+  const inPast = error?.message?.includes('CALENDAR_DATE_IN_PAST');
+  const conflict =
+    error?.code === '23505' || error?.message?.includes('CALENDAR_DATE_CONFLICT');
+  return new AppError(
+    missing ? 404 : inPast ? 422 : conflict ? 409 : 500,
+    missing
+      ? 'CALENDAR_EXCEPTION_NOT_FOUND'
+      : inPast
+        ? 'CALENDAR_DATE_IN_PAST'
+        : conflict
+          ? 'CALENDAR_DATE_CONFLICT'
+          : 'CALENDAR_UPDATE_FAILED',
+    missing
+      ? 'Aturan kalender tidak ditemukan'
+      : inPast
+        ? 'Tanggal kalender yang telah berlalu tidak dapat diubah'
+        : conflict
+          ? 'Tanggal tersebut sudah memiliki aturan kalender'
+          : 'Aturan kalender tidak dapat disimpan',
   );
 }
 
@@ -177,5 +259,85 @@ export class SupabaseSettingsService implements SettingsService {
     });
     if (error) throw mutationError(error);
     return this.getGeofence(input.effectiveFrom);
+  }
+
+  async listCalendarExceptions(): Promise<CalendarExceptionsResponse> {
+    const { data, error } = await this.client
+      .from('calendar_exceptions')
+      .select(CALENDAR_FIELDS)
+      .order('work_date');
+    if (error) {
+      throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Aturan kalender tidak dapat dimuat');
+    }
+    return CalendarExceptionsResponseSchema.parse({
+      exceptions: (data ?? []).map(toCalendarException),
+    });
+  }
+
+  async createCalendarException(
+    actorId: string,
+    input: CalendarExceptionInput,
+  ): Promise<CalendarException> {
+    const { data, error } = await this.client.rpc('create_calendar_exception', {
+      p_actor_id: actorId,
+      p_work_date: input.workDate,
+      p_exception_type: input.exceptionType,
+      p_name: input.name,
+      p_schedule_type: input.scheduleType,
+    });
+    if (error) throw calendarMutationError(error);
+    return toCalendarException(data);
+  }
+
+  async updateCalendarException(
+    actorId: string,
+    id: string,
+    input: CalendarExceptionInput,
+  ): Promise<CalendarException> {
+    const { data, error } = await this.client.rpc('update_calendar_exception', {
+      p_actor_id: actorId,
+      p_id: id,
+      p_work_date: input.workDate,
+      p_exception_type: input.exceptionType,
+      p_name: input.name,
+      p_schedule_type: input.scheduleType,
+    });
+    if (error) throw calendarMutationError(error);
+    return toCalendarException(data);
+  }
+
+  async deleteCalendarException(actorId: string, id: string): Promise<void> {
+    const { error } = await this.client.rpc('delete_calendar_exception', {
+      p_actor_id: actorId,
+      p_id: id,
+    });
+    if (error) throw calendarMutationError(error);
+  }
+
+  async getPayroll(effectiveOn: string): Promise<PayrollSettingsResponse> {
+    const { data, error } = await this.client
+      .from('payroll_rules')
+      .select(PAYROLL_FIELDS)
+      .lte('effective_from', effectiveOn)
+      .or(`effective_to.is.null,effective_to.gte.${effectiveOn}`)
+      .order('effective_from', { ascending: false });
+    if (error) {
+      throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Aturan upah tidak dapat dimuat');
+    }
+    return resolvePayrollSettings((data ?? []).map(toPayrollRule), effectiveOn);
+  }
+
+  async createPayrollVersion(
+    actorId: string,
+    input: CreatePayrollVersionRequest,
+  ): Promise<PayrollSettingsResponse> {
+    const { error } = await this.client.rpc('create_payroll_rule_version', {
+      p_actor_id: actorId,
+      p_effective_from: input.effectiveFrom,
+      p_base_performance_pay: input.basePerformancePay,
+      p_deduction_rate_per_minute: input.deductionRatePerMinute,
+    });
+    if (error) throw mutationError(error);
+    return this.getPayroll(input.effectiveFrom);
   }
 }

@@ -67,6 +67,24 @@ const unavailableSettingsService: SettingsService = {
   async createGeofenceVersion() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
+  async listCalendarExceptions() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async createCalendarException() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async updateCalendarException() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async deleteCalendarException() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async getPayroll() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async createPayrollVersion() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
 };
 
 export function createApp(options: CreateAppOptions = {}): Express {
