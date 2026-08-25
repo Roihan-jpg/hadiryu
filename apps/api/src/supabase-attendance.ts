@@ -1,11 +1,13 @@
 import {
   CalendarExceptionSchema,
   CheckInRecordSchema,
+  CompletedAttendanceRecordSchema,
   GeofenceRuleSchema,
   ScheduleRuleSchema,
   type CalendarException,
-  type CheckInRecord,
+  type CompletedAttendanceRecord,
   type GeofenceRule,
+  type ListAttendanceHistoryQuery,
   type ScheduleRule,
   type ScheduleType,
 } from '@absensi/contracts';
@@ -15,7 +17,9 @@ import { z } from 'zod';
 import { AppError } from './auth.js';
 import type {
   AttendanceRepository,
+  PersistedAttendanceRecord,
   SaveCheckInInput,
+  SaveCheckoutInput,
 } from './attendance.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
@@ -28,12 +32,19 @@ const AttendanceRowSchema = z.strictObject({
   check_in_longitude: NumericValueSchema,
   check_in_accuracy_meters: NumericValueSchema,
   check_in_distance_meters: NumericValueSchema,
+  check_out_at: z.string().nullable(),
+  check_out_latitude: NumericValueSchema.nullable(),
+  check_out_longitude: NumericValueSchema.nullable(),
+  check_out_accuracy_meters: NumericValueSchema.nullable(),
+  check_out_distance_meters: NumericValueSchema.nullable(),
   work_start: z.string(),
   work_end: z.string(),
   checkout_close: z.string(),
   target_minutes: z.number().int(),
+  worked_minutes: z.number().int().nullable(),
   arrival_late_minutes: z.number().int(),
-  status: z.literal('CHECKED_IN'),
+  work_deficit_minutes: z.number().int().nullable(),
+  status: z.enum(['CHECKED_IN', 'COMPLETED']),
 });
 const CalendarRowSchema = z.strictObject({
   id: z.uuid(),
@@ -66,7 +77,7 @@ const GeofenceRowSchema = z.strictObject({
 });
 
 const ATTENDANCE_FIELDS =
-  'id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy_meters,check_in_distance_meters,work_start,work_end,checkout_close,target_minutes,arrival_late_minutes,status';
+  'id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy_meters,check_in_distance_meters,check_out_at,check_out_latitude,check_out_longitude,check_out_accuracy_meters,check_out_distance_meters,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
@@ -76,9 +87,9 @@ function time(value: string): string {
   return value.slice(0, 5);
 }
 
-function toAttendance(value: unknown): CheckInRecord {
+function toAttendance(value: unknown): PersistedAttendanceRecord {
   const row = AttendanceRowSchema.parse(value);
-  return CheckInRecordSchema.parse({
+  const base = {
     id: row.id,
     workDate: row.work_date,
     checkInAt: row.check_in_at,
@@ -91,6 +102,27 @@ function toAttendance(value: unknown): CheckInRecord {
     checkoutClose: time(row.checkout_close),
     targetMinutes: row.target_minutes,
     arrivalLateMinutes: row.arrival_late_minutes,
+  };
+  if (row.status === 'CHECKED_IN') {
+    return CheckInRecordSchema.parse({ ...base, status: row.status });
+  }
+  return CompletedAttendanceRecordSchema.parse({
+    ...base,
+    checkOutAt: row.check_out_at,
+    checkOutLatitude:
+      row.check_out_latitude === null ? null : Number(row.check_out_latitude),
+    checkOutLongitude:
+      row.check_out_longitude === null ? null : Number(row.check_out_longitude),
+    checkOutAccuracyMeters:
+      row.check_out_accuracy_meters === null
+        ? null
+        : Number(row.check_out_accuracy_meters),
+    checkOutDistanceMeters:
+      row.check_out_distance_meters === null
+        ? null
+        : Number(row.check_out_distance_meters),
+    workedMinutes: row.worked_minutes,
+    workDeficitMinutes: row.work_deficit_minutes,
     status: row.status,
   });
 }
@@ -156,7 +188,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
   async findAttendance(
     teacherId: string,
     workDate: string,
-  ): Promise<CheckInRecord | null> {
+  ): Promise<PersistedAttendanceRecord | null> {
     const { data, error } = await this.client
       .from('attendance_records')
       .select(ATTENDANCE_FIELDS)
@@ -220,7 +252,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
     return data !== null;
   }
 
-  async saveCheckIn(input: SaveCheckInInput): Promise<CheckInRecord> {
+  async saveCheckIn(input: SaveCheckInInput): Promise<PersistedAttendanceRecord> {
     const { data, error } = await this.client
       .from('attendance_records')
       .insert({
@@ -250,5 +282,80 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       'ATTENDANCE_SAVE_FAILED',
       'Check-in tidak dapat disimpan',
     );
+  }
+
+  async saveCheckout(input: SaveCheckoutInput): Promise<CompletedAttendanceRecord> {
+    const { data, error } = await this.client
+      .from('attendance_records')
+      .update({
+        check_out_at: input.checkOutAt,
+        check_out_latitude: input.location.latitude,
+        check_out_longitude: input.location.longitude,
+        check_out_accuracy_meters: input.location.accuracyMeters,
+        check_out_distance_meters: input.distanceMeters,
+        worked_minutes: input.workedMinutes,
+        work_deficit_minutes: input.workDeficitMinutes,
+        status: 'COMPLETED',
+      })
+      .eq('id', input.attendanceId)
+      .eq('teacher_id', input.teacherId)
+      .eq('status', 'CHECKED_IN')
+      .is('check_out_at', null)
+      .select(ATTENDANCE_FIELDS)
+      .maybeSingle();
+    if (!error && data) {
+      return CompletedAttendanceRecordSchema.parse(toAttendance(data));
+    }
+    if (!error) {
+      const existing = await this.findAttendance(
+        input.teacherId,
+        input.workDate,
+      );
+      if (existing?.status === 'COMPLETED') return existing;
+    }
+    throw new AppError(
+      500,
+      'ATTENDANCE_SAVE_FAILED',
+      'Checkout tidak dapat disimpan',
+    );
+  }
+
+  async listAttendanceHistory(
+    teacherId: string,
+    input: ListAttendanceHistoryQuery,
+  ): Promise<{ records: PersistedAttendanceRecord[]; totalItems: number }> {
+    const start = (input.page - 1) * input.pageSize;
+    const end = start + input.pageSize - 1;
+    let query = this.client
+      .from('attendance_records')
+      .select(ATTENDANCE_FIELDS, { count: 'exact' })
+      .eq('teacher_id', teacherId)
+      .order('work_date', { ascending: false })
+      .order('check_in_at', { ascending: false })
+      .range(start, end);
+    if (input.month) {
+      const [yearText, monthText] = input.month.split('-');
+      const year = Number(yearText);
+      const month = Number(monthText);
+      const nextMonth =
+        month === 12
+          ? `${year + 1}-01`
+          : `${year}-${String(month + 1).padStart(2, '0')}`;
+      query = query
+        .gte('work_date', `${input.month}-01`)
+        .lt('work_date', `${nextMonth}-01`);
+    }
+    const { data, error, count } = await query;
+    if (error) {
+      throw new AppError(
+        500,
+        'ATTENDANCE_HISTORY_FAILED',
+        'Riwayat absensi tidak dapat dimuat',
+      );
+    }
+    return {
+      records: (data ?? []).map(toAttendance),
+      totalItems: count ?? 0,
+    };
   }
 }

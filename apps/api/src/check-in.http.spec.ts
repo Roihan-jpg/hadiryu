@@ -45,7 +45,9 @@ const today: TodayAttendanceResponse = {
     checkInOpen: '05:30',
     workStart: '07:00',
     checkInClose: '08:00',
+    checkoutOpen: '12:00',
     workEnd: '15:35',
+    checkoutClose: '17:00',
     targetMinutes: 515,
   },
   attendance: null,
@@ -85,6 +87,14 @@ class FakeAttendanceService implements AttendanceService {
     if (this.checkInError) throw this.checkInError;
     this.checkInCalls.push({ teacherId, location });
     return attendance;
+  }
+
+  async checkout(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async history(): Promise<never> {
+    throw new Error('not used');
   }
 }
 

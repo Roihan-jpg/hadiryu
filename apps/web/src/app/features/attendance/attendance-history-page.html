@@ -1,0 +1,95 @@
+<section class="history-shell" aria-labelledby="history-title">
+  <header class="page-header">
+    <div>
+      <a mat-button routerLink="/guru">← Kembali ke dashboard</a>
+      <p class="eyebrow">Kehadiran Guru</p>
+      <h1 id="history-title">Riwayat absensi</h1>
+      <p class="intro">Lihat waktu dan hasil hitung resmi dari server per hari kerja.</p>
+    </div>
+  </header>
+
+  <form class="month-filter" (ngSubmit)="applyMonth()">
+    <label for="history-month">Bulan</label>
+    <div>
+      <input id="history-month" type="month" [formControl]="monthControl" />
+      <button mat-stroked-button type="submit" [disabled]="loading()">Tampilkan</button>
+    </div>
+    @if (monthControl.invalid && monthControl.touched) {
+      <p class="field-error">Pilih bulan yang valid.</p>
+    }
+  </form>
+
+  @if (loading()) {
+    <div class="loading-state" role="status">
+      <mat-spinner diameter="32" />
+      <span>Memuat riwayat absensi…</span>
+    </div>
+  } @else if (errorMessage()) {
+    <div class="feedback feedback--error" role="alert">
+      <span>{{ errorMessage() }}</span>
+      <button mat-button type="button" (click)="loadHistory()">Coba lagi</button>
+    </div>
+  } @else if (records().length === 0) {
+    <div class="empty-state">
+      <h2>Belum ada absensi pada bulan ini</h2>
+      <p>Catatan check-in dan checkout akan tampil di sini.</p>
+    </div>
+  } @else {
+    <div class="history-list">
+      @for (record of records(); track record.id) {
+        <article class="history-item">
+          <header>
+            <div>
+              <p class="record-date">{{ dateLabel(record.workDate) }}</p>
+              <span
+                class="record-status"
+                [class.record-status--complete]="record.status === 'COMPLETED'"
+                [class.record-status--warning]="record.status === 'INCOMPLETE'"
+              >{{ statusLabel(record) }}</span>
+            </div>
+          </header>
+          <dl>
+            <div>
+              <dt>Check-in</dt>
+              <dd>{{ jakartaTime(record.checkInAt) }} WIB</dd>
+            </div>
+            <div>
+              <dt>Checkout</dt>
+              <dd>
+                @if (record.status === 'COMPLETED') {
+                  {{ jakartaTime(record.checkOutAt) }} WIB
+                } @else {
+                  Belum tercatat
+                }
+              </dd>
+            </div>
+            @if (record.status !== 'CHECKED_IN') {
+              <div>
+                <dt>Menit kerja</dt>
+                <dd>{{ record.workedMinutes }} menit</dd>
+              </div>
+              <div>
+                <dt>Kekurangan</dt>
+                <dd>{{ record.workDeficitMinutes }} menit</dd>
+              </div>
+            }
+            <div>
+              <dt>Keterlambatan</dt>
+              <dd>{{ record.arrivalLateMinutes }} menit</dd>
+            </div>
+          </dl>
+        </article>
+      }
+    </div>
+
+    <mat-paginator
+      [length]="pagination().totalItems"
+      [pageIndex]="pagination().page - 1"
+      [pageSize]="pagination().pageSize"
+      [pageSizeOptions]="[10, 20, 50]"
+      showFirstLastButtons
+      aria-label="Halaman riwayat absensi"
+      (page)="pageChanged($event)"
+    />
+  }
+</section>

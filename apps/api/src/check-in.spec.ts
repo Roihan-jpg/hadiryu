@@ -96,6 +96,14 @@ class FakeAttendanceRepository implements AttendanceRepository {
     };
     return this.attendance;
   }
+
+  async saveCheckout(): Promise<never> {
+    throw new Error('not used');
+  }
+
+  async listAttendanceHistory() {
+    return { records: [], totalItems: 0 };
+  }
 }
 
 function serviceAt(repository: FakeAttendanceRepository, iso: string) {

@@ -115,6 +115,11 @@ h2 {
   background: #e9f7f0;
 }
 
+.state-mark--warning {
+  color: #8a4b12;
+  background: #fff3df;
+}
+
 .time-ruler {
   position: relative;
   display: grid;
@@ -219,6 +224,12 @@ h2 {
   margin-top: 1.25rem;
   color: #6b7a90;
   font-size: 0.85rem;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 dt {

@@ -42,6 +42,10 @@
               Memuat status…
             } @else if (today()?.state === 'CHECKED_IN') {
               Sudah check-in
+            } @else if (today()?.state === 'COMPLETED') {
+              Absensi selesai
+            } @else if (today()?.state === 'INCOMPLETE') {
+              Data tidak lengkap
             } @else if (today()?.state === 'NON_WORKING_DAY') {
               Hari libur
             } @else if (today()?.state === 'CONFIGURATION_ERROR') {
@@ -52,27 +56,48 @@
           </h2>
         </div>
         @if (today()?.state === 'CHECKED_IN') {
+          <span class="state-mark">Menunggu checkout</span>
+        } @else if (today()?.state === 'COMPLETED') {
           <span class="state-mark state-mark--done">Tercatat</span>
+        } @else if (today()?.state === 'INCOMPLETE') {
+          <span class="state-mark state-mark--warning">Tidak lengkap</span>
         } @else if (today()?.state === 'READY_TO_CHECK_IN') {
           <span class="state-mark">Menunggu</span>
         }
       </div>
 
       @if (today()?.schedule; as schedule) {
-        <div class="time-ruler" aria-label="Jadwal check-in hari ini">
-          <div>
-            <span>Dibuka</span>
-            <strong>{{ schedule.checkInOpen }}</strong>
+        @if (today()?.state === 'CHECKED_IN') {
+          <div class="time-ruler" aria-label="Jadwal checkout hari ini">
+            <div>
+              <span>Checkout dibuka</span>
+              <strong>{{ schedule.checkoutOpen }}</strong>
+            </div>
+            <div>
+              <span>Selesai kerja</span>
+              <strong>{{ schedule.workEnd }}</strong>
+            </div>
+            <div>
+              <span>Checkout ditutup</span>
+              <strong>{{ schedule.checkoutClose }}</strong>
+            </div>
           </div>
-          <div>
-            <span>Mulai kerja</span>
-            <strong>{{ schedule.workStart }}</strong>
+        } @else {
+          <div class="time-ruler" aria-label="Jadwal check-in hari ini">
+            <div>
+              <span>Dibuka</span>
+              <strong>{{ schedule.checkInOpen }}</strong>
+            </div>
+            <div>
+              <span>Mulai kerja</span>
+              <strong>{{ schedule.workStart }}</strong>
+            </div>
+            <div>
+              <span>Ditutup</span>
+              <strong>{{ schedule.checkInClose }}</strong>
+            </div>
           </div>
-          <div>
-            <span>Ditutup</span>
-            <strong>{{ schedule.checkInClose }}</strong>
-          </div>
-        </div>
+        }
         <p class="schedule-note">
           Target {{ schedule.targetMinutes }} menit · selesai {{ schedule.workEnd }}
         </p>
@@ -81,17 +106,42 @@
       @if (today()?.attendance; as attendance) {
         <dl class="attendance-result">
           <div>
-            <dt>Waktu server</dt>
+            <dt>Check-in</dt>
             <dd>{{ jakartaTime(attendance.checkInAt) }} WIB</dd>
           </div>
-          <div>
-            <dt>Jarak</dt>
-            <dd>{{ attendance.distanceMeters }} meter</dd>
-          </div>
-          <div>
-            <dt>Akurasi</dt>
-            <dd>{{ attendance.accuracyMeters }} meter</dd>
-          </div>
+          @if (attendance.status === 'CHECKED_IN') {
+            <div>
+              <dt>Keterlambatan</dt>
+              <dd>{{ attendance.arrivalLateMinutes }} menit</dd>
+            </div>
+            <div>
+              <dt>Jarak check-in</dt>
+              <dd>{{ attendance.distanceMeters }} meter</dd>
+            </div>
+          } @else {
+            <div>
+              <dt>Checkout</dt>
+              <dd>
+                @if (attendance.status === 'COMPLETED') {
+                  {{ jakartaTime(attendance.checkOutAt) }} WIB
+                } @else {
+                  Tidak tercatat
+                }
+              </dd>
+            </div>
+            <div>
+              <dt>Menit kerja</dt>
+              <dd>{{ attendance.workedMinutes }} menit</dd>
+            </div>
+            <div>
+              <dt>Keterlambatan</dt>
+              <dd>{{ attendance.arrivalLateMinutes }} menit</dd>
+            </div>
+            <div>
+              <dt>Kekurangan</dt>
+              <dd>{{ attendance.workDeficitMinutes }} menit</dd>
+            </div>
+          }
         </dl>
       } @else if (today()?.state === 'NON_WORKING_DAY') {
         <p class="state-copy">Tidak ada jadwal kerja yang perlu dicatat hari ini.</p>
@@ -125,12 +175,28 @@
         <p class="permission-note">
           Lokasi presisi baru diminta setelah tombol ditekan.
         </p>
+      } @else if (today()?.state === 'CHECKED_IN') {
+        <button
+          mat-flat-button
+          data-action="checkout"
+          type="button"
+          [disabled]="actionInProgress()"
+          (click)="checkout()"
+        >
+          {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Checkout sekarang' }}
+        </button>
+        <p class="permission-note">
+          Lokasi presisi baru diminta setelah tombol ditekan.
+        </p>
       }
     </section>
 
     <footer class="teacher-footer">
       <span>NIP {{ user()?.nip }}</span>
-      <button mat-button type="button" (click)="logout()">Keluar</button>
+      <div class="footer-actions">
+        <a mat-button routerLink="/guru/riwayat">Lihat riwayat</a>
+        <button mat-button type="button" (click)="logout()">Keluar</button>
+      </div>
     </footer>
   </section>
 }

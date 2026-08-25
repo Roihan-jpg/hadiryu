@@ -1,11 +1,19 @@
 import {
-  CheckInRecordSchema,
+  AttendanceHistoryResponseSchema,
+  AttendanceRecordSchema,
+  CompletedAttendanceRecordSchema,
+  IncompleteAttendanceRecordSchema,
+  ListAttendanceHistoryQuerySchema,
   LocationInputSchema,
   TodayAttendanceResponseSchema,
+  type AttendanceHistoryResponse,
+  type AttendanceRecord,
   type AuthUser,
   type CalendarException,
   type CheckInRecord,
+  type CompletedAttendanceRecord,
   type GeofenceRule,
+  type ListAttendanceHistoryQuery,
   type LocationInput,
   type ScheduleRule,
   type ScheduleType,
@@ -35,8 +43,26 @@ export interface SaveCheckInInput {
   arrivalLateMinutes: number;
 }
 
+export interface SaveCheckoutInput {
+  attendanceId: string;
+  teacherId: string;
+  workDate: string;
+  checkOutAt: string;
+  location: LocationInput;
+  distanceMeters: number;
+  workedMinutes: number;
+  workDeficitMinutes: number;
+}
+
+export type PersistedAttendanceRecord =
+  | CheckInRecord
+  | CompletedAttendanceRecord;
+
 export interface AttendanceRepository {
-  findAttendance(teacherId: string, workDate: string): Promise<CheckInRecord | null>;
+  findAttendance(
+    teacherId: string,
+    workDate: string,
+  ): Promise<PersistedAttendanceRecord | null>;
   findCalendarException(workDate: string): Promise<CalendarException | null>;
   findSchedule(
     scheduleType: ScheduleType,
@@ -44,12 +70,25 @@ export interface AttendanceRepository {
   ): Promise<ScheduleRule | null>;
   findGeofence(workDate: string): Promise<GeofenceRule | null>;
   hasApprovedLeave(teacherId: string, workDate: string): Promise<boolean>;
-  saveCheckIn(input: SaveCheckInInput): Promise<CheckInRecord>;
+  saveCheckIn(input: SaveCheckInInput): Promise<PersistedAttendanceRecord>;
+  saveCheckout(input: SaveCheckoutInput): Promise<CompletedAttendanceRecord>;
+  listAttendanceHistory(
+    teacherId: string,
+    input: ListAttendanceHistoryQuery,
+  ): Promise<{ records: PersistedAttendanceRecord[]; totalItems: number }>;
 }
 
 export interface AttendanceService {
   getToday(teacherId: string): Promise<TodayAttendanceResponse>;
-  checkIn(teacherId: string, location: LocationInput): Promise<CheckInRecord>;
+  checkIn(teacherId: string, location: LocationInput): Promise<AttendanceRecord>;
+  checkout(
+    teacherId: string,
+    location: LocationInput,
+  ): Promise<CompletedAttendanceRecord>;
+  history(
+    teacherId: string,
+    input: ListAttendanceHistoryQuery,
+  ): Promise<AttendanceHistoryResponse>;
 }
 
 interface JakartaDateTime {
@@ -111,7 +150,9 @@ function todaySchedule(schedule: ScheduleRule): TodaySchedule {
     checkInOpen: schedule.checkInOpen,
     workStart: schedule.workStart,
     checkInClose: schedule.checkInClose,
+    checkoutOpen: schedule.checkoutOpen,
     workEnd: schedule.workEnd,
+    checkoutClose: schedule.checkoutClose,
     targetMinutes: schedule.targetMinutes,
   };
 }
@@ -135,6 +176,53 @@ function roundedMeters(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function validatedDistance(
+  location: LocationInput,
+  geofence: GeofenceRule,
+): number {
+  if (location.accuracyMeters > geofence.maxAccuracyMeters) {
+    throw new AppError(
+      422,
+      'LOCATION_INACCURATE',
+      'Akurasi lokasi belum memadai. Aktifkan lokasi presisi lalu coba lagi',
+      { maxAccuracyMeters: geofence.maxAccuracyMeters },
+    );
+  }
+  const distanceMeters = haversineDistanceMeters(
+    geofence.latitude,
+    geofence.longitude,
+    location.latitude,
+    location.longitude,
+  );
+  if (distanceMeters > geofence.radiusMeters) {
+    throw new AppError(422, 'OUTSIDE_GEOFENCE', 'Anda berada di luar radius sekolah', {
+      distanceMeters: roundedMeters(distanceMeters),
+      radiusMeters: geofence.radiusMeters,
+    });
+  }
+  return roundedMeters(distanceMeters);
+}
+
+function derivedAttendance(
+  attendance: PersistedAttendanceRecord,
+  serverNow: Date,
+): AttendanceRecord {
+  if (attendance.status === 'COMPLETED') return attendance;
+  const current = jakartaDateTime(serverNow);
+  const cutoffPassed =
+    attendance.workDate < current.workDate ||
+    (attendance.workDate === current.workDate &&
+      current.minuteOfDay > timeMinutes(attendance.checkoutClose));
+  if (!cutoffPassed) return attendance;
+  return IncompleteAttendanceRecordSchema.parse({
+    ...attendance,
+    checkOutAt: null,
+    workedMinutes: Math.max(0, attendance.targetMinutes - 60),
+    workDeficitMinutes: Math.min(60, attendance.targetMinutes),
+    status: 'INCOMPLETE',
+  });
+}
+
 export function createAttendanceService(
   repository: AttendanceRepository,
   now: () => Date = () => new Date(),
@@ -145,12 +233,14 @@ export function createAttendanceService(
       const { workDate } = jakartaDateTime(serverNow);
       const existing = await repository.findAttendance(teacherId, workDate);
       if (existing) {
+        const attendance = derivedAttendance(existing, serverNow);
+        const day = await resolveDay(repository, workDate);
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
           workDate,
-          state: 'CHECKED_IN',
-          schedule: null,
-          attendance: existing,
+          state: attendance.status,
+          schedule: day.schedule ? todaySchedule(day.schedule) : null,
+          attendance,
         });
       }
 
@@ -223,39 +313,15 @@ export function createAttendanceService(
           'Check-in tidak dapat dilakukan karena izin sudah disetujui',
         );
       }
-      if (location.accuracyMeters > geofence.maxAccuracyMeters) {
-        throw new AppError(
-          422,
-          'LOCATION_INACCURATE',
-          'Akurasi lokasi belum memadai. Aktifkan lokasi presisi lalu coba lagi',
-          { maxAccuracyMeters: geofence.maxAccuracyMeters },
-        );
-      }
-      const distanceMeters = haversineDistanceMeters(
-        geofence.latitude,
-        geofence.longitude,
-        location.latitude,
-        location.longitude,
-      );
-      if (distanceMeters > geofence.radiusMeters) {
-        throw new AppError(
-          422,
-          'OUTSIDE_GEOFENCE',
-          'Anda berada di luar radius sekolah',
-          {
-            distanceMeters: roundedMeters(distanceMeters),
-            radiusMeters: geofence.radiusMeters,
-          },
-        );
-      }
+      const distanceMeters = validatedDistance(location, geofence);
 
-      return CheckInRecordSchema.parse(
+      return AttendanceRecordSchema.parse(
         await repository.saveCheckIn({
           teacherId,
           workDate,
           checkInAt: serverNow.toISOString(),
           location,
-          distanceMeters: roundedMeters(distanceMeters),
+          distanceMeters,
           schedule: day.schedule,
           arrivalLateMinutes: Math.max(
             0,
@@ -263,6 +329,91 @@ export function createAttendanceService(
           ),
         }),
       );
+    },
+
+    async checkout(teacherId, location) {
+      const serverNow = now();
+      const { workDate, minuteOfDay } = jakartaDateTime(serverNow);
+      const existing = await repository.findAttendance(teacherId, workDate);
+      if (!existing) {
+        throw new AppError(
+          409,
+          'CHECK_IN_REQUIRED',
+          'Checkout hanya dapat dilakukan setelah check-in',
+        );
+      }
+      if (existing.status === 'COMPLETED') return existing;
+
+      const day = await resolveDay(repository, workDate);
+      if (!day.schedule) {
+        throw new AppError(
+          422,
+          'SCHEDULE_NOT_CONFIGURED',
+          'Jadwal untuk hari ini belum dikonfigurasi',
+        );
+      }
+      if (
+        minuteOfDay < timeMinutes(day.schedule.checkoutOpen) ||
+        minuteOfDay > timeMinutes(existing.checkoutClose)
+      ) {
+        throw new AppError(
+          422,
+          'OUTSIDE_ATTENDANCE_WINDOW',
+          'Checkout hanya dapat dilakukan pada jadwal yang ditentukan',
+          {
+            checkoutOpen: day.schedule.checkoutOpen,
+            checkoutClose: existing.checkoutClose,
+          },
+        );
+      }
+      const geofence = await repository.findGeofence(workDate);
+      if (!geofence) {
+        throw new AppError(
+          422,
+          'GEOFENCE_NOT_CONFIGURED',
+          'Lokasi sekolah untuk hari ini belum dikonfigurasi',
+        );
+      }
+      const distanceMeters = validatedDistance(location, geofence);
+      const workedMinutes = Math.max(
+        0,
+        Math.floor(
+          (serverNow.getTime() - new Date(existing.checkInAt).getTime()) / 60_000,
+        ),
+      );
+      return CompletedAttendanceRecordSchema.parse(
+        await repository.saveCheckout({
+          attendanceId: existing.id,
+          teacherId,
+          workDate,
+          checkOutAt: serverNow.toISOString(),
+          location,
+          distanceMeters,
+          workedMinutes,
+          workDeficitMinutes: Math.max(
+            0,
+            existing.targetMinutes - workedMinutes,
+          ),
+        }),
+      );
+    },
+
+    async history(teacherId, input) {
+      const query = ListAttendanceHistoryQuerySchema.parse(input);
+      const result = await repository.listAttendanceHistory(teacherId, query);
+      const serverNow = now();
+      const totalItems = result.totalItems;
+      return AttendanceHistoryResponseSchema.parse({
+        data: result.records.map((record) =>
+          AttendanceRecordSchema.parse(derivedAttendance(record, serverNow)),
+        ),
+        pagination: {
+          page: query.page,
+          pageSize: query.pageSize,
+          totalItems,
+          totalPages: Math.ceil(totalItems / query.pageSize),
+        },
+      });
     },
   };
 }
@@ -313,6 +464,52 @@ export function registerAttendanceRoutes(
         response
           .status(200)
           .json(await attendanceService.checkIn(teacherId(request), parsed.data));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.post(
+    '/api/attendance/checkout',
+    ...teacherGuards,
+    async (request, response, next) => {
+      try {
+        const parsed = LocationInputSchema.safeParse(request.body);
+        if (!parsed.success) {
+          throw new AppError(
+            400,
+            'VALIDATION_ERROR',
+            'Data lokasi tidak valid',
+            parsed.error.flatten(),
+          );
+        }
+        response
+          .status(200)
+          .json(await attendanceService.checkout(teacherId(request), parsed.data));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.get(
+    '/api/attendance/history',
+    ...teacherGuards,
+    async (request, response, next) => {
+      try {
+        const parsed = ListAttendanceHistoryQuerySchema.safeParse(request.query);
+        if (!parsed.success) {
+          throw new AppError(
+            400,
+            'VALIDATION_ERROR',
+            'Parameter riwayat absensi tidak valid',
+            parsed.error.flatten(),
+          );
+        }
+        response
+          .status(200)
+          .json(await attendanceService.history(teacherId(request), parsed.data));
       } catch (error) {
         next(error);
       }

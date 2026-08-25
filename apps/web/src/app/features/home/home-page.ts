@@ -100,7 +100,39 @@ export class HomePage implements OnInit {
         this.permissionState.set(error.permissionState);
         this.errorMessage.set(this.locationErrorText(error.permissionState));
       } else {
-        this.errorMessage.set(await this.apiErrorText(error));
+        this.errorMessage.set(await this.apiErrorText(error, 'check-in'));
+      }
+    } finally {
+      this.actionInProgress.set(false);
+    }
+  }
+
+  async checkout(): Promise<void> {
+    if (this.actionInProgress()) return;
+    this.actionInProgress.set(true);
+    this.permissionState.set('REQUESTING');
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
+    try {
+      const location = await this.currentLocation();
+      this.permissionState.set('GRANTED');
+      const attendance = await this.attendanceService.checkout(location);
+      this.today.set({
+        serverNow: attendance.checkOutAt,
+        workDate: attendance.workDate,
+        state: 'COMPLETED',
+        schedule: this.today()?.schedule ?? null,
+        attendance,
+      });
+      this.successMessage.set(
+        `Checkout berhasil dicatat pukul ${this.jakartaTime(attendance.checkOutAt)}.`,
+      );
+    } catch (error) {
+      if (error instanceof LocationRequestError) {
+        this.permissionState.set(error.permissionState);
+        this.errorMessage.set(this.locationErrorText(error.permissionState));
+      } else {
+        this.errorMessage.set(await this.apiErrorText(error, 'checkout'));
       }
     } finally {
       this.actionInProgress.set(false);
@@ -160,12 +192,15 @@ export class HomePage implements OnInit {
     return 'Lokasi tidak tersedia. Pastikan layanan lokasi perangkat aktif lalu coba lagi.';
   }
 
-  private async apiErrorText(error: unknown): Promise<string> {
+  private async apiErrorText(
+    error: unknown,
+    action: 'check-in' | 'checkout',
+  ): Promise<string> {
     if (error instanceof HttpErrorResponse) {
       const { ApiErrorSchema } = await import('@absensi/contracts');
       const parsed = ApiErrorSchema.safeParse(error.error);
       if (parsed.success) return parsed.data.error.message;
     }
-    return 'Check-in belum dapat disimpan. Periksa koneksi lalu coba lagi.';
+    return `${action === 'check-in' ? 'Check-in' : 'Checkout'} belum dapat disimpan. Periksa koneksi lalu coba lagi.`;
   }
 }

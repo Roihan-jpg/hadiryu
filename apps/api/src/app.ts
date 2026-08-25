@@ -32,6 +32,12 @@ const unavailableAttendanceService: AttendanceService = {
   async checkIn() {
     throw new AppError(500, 'ATTENDANCE_NOT_CONFIGURED', 'Absensi belum dikonfigurasi');
   },
+  async checkout() {
+    throw new AppError(500, 'ATTENDANCE_NOT_CONFIGURED', 'Absensi belum dikonfigurasi');
+  },
+  async history() {
+    throw new AppError(500, 'ATTENDANCE_NOT_CONFIGURED', 'Absensi belum dikonfigurasi');
+  },
 };
 
 const unavailableAuthService: AuthService = {

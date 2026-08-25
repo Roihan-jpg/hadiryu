@@ -22,6 +22,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'guru/riwayat',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
+    loadComponent: () =>
+      import('./features/attendance/attendance-history-page').then(
+        (module) => module.AttendanceHistoryPage,
+      ),
+  },
+  {
     path: 'guru',
     canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
