@@ -4,6 +4,15 @@
   flex-direction: column;
 }
 
+mat-toolbar {
+  position: relative;
+  z-index: 1;
+  color: #17253a;
+  background: #ffffff;
+  border-bottom: 1px solid #dce3ed;
+  font-weight: 650;
+}
+
 main {
   flex: 1;
 }

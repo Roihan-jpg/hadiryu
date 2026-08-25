@@ -1,0 +1,61 @@
+<section class="login-layout" aria-labelledby="login-title">
+  <aside class="login-context" aria-label="Tentang sistem">
+    <p class="eyebrow">Sistem internal sekolah</p>
+    <h1>Catat kehadiran dengan identitas yang tepat.</h1>
+    <p class="context-copy">
+      Gunakan NIP dan password yang diberikan sekolah. Waktu absensi selalu
+      mengikuti waktu server.
+    </p>
+    <div class="ledger-note" aria-hidden="true">
+      <span>Identitas</span><strong>NIP Guru</strong>
+      <span>Akses</span><strong>Sesuai peran</strong>
+    </div>
+  </aside>
+
+  <div class="form-region">
+    <form (ngSubmit)="submit()" [formGroup]="form" novalidate>
+      <p class="eyebrow">Absensi Guru</p>
+      <h2 id="login-title">Masuk ke akun</h2>
+      <p class="form-intro">Masukkan NIP sebagai teks, termasuk angka nol di awal.</p>
+
+      <mat-form-field appearance="outline">
+        <mat-label>NIP</mat-label>
+        <input
+          matInput
+          autocomplete="username"
+          formControlName="nip"
+          inputmode="text"
+        />
+        @if (form.controls.nip.hasError('required')) {
+          <mat-error>NIP wajib diisi</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input
+          matInput
+          autocomplete="current-password"
+          formControlName="password"
+          type="password"
+        />
+        @if (form.controls.password.hasError('required')) {
+          <mat-error>Password wajib diisi</mat-error>
+        }
+      </mat-form-field>
+
+      @if (errorMessage()) {
+        <p class="form-error" role="alert">{{ errorMessage() }}</p>
+      }
+
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="isSubmitting()"
+      >
+        {{ isSubmitting() ? 'Memeriksa akun…' : 'Masuk' }}
+      </button>
+    </form>
+  </div>
+</section>

@@ -1,0 +1,23 @@
+<section class="home-shell" aria-labelledby="home-title">
+  <p class="status-label">Akun aktif · {{ roleLabel() }}</p>
+  <h1 id="home-title">Selamat datang, {{ user()?.fullName }}.</h1>
+  <p class="intro">
+    Sesi dan akses peran Anda sudah siap. Fitur operasional akan tersedia pada
+    tahap berikutnya.
+  </p>
+
+  <dl>
+    <div>
+      <dt>NIP</dt>
+      <dd>{{ user()?.nip }}</dd>
+    </div>
+    <div>
+      <dt>Peran</dt>
+      <dd>{{ roleLabel() }}</dd>
+    </div>
+  </dl>
+
+  <button mat-stroked-button type="button" (click)="logout()">
+    Keluar dari akun
+  </button>
+</section>

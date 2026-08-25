@@ -4,18 +4,26 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run build --workspace @absensi/contracts",
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "bootstrap:super-admin": "tsx --env-file-if-exists=../../.env src/bootstrap-super-admin.ts",
     "start": "node dist/server.js",
+    "prebuild": "npm run build --workspace @absensi/contracts",
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build --workspace @absensi/contracts",
     "test": "vitest run"
   },
   "dependencies": {
     "@absensi/contracts": "*",
-    "express": "^5.2.1"
+    "@supabase/supabase-js": "2.112.4",
+    "cookie-parser": "1.4.7",
+    "express": "^5.2.1",
+    "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/cookie-parser": "1.4.10",
     "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
     "@types/supertest": "^7.2.1",

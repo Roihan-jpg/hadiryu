@@ -1,0 +1,62 @@
+import type { AuthUser } from '@absensi/contracts';
+import { signal } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { vi } from 'vitest';
+
+import { AuthService } from '../../core/auth/auth.service';
+import { LoginPage } from './login-page';
+
+const firstLoginUser: AuthUser = {
+  id: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
+  nip: '001234567890',
+  fullName: 'Guru Contoh',
+  role: 'USER',
+  isActive: true,
+  mustChangePassword: true,
+};
+
+describe('LoginPage', () => {
+  let fixture: ComponentFixture<LoginPage>;
+  const login = vi.fn(async () => firstLoginUser);
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: { user: signal(null).asReadonly(), login },
+        },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(LoginPage);
+    fixture.detectChanges();
+    login.mockClear();
+  });
+
+  it('does not submit an invalid or empty login form', async () => {
+    await fixture.componentInstance.submit();
+    fixture.detectChanges();
+
+    expect(login).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('NIP wajib diisi');
+  });
+
+  it('prevents double submit and routes first-login users to change password', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    fixture.componentInstance.form.setValue({
+      nip: '001234567890',
+      password: 'password-awal',
+    });
+
+    const first = fixture.componentInstance.submit();
+    const second = fixture.componentInstance.submit();
+    await Promise.all([first, second]);
+
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/change-password');
+  });
+});

@@ -1,0 +1,152 @@
+:host {
+  display: block;
+  min-height: 100%;
+}
+
+.login-layout {
+  min-height: calc(100dvh - 64px);
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(24rem, 1.1fr);
+  background: #f7f9fc;
+}
+
+.login-context {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2.5rem, 7vw, 7rem);
+  color: #eaf1ff;
+  background: #16335c;
+  border-left: 0.5rem solid #2f6fde;
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  color: #2f6fde;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.login-context .eyebrow {
+  color: #a9c7ff;
+}
+
+h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: clamp(2.25rem, 5vw, 4.75rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.context-copy {
+  max-width: 34rem;
+  margin: 2rem 0 0;
+  color: #c9d8ed;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.ledger-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem 1.5rem;
+  max-width: 26rem;
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #547096;
+  font-size: 0.8rem;
+}
+
+.ledger-note span {
+  color: #91a8c7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ledger-note strong {
+  font-weight: 600;
+}
+
+.form-region {
+  display: grid;
+  place-items: center;
+  padding: clamp(1.5rem, 6vw, 6rem);
+}
+
+form {
+  width: min(100%, 27rem);
+}
+
+h2 {
+  margin: 0;
+  color: #17253a;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+
+.form-intro {
+  margin: 0.75rem 0 2rem;
+  color: #58677d;
+  line-height: 1.6;
+}
+
+mat-form-field {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+button {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 0.5rem;
+}
+
+.form-error {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  color: #8b1e2d;
+  background: #fff0f2;
+  border-left: 0.25rem solid #c83e51;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .login-layout {
+    min-height: calc(100dvh - 56px);
+    grid-template-columns: 1fr;
+  }
+
+  .login-context {
+    padding: 2rem 1.5rem;
+  }
+
+  .login-context h1 {
+    max-width: 18ch;
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+
+  .context-copy {
+    margin-top: 1rem;
+  }
+
+  .ledger-note {
+    display: none;
+  }
+
+  .form-region {
+    place-items: start stretch;
+    padding: 2.25rem 1.5rem 3rem;
+  }
+
+  form {
+    width: 100%;
+  }
+}
