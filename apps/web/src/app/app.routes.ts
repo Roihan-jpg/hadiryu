@@ -28,6 +28,18 @@ export const routes: Routes = [
       import('./features/home/home-page').then((module) => module.HomePage),
   },
   {
+    path: 'admin/teachers',
+    canActivate: [
+      authGuard,
+      passwordChangedGuard,
+      roleGuard('SUPER_ADMIN'),
+    ],
+    loadComponent: () =>
+      import('./features/admin/teachers/teachers-page').then(
+        (module) => module.TeachersPage,
+      ),
+  },
+  {
     path: 'admin',
     canActivate: [
       authGuard,

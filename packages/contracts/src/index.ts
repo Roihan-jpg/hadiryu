@@ -3,3 +3,4 @@ export interface HealthResponse {
 }
 
 export * from './auth.js';
+export * from './teachers.js';

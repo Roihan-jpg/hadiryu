@@ -7,9 +7,11 @@ import {
   registerAuthRoutes,
   type AuthService,
 } from './auth.js';
+import { registerTeacherRoutes, type TeacherService } from './teachers.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
+  teacherService?: TeacherService;
   secureCookies?: boolean;
 }
 
@@ -29,6 +31,24 @@ const unavailableAuthService: AuthService = {
   async logout() {},
 };
 
+const unavailableTeacherService: TeacherService = {
+  async list() {
+    throw new AppError(500, 'TEACHERS_NOT_CONFIGURED', 'Master Guru belum dikonfigurasi');
+  },
+  async create() {
+    throw new AppError(500, 'TEACHERS_NOT_CONFIGURED', 'Master Guru belum dikonfigurasi');
+  },
+  async update() {
+    throw new AppError(500, 'TEACHERS_NOT_CONFIGURED', 'Master Guru belum dikonfigurasi');
+  },
+  async setActive() {
+    throw new AppError(500, 'TEACHERS_NOT_CONFIGURED', 'Master Guru belum dikonfigurasi');
+  },
+  async resetPassword() {
+    throw new AppError(500, 'TEACHERS_NOT_CONFIGURED', 'Master Guru belum dikonfigurasi');
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
@@ -46,6 +66,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
       ? {}
       : { secureCookies: options.secureCookies }),
   });
+  registerTeacherRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.teacherService ?? unavailableTeacherService,
+  );
   app.use(authErrorHandler);
 
   return app;
