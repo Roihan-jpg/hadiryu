@@ -8,9 +8,14 @@ import {
   type AuthService,
 } from './auth.js';
 import { registerTeacherRoutes, type TeacherService } from './teachers.js';
+import {
+  registerSettingsRoutes,
+  type SettingsService,
+} from './schedule-geofence.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
+  settingsService?: SettingsService;
   teacherService?: TeacherService;
   secureCookies?: boolean;
 }
@@ -49,6 +54,21 @@ const unavailableTeacherService: TeacherService = {
   },
 };
 
+const unavailableSettingsService: SettingsService = {
+  async getSchedules() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async createScheduleVersion() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async getGeofence() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+  async createGeofenceVersion() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
@@ -70,6 +90,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.teacherService ?? unavailableTeacherService,
+  );
+  registerSettingsRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.settingsService ?? unavailableSettingsService,
   );
   app.use(authErrorHandler);
 

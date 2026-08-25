@@ -20,6 +20,7 @@
   <div class="home-actions">
     @if (user()?.role === 'SUPER_ADMIN') {
       <a mat-flat-button routerLink="/admin/teachers">Kelola Guru</a>
+      <a mat-stroked-button routerLink="/admin/settings">Jadwal dan geofence</a>
     }
     <button mat-stroked-button type="button" (click)="logout()">
       Keluar dari akun

@@ -1,0 +1,224 @@
+<section class="settings-shell" aria-labelledby="settings-title">
+  <header class="page-header">
+    <div>
+      <a class="back-link" routerLink="/admin">← Kembali ke administrasi</a>
+      <p class="eyebrow">Aturan operasional</p>
+      <h1 id="settings-title">Jadwal dan geofence</h1>
+      <p class="intro">
+        Buat versi baru dengan tanggal mulai berlaku. Versi yang sudah dipakai
+        tetap tersimpan untuk laporan historis.
+      </p>
+    </div>
+  </header>
+
+  <form class="inspection-bar" (ngSubmit)="inspectDate()">
+    <div>
+      <strong>Lihat aturan pada tanggal</strong>
+      <span>Gunakan tanggal lampau atau tanggal efektif untuk memeriksa resolver.</span>
+    </div>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Tanggal</mat-label>
+      <input matInput type="date" [formControl]="inspectionDate" />
+    </mat-form-field>
+    <button mat-stroked-button type="submit" [disabled]="loading()">
+      Tampilkan
+    </button>
+  </form>
+
+  @if (successMessage()) {
+    <p class="feedback success" role="status">{{ successMessage() }}</p>
+  }
+  @if (errorMessage()) {
+    <p class="feedback error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @if (loading()) {
+    <div class="loading-state" role="status">
+      <mat-spinner diameter="32" />
+      <span>Memuat aturan operasional…</span>
+    </div>
+  } @else {
+    <section class="resolved-section" aria-labelledby="resolved-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Hasil resolver</p>
+          <h2 id="resolved-title">Berlaku pada {{ schedules()?.effectiveOn }}</h2>
+        </div>
+        <p>Versi ini hanya dibaca; perubahan dibuat sebagai versi baru di bawah.</p>
+      </div>
+
+      <div class="resolved-grid">
+        @for (
+          item of [
+            { label: 'Senin–Jumat', rule: schedules()?.weekday },
+            { label: 'Sabtu', rule: schedules()?.saturday }
+          ];
+          track item.label
+        ) {
+          <article class="schedule-summary">
+            <div class="summary-title">
+              <h3>{{ item.label }}</h3>
+              @if (item.rule) {
+                <strong>{{ item.rule.targetMinutes }} menit</strong>
+              }
+            </div>
+            @if (item.rule) {
+              <div class="time-band" aria-label="Urutan waktu jadwal">
+                @for (field of timeFields; track field.key; let last = $last) {
+                  <div class="time-step" [class.last]="last">
+                    <span>{{ field.label }}</span>
+                    <strong>{{ item.rule[field.key] }}</strong>
+                  </div>
+                }
+              </div>
+              <p class="version-range">
+                Mulai {{ item.rule.effectiveFrom }} ·
+                {{ item.rule.effectiveTo ? 'Sampai ' + item.rule.effectiveTo : 'Versi terbuka' }}
+              </p>
+            } @else {
+              <p class="empty-inline">Belum ada aturan untuk tanggal ini.</p>
+            }
+          </article>
+        }
+
+        <article class="geofence-summary">
+          <div class="summary-title">
+            <h3>Lokasi sekolah</h3>
+            @if (geofence()?.geofence; as rule) {
+              <strong>Radius {{ rule.radiusMeters }} meter</strong>
+            }
+          </div>
+          @if (geofence()?.geofence; as rule) {
+            <dl>
+              <div><dt>Koordinat</dt><dd>{{ rule.latitude }}, {{ rule.longitude }}</dd></div>
+              <div><dt>Akurasi maksimum</dt><dd>{{ rule.maxAccuracyMeters }} meter</dd></div>
+              <div><dt>Mulai berlaku</dt><dd>{{ rule.effectiveFrom }}</dd></div>
+            </dl>
+          } @else {
+            <p class="empty-inline">Belum ada geofence untuk tanggal ini.</p>
+          }
+        </article>
+      </div>
+    </section>
+  }
+
+  <section class="setting-section" aria-labelledby="schedule-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Versi berikutnya</p>
+        <h2 id="schedule-form-title">Jadwal global</h2>
+      </div>
+      <p>Senin–Jumat dan Sabtu selalu diterbitkan bersama pada satu tanggal.</p>
+    </div>
+
+    <form [formGroup]="scheduleForm" (ngSubmit)="saveSchedules()">
+      <mat-form-field appearance="outline">
+        <mat-label>Mulai berlaku</mat-label>
+        <input
+          matInput
+          type="date"
+          [min]="minimumEffectiveDate"
+          formControlName="effectiveFrom"
+        />
+        @if (scheduleForm.controls.effectiveFrom.invalid) {
+          <mat-error>Tanggal mulai berlaku wajib diisi.</mat-error>
+        }
+      </mat-form-field>
+
+      @for (
+        schedule of [
+          { key: 'weekday', label: 'Senin–Jumat' },
+          { key: 'saturday', label: 'Sabtu' }
+        ];
+        track schedule.key
+      ) {
+        <fieldset [formGroupName]="schedule.key">
+          <legend>{{ schedule.label }}</legend>
+          <div class="time-form-grid">
+            @for (field of timeFields; track field.key) {
+              <mat-form-field appearance="outline">
+                <mat-label>{{ field.label }}</mat-label>
+                <input matInput type="time" [formControlName]="field.key" />
+                <mat-error>Waktu wajib diisi.</mat-error>
+              </mat-form-field>
+            }
+            <mat-form-field appearance="outline">
+              <mat-label>Target menit</mat-label>
+              <input matInput type="number" min="1" formControlName="targetMinutes" />
+              <mat-error>Target wajib lebih dari nol.</mat-error>
+            </mat-form-field>
+          </div>
+          @if (scheduleForm.get(schedule.key)?.hasError('timeOrder')) {
+            <p class="field-error" role="alert">Urutan waktu jadwal tidak valid.</p>
+          }
+        </fieldset>
+      }
+
+      <div class="form-actions">
+        <span>Versi lama akan ditutup sehari sebelum tanggal ini.</span>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="actionInProgress() !== null"
+        >
+          {{ actionInProgress() === 'schedule' ? 'Menyimpan…' : 'Buat versi jadwal' }}
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="setting-section" aria-labelledby="geofence-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Satu lokasi sekolah</p>
+        <h2 id="geofence-form-title">Geofence global</h2>
+      </div>
+      <p>Koordinat, radius, dan batas akurasi selalu divalidasi kembali oleh backend.</p>
+    </div>
+
+    <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofence()">
+      <div class="geofence-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Mulai berlaku</mat-label>
+          <input
+            matInput
+            type="date"
+            [min]="minimumEffectiveDate"
+            formControlName="effectiveFrom"
+          />
+          <mat-error>Tanggal mulai berlaku wajib diisi.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Latitude</mat-label>
+          <input matInput type="number" step="0.000001" formControlName="latitude" />
+          <mat-error>Latitude harus antara -90 dan 90.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Longitude</mat-label>
+          <input matInput type="number" step="0.000001" formControlName="longitude" />
+          <mat-error>Longitude harus antara -180 dan 180.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Radius (meter)</mat-label>
+          <input matInput type="number" min="25" max="1000" formControlName="radiusMeters" />
+          <mat-error>Radius harus 25–1000 meter.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Akurasi maksimum (meter)</mat-label>
+          <input matInput type="number" min="5" max="200" formControlName="maxAccuracyMeters" />
+          <mat-error>Akurasi harus 5–200 meter.</mat-error>
+        </mat-form-field>
+      </div>
+      <div class="form-actions">
+        <span>Aplikasi hanya mendukung satu lokasi sekolah.</span>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="actionInProgress() !== null"
+        >
+          {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : 'Buat versi geofence' }}
+        </button>
+      </div>
+    </form>
+  </section>
+</section>
