@@ -1,29 +1,136 @@
-<section class="home-shell" aria-labelledby="home-title">
-  <p class="status-label">Akun aktif · {{ roleLabel() }}</p>
-  <h1 id="home-title">Selamat datang, {{ user()?.fullName }}.</h1>
-  <p class="intro">
-    Sesi dan akses peran Anda sudah siap. Fitur operasional akan tersedia pada
-    tahap berikutnya.
-  </p>
+@if (user()?.role === 'SUPER_ADMIN') {
+  <section class="home-shell" aria-labelledby="home-title">
+    <p class="status-label">Akun aktif · {{ roleLabel() }}</p>
+    <h1 id="home-title">Selamat datang, {{ user()?.fullName }}.</h1>
+    <p class="intro">Kelola data Guru dan aturan operasional sekolah.</p>
 
-  <dl>
-    <div>
-      <dt>NIP</dt>
-      <dd>{{ user()?.nip }}</dd>
-    </div>
-    <div>
-      <dt>Peran</dt>
-      <dd>{{ roleLabel() }}</dd>
-    </div>
-  </dl>
+    <dl class="account-list">
+      <div>
+        <dt>NIP</dt>
+        <dd>{{ user()?.nip }}</dd>
+      </div>
+      <div>
+        <dt>Peran</dt>
+        <dd>{{ roleLabel() }}</dd>
+      </div>
+    </dl>
 
-  <div class="home-actions">
-    @if (user()?.role === 'SUPER_ADMIN') {
+    <div class="home-actions">
       <a mat-flat-button routerLink="/admin/teachers">Kelola Guru</a>
       <a mat-stroked-button routerLink="/admin/settings">Jadwal dan geofence</a>
-    }
-    <button mat-stroked-button type="button" (click)="logout()">
-      Keluar dari akun
-    </button>
-  </div>
-</section>
+      <button mat-stroked-button type="button" (click)="logout()">
+        Keluar dari akun
+      </button>
+    </div>
+  </section>
+} @else {
+  <section class="teacher-shell" aria-labelledby="home-title">
+    <header class="teacher-header">
+      <p class="status-label">Dashboard Guru</p>
+      <h1 id="home-title">Hari ini, {{ user()?.fullName }}</h1>
+      @if (workDateLabel()) {
+        <p class="date-label">{{ workDateLabel() }}</p>
+      }
+    </header>
+
+    <section class="attendance-board" aria-labelledby="attendance-title">
+      <div class="board-heading">
+        <div>
+          <p class="board-kicker">Kehadiran hari ini</p>
+          <h2 id="attendance-title">
+            @if (loadingToday()) {
+              Memuat status…
+            } @else if (today()?.state === 'CHECKED_IN') {
+              Sudah check-in
+            } @else if (today()?.state === 'NON_WORKING_DAY') {
+              Hari libur
+            } @else if (today()?.state === 'CONFIGURATION_ERROR') {
+              Jadwal belum siap
+            } @else {
+              Belum check-in
+            }
+          </h2>
+        </div>
+        @if (today()?.state === 'CHECKED_IN') {
+          <span class="state-mark state-mark--done">Tercatat</span>
+        } @else if (today()?.state === 'READY_TO_CHECK_IN') {
+          <span class="state-mark">Menunggu</span>
+        }
+      </div>
+
+      @if (today()?.schedule; as schedule) {
+        <div class="time-ruler" aria-label="Jadwal check-in hari ini">
+          <div>
+            <span>Dibuka</span>
+            <strong>{{ schedule.checkInOpen }}</strong>
+          </div>
+          <div>
+            <span>Mulai kerja</span>
+            <strong>{{ schedule.workStart }}</strong>
+          </div>
+          <div>
+            <span>Ditutup</span>
+            <strong>{{ schedule.checkInClose }}</strong>
+          </div>
+        </div>
+        <p class="schedule-note">
+          Target {{ schedule.targetMinutes }} menit · selesai {{ schedule.workEnd }}
+        </p>
+      }
+
+      @if (today()?.attendance; as attendance) {
+        <dl class="attendance-result">
+          <div>
+            <dt>Waktu server</dt>
+            <dd>{{ jakartaTime(attendance.checkInAt) }} WIB</dd>
+          </div>
+          <div>
+            <dt>Jarak</dt>
+            <dd>{{ attendance.distanceMeters }} meter</dd>
+          </div>
+          <div>
+            <dt>Akurasi</dt>
+            <dd>{{ attendance.accuracyMeters }} meter</dd>
+          </div>
+        </dl>
+      } @else if (today()?.state === 'NON_WORKING_DAY') {
+        <p class="state-copy">Tidak ada jadwal kerja yang perlu dicatat hari ini.</p>
+      } @else if (today()?.state === 'CONFIGURATION_ERROR') {
+        <p class="state-copy">Konfigurasi hari ini belum lengkap. Hubungi SuperAdmin.</p>
+      }
+
+      @if (errorMessage()) {
+        <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
+      }
+      @if (successMessage()) {
+        <p class="feedback feedback--success" role="status">{{ successMessage() }}</p>
+      }
+
+      @if (loadingToday()) {
+        <p class="loading-copy" role="status">Memuat jadwal dari server…</p>
+      } @else if (!today() && errorMessage()) {
+        <button mat-stroked-button type="button" (click)="loadToday()">
+          Coba lagi
+        </button>
+      } @else if (today()?.state === 'READY_TO_CHECK_IN') {
+        <button
+          mat-flat-button
+          data-action="check-in"
+          type="button"
+          [disabled]="actionInProgress()"
+          (click)="checkIn()"
+        >
+          {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Check-in sekarang' }}
+        </button>
+        <p class="permission-note">
+          Lokasi presisi baru diminta setelah tombol ditekan.
+        </p>
+      }
+    </section>
+
+    <footer class="teacher-footer">
+      <span>NIP {{ user()?.nip }}</span>
+      <button mat-button type="button" (click)="logout()">Keluar</button>
+    </footer>
+  </section>
+}

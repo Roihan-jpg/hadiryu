@@ -10,6 +10,16 @@
   padding: clamp(4rem, 12vh, 8rem) 0;
 }
 
+.teacher-shell {
+  width: min(46rem, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: clamp(2.5rem, 7vh, 5rem) 0 2rem;
+}
+
+.teacher-header {
+  margin-bottom: 2rem;
+}
+
 .status-label {
   margin: 0 0 1rem;
   color: #2f6fde;
@@ -28,6 +38,17 @@ h1 {
   line-height: 1;
 }
 
+.teacher-header h1 {
+  max-width: 42rem;
+  font-size: clamp(2.25rem, 7vw, 4.25rem);
+}
+
+.date-label {
+  margin: 0.75rem 0 0;
+  color: #58677d;
+  text-transform: capitalize;
+}
+
 .intro {
   max-width: 38rem;
   margin: 1.5rem 0 2.5rem;
@@ -36,16 +57,168 @@ h1 {
   line-height: 1.7;
 }
 
-dl {
+.account-list {
   margin: 0 0 2.5rem;
   border-top: 1px solid #ccd6e4;
 }
 
-dl div {
+.account-list div {
   display: grid;
   grid-template-columns: 8rem 1fr;
   padding: 1rem 0;
   border-bottom: 1px solid #ccd6e4;
+}
+
+.attendance-board {
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: #ffffff;
+  border: 1px solid #ccd6e4;
+  border-top: 4px solid #2f6fde;
+  border-radius: 0.75rem;
+  box-shadow: 0 1rem 2.5rem rgb(30 52 80 / 7%);
+}
+
+.board-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.board-kicker {
+  margin: 0 0 0.35rem;
+  color: #6b7a90;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 0;
+  color: #17253a;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  letter-spacing: -0.035em;
+}
+
+.state-mark {
+  padding: 0.4rem 0.65rem;
+  color: #335a91;
+  background: #edf4ff;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.state-mark--done {
+  color: #176345;
+  background: #e9f7f0;
+}
+
+.time-ruler {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #9fb9df;
+}
+
+.time-ruler div {
+  position: relative;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.time-ruler div::before {
+  position: absolute;
+  top: -1.58rem;
+  left: 0;
+  width: 0.6rem;
+  height: 0.6rem;
+  background: #2f6fde;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #9fb9df;
+  content: '';
+}
+
+.time-ruler span,
+.attendance-result dt {
+  color: #6b7a90;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.time-ruler strong {
+  color: #17253a;
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-note,
+.permission-note,
+.loading-copy,
+.state-copy {
+  color: #58677d;
+  line-height: 1.6;
+}
+
+.schedule-note {
+  margin: 1rem 0 1.75rem;
+}
+
+.attendance-result {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 1.75rem 0 0;
+  padding: 1.25rem 0 0;
+  border-top: 1px solid #dce3ed;
+}
+
+.attendance-result div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.attendance-result dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback {
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
+  border-left: 3px solid;
+  line-height: 1.5;
+}
+
+.feedback--error {
+  color: #8f211b;
+  background: #fff1f0;
+  border-color: #c43c35;
+}
+
+.feedback--success {
+  color: #176345;
+  background: #edf8f2;
+  border-color: #2f8a65;
+}
+
+.permission-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+}
+
+.teacher-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  color: #6b7a90;
+  font-size: 0.85rem;
 }
 
 dt {
@@ -69,12 +242,22 @@ dd {
 }
 
 @media (max-width: 520px) {
-  .home-shell {
+  .home-shell,
+  .teacher-shell {
     width: min(100% - 2rem, 44rem);
   }
 
-  dl div {
+  .account-list div {
     grid-template-columns: 1fr;
     gap: 0.35rem;
+  }
+
+  .attendance-result {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .time-ruler {
+    gap: 0.5rem;
   }
 }

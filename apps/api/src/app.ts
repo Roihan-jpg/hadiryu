@@ -12,13 +12,27 @@ import {
   registerSettingsRoutes,
   type SettingsService,
 } from './schedule-geofence.js';
+import {
+  registerAttendanceRoutes,
+  type AttendanceService,
+} from './attendance.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
+  attendanceService?: AttendanceService;
   settingsService?: SettingsService;
   teacherService?: TeacherService;
   secureCookies?: boolean;
 }
+
+const unavailableAttendanceService: AttendanceService = {
+  async getToday() {
+    throw new AppError(500, 'ATTENDANCE_NOT_CONFIGURED', 'Absensi belum dikonfigurasi');
+  },
+  async checkIn() {
+    throw new AppError(500, 'ATTENDANCE_NOT_CONFIGURED', 'Absensi belum dikonfigurasi');
+  },
+};
 
 const unavailableAuthService: AuthService = {
   async login() {
@@ -113,6 +127,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.settingsService ?? unavailableSettingsService,
+  );
+  registerAttendanceRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.attendanceService ?? unavailableAttendanceService,
   );
   app.use(authErrorHandler);
 
