@@ -8,10 +8,30 @@ import {
 
 export const routes: Routes = [
   {
+    path: 'guru/izin',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
+    loadComponent: () =>
+      import('./features/leave-requests/leave-requests-page').then(
+        (module) => module.LeaveRequestsPage,
+      ),
+  },
+  {
     path: 'login',
     canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/auth/login-page').then((module) => module.LoginPage),
+  },
+  {
+    path: 'admin/leave-requests',
+    canActivate: [
+      authGuard,
+      passwordChangedGuard,
+      roleGuard('SUPER_ADMIN'),
+    ],
+    loadComponent: () =>
+      import('./features/admin/leave-requests/admin-leave-requests-page').then(
+        (module) => module.AdminLeaveRequestsPage,
+      ),
   },
   {
     path: 'change-password',

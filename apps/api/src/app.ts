@@ -16,12 +16,17 @@ import {
   registerAttendanceRoutes,
   type AttendanceService,
 } from './attendance.js';
+import {
+  registerLeaveRequestRoutes,
+  type LeaveRequestService,
+} from './leave-requests.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
   attendanceService?: AttendanceService;
   settingsService?: SettingsService;
   teacherService?: TeacherService;
+  leaveRequestService?: LeaveRequestService;
   secureCookies?: boolean;
 }
 
@@ -107,6 +112,15 @@ const unavailableSettingsService: SettingsService = {
   },
 };
 
+const unavailableLeaveRequestService: LeaveRequestService = {
+  async create() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+  async listOwn() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+  async cancel() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+  async listAdmin() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+  async approve() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+  async reject() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
@@ -138,6 +152,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.attendanceService ?? unavailableAttendanceService,
+  );
+  registerLeaveRequestRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.leaveRequestService ?? unavailableLeaveRequestService,
   );
   app.use(authErrorHandler);
 

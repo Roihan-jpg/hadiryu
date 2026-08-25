@@ -1,6 +1,9 @@
 import {
   CreateLeaveRequestSchema,
   DecideLeaveRequestSchema,
+  LeaveRequestSchema,
+  LeaveStatusSchema,
+  LeaveTypeSchema,
   ListAdminLeaveRequestsQuerySchema,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
@@ -51,5 +54,40 @@ describe('leave request contracts', () => {
     expect(DecideLeaveRequestSchema.safeParse({ decisionNote: '   ' }).success).toBe(
       false,
     );
+  });
+
+  it('supports every leave type and lifecycle status', () => {
+    for (const leaveType of ['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']) {
+      expect(LeaveTypeSchema.parse(leaveType)).toBe(leaveType);
+    }
+    for (const status of ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']) {
+      expect(LeaveStatusSchema.parse(status)).toBe(status);
+    }
+  });
+
+  it('rejects decision metadata that contradicts the lifecycle status', () => {
+    const base = {
+      id: '40000000-0000-4000-8000-000000000001',
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      leaveDate: '2026-08-26',
+      leaveType: 'SICK',
+      reason: 'Perlu berobat',
+      createdAt: '2026-08-25T00:00:00.000Z',
+      updatedAt: '2026-08-25T00:00:00.000Z',
+    };
+    expect(LeaveRequestSchema.safeParse({
+      ...base,
+      status: 'PENDING',
+      decisionNote: null,
+      decidedBy: '50000000-0000-4000-8000-000000000002',
+      decidedAt: '2026-08-25T01:00:00.000Z',
+    }).success).toBe(false);
+    expect(LeaveRequestSchema.safeParse({
+      ...base,
+      status: 'APPROVED',
+      decisionNote: null,
+      decidedBy: null,
+      decidedAt: null,
+    }).success).toBe(false);
   });
 });

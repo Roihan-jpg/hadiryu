@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AppError } from './auth.js';
 import {
+  calculateApprovedLeaveCredit,
   createLeaveRequestService,
   type LeaveRequestRepository,
 } from './leave-requests.js';
@@ -73,6 +74,13 @@ function service(repository = new FakeLeaveRepository(), now = '2026-08-25T05:00
 }
 
 describe('leave request service', () => {
+  it('gives approved leave the full target credit with no deficit', () => {
+    expect(calculateApprovedLeaveCredit(515)).toEqual({
+      workedMinutes: 515,
+      workDeficitMinutes: 0,
+    });
+  });
+
   it('creates a future single-date request', async () => {
     const { service: leaveService, repository } = service();
     const result = await leaveService.create(teacherId, {

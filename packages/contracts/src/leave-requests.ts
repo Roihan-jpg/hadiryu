@@ -26,7 +26,7 @@ const DecisionNoteSchema = z
   .min(1, 'Catatan keputusan tidak boleh kosong')
   .max(1000);
 
-export const LeaveRequestSchema = z.strictObject({
+const LeaveRequestBaseSchema = z.strictObject({
   id: z.uuid(),
   teacherId: z.uuid(),
   leaveDate: LocalDateSchema,
@@ -39,6 +39,25 @@ export const LeaveRequestSchema = z.strictObject({
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
+
+function validateDecisionState(
+  value: z.infer<typeof LeaveRequestBaseSchema>,
+  context: z.RefinementCtx,
+): void {
+  const isDecided = value.status === 'APPROVED' || value.status === 'REJECTED';
+  const hasDecisionMetadata = value.decidedBy !== null && value.decidedAt !== null;
+  if (isDecided !== hasDecisionMetadata) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Metadata keputusan tidak sesuai dengan status izin',
+      path: ['status'],
+    });
+  }
+}
+
+export const LeaveRequestSchema = LeaveRequestBaseSchema.superRefine(
+  validateDecisionState,
+);
 export type LeaveRequest = z.infer<typeof LeaveRequestSchema>;
 
 export const CreateLeaveRequestSchema = z.strictObject({
@@ -55,10 +74,10 @@ export const ListLeaveRequestsQuerySchema = z.strictObject({
 });
 export type ListLeaveRequestsQuery = z.infer<typeof ListLeaveRequestsQuerySchema>;
 
-export const AdminLeaveRequestSchema = LeaveRequestSchema.extend({
+export const AdminLeaveRequestSchema = LeaveRequestBaseSchema.extend({
   teacherNip: z.string().min(1),
   teacherFullName: z.string().min(1),
-});
+}).superRefine(validateDecisionState);
 export type AdminLeaveRequest = z.infer<typeof AdminLeaveRequestSchema>;
 
 export const ListAdminLeaveRequestsQuerySchema = ListLeaveRequestsQuerySchema.extend({

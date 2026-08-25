@@ -7,6 +7,8 @@ import { SupabaseTeacherService } from './supabase-teachers.js';
 import { SupabaseSettingsService } from './supabase-settings.js';
 import { createAttendanceService } from './attendance.js';
 import { SupabaseAttendanceRepository } from './supabase-attendance.js';
+import { createLeaveRequestService } from './leave-requests.js';
+import { SupabaseLeaveRequestRepository } from './supabase-leave-requests.js';
 
 const port = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
 const supabaseConfig = loadSupabaseAuthConfig(process.env);
@@ -15,6 +17,9 @@ const teacherService = new SupabaseTeacherService(supabaseConfig);
 const settingsService = new SupabaseSettingsService(supabaseConfig);
 const attendanceService = createAttendanceService(
   new SupabaseAttendanceRepository(supabaseConfig),
+);
+const leaveRequestService = createLeaveRequestService(
+  new SupabaseLeaveRequestRepository(supabaseConfig),
 );
 const secureCookies =
   process.env['SESSION_COOKIE_SECURE'] === undefined
@@ -26,6 +31,7 @@ createApp({
   authService,
   settingsService,
   teacherService,
+  leaveRequestService,
   secureCookies,
 }).listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);

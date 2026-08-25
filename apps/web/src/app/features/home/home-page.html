@@ -17,6 +17,7 @@
 
     <div class="home-actions">
       <a mat-flat-button routerLink="/admin/teachers">Kelola Guru</a>
+      <a mat-stroked-button routerLink="/admin/leave-requests">Approval izin</a>
       <a mat-stroked-button routerLink="/admin/settings">Jadwal dan geofence</a>
       <button mat-stroked-button type="button" (click)="logout()">
         Keluar dari akun
@@ -195,6 +196,7 @@
       <span>NIP {{ user()?.nip }}</span>
       <div class="footer-actions">
         <a mat-button routerLink="/guru/riwayat">Lihat riwayat</a>
+        <a mat-button routerLink="/guru/izin">Ajukan izin</a>
         <button mat-button type="button" (click)="logout()">Keluar</button>
       </div>
     </footer>

@@ -3,7 +3,6 @@ import {
   CreateLeaveRequestSchema,
   DecideLeaveRequestSchema,
   LeaveRequestListResponseSchema,
-  LeaveRequestResponseSchema,
   ListAdminLeaveRequestsQuerySchema,
   ListLeaveRequestsQuerySchema,
   type AdminLeaveRequest,
@@ -50,12 +49,6 @@ export interface LeaveRequestRepository {
     decisionNote: string | null,
     decidedAt: string,
   ): Promise<LeaveRequest>;
-  writeDecisionAudit(
-    actorId: string,
-    action: 'LEAVE_APPROVED' | 'LEAVE_REJECTED',
-    before: AdminLeaveRequest,
-    after: LeaveRequest,
-  ): Promise<void>;
 }
 
 export interface LeaveRequestService {
@@ -116,6 +109,13 @@ function paginated<T>(records: T[], totalItems: number, page: number, pageSize: 
   return { data: records, pagination: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) } };
 }
 
+export function calculateApprovedLeaveCredit(targetMinutes: number): {
+  workedMinutes: number;
+  workDeficitMinutes: 0;
+} {
+  return { workedMinutes: targetMinutes, workDeficitMinutes: 0 };
+}
+
 export function createLeaveRequestService(
   repository: LeaveRequestRepository,
   now: () => Date = () => new Date(),
@@ -138,13 +138,9 @@ export function createLeaveRequestService(
       throw new AppError(409, 'LEAVE_NOT_PENDING', 'Hanya izin Pending yang dapat diputuskan');
     }
     if (status === 'APPROVED') await assertNoCheckIn(request.teacherId, request.leaveDate);
-    const updated = await repository.decide(
+    return repository.decide(
       leaveRequestId, actorId, status, input.decisionNote ?? null, now().toISOString(),
     );
-    await repository.writeDecisionAudit(
-      actorId, status === 'APPROVED' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED', request, updated,
-    );
-    return updated;
   }
 
   return {

@@ -277,6 +277,13 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       const existing = await this.findAttendance(input.teacherId, input.workDate);
       if (existing) return existing;
     }
+    if (error?.code === '23514' && error.message.includes('attendance_leave_conflict')) {
+      throw new AppError(
+        409,
+        'ALREADY_HAS_APPROVED_LEAVE',
+        'Check-in tidak dapat dilakukan karena izin sudah disetujui',
+      );
+    }
     throw new AppError(
       500,
       'ATTENDANCE_SAVE_FAILED',
