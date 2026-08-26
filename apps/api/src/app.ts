@@ -24,6 +24,10 @@ import {
   registerAdminAttendanceRoutes,
   type AdminAttendanceService,
 } from './admin-attendance.js';
+import {
+  registerMonthlyReportRoutes,
+  type MonthlyReportService,
+} from './monthly-report.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -32,6 +36,7 @@ export interface CreateAppOptions {
   teacherService?: TeacherService;
   leaveRequestService?: LeaveRequestService;
   adminAttendanceService?: AdminAttendanceService;
+  monthlyReportService?: MonthlyReportService;
   secureCookies?: boolean;
 }
 
@@ -143,6 +148,16 @@ const unavailableAdminAttendanceService: AdminAttendanceService = {
   },
 };
 
+const unavailableMonthlyReportService: MonthlyReportService = {
+  async preview() {
+    throw new AppError(
+      500,
+      'MONTHLY_REPORT_NOT_CONFIGURED',
+      'Laporan bulanan belum dikonfigurasi',
+    );
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
@@ -184,6 +199,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.adminAttendanceService ?? unavailableAdminAttendanceService,
+  );
+  registerMonthlyReportRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.monthlyReportService ?? unavailableMonthlyReportService,
   );
   app.use(authErrorHandler);
 
