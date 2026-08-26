@@ -28,6 +28,10 @@ import {
   registerMonthlyReportRoutes,
   type MonthlyReportService,
 } from './monthly-report.js';
+import {
+  registerExcelExportRoutes,
+  type ExcelExportService,
+} from './excel-export.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -37,6 +41,7 @@ export interface CreateAppOptions {
   leaveRequestService?: LeaveRequestService;
   adminAttendanceService?: AdminAttendanceService;
   monthlyReportService?: MonthlyReportService;
+  excelExportService?: ExcelExportService;
   secureCookies?: boolean;
 }
 
@@ -158,6 +163,16 @@ const unavailableMonthlyReportService: MonthlyReportService = {
   },
 };
 
+const unavailableExcelExportService: ExcelExportService = {
+  async export() {
+    throw new AppError(
+      500,
+      'EXCEL_EXPORT_NOT_CONFIGURED',
+      'Ekspor Excel belum dikonfigurasi',
+    );
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
@@ -204,6 +219,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.monthlyReportService ?? unavailableMonthlyReportService,
+  );
+  registerExcelExportRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.excelExportService ?? unavailableExcelExportService,
   );
   app.use(authErrorHandler);
 

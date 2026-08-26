@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { createApp } from './app.js';
 import {
   loadSupabaseAuthConfig,
@@ -13,6 +15,8 @@ import { createAdminAttendanceService } from './admin-attendance.js';
 import { SupabaseAdminAttendanceRepository } from './supabase-admin-attendance.js';
 import { createMonthlyReportService } from './monthly-report.js';
 import { SupabaseMonthlyReportRepository } from './supabase-monthly-report.js';
+import { createExcelExportService } from './excel-export.js';
+import { SupabaseExcelExportAuditRepository } from './supabase-excel-export.js';
 
 const port = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
 const supabaseConfig = loadSupabaseAuthConfig(process.env);
@@ -31,6 +35,15 @@ const adminAttendanceService = createAdminAttendanceService(
 const monthlyReportService = createMonthlyReportService(
   new SupabaseMonthlyReportRepository(supabaseConfig),
 );
+const excelExportService = createExcelExportService(
+  monthlyReportService,
+  new SupabaseExcelExportAuditRepository(supabaseConfig),
+  {
+    templatePath: fileURLToPath(
+      new URL('../../../report-template.xlsx', import.meta.url),
+    ),
+  },
+);
 const secureCookies =
   process.env['SESSION_COOKIE_SECURE'] === undefined
     ? process.env['NODE_ENV'] === 'production'
@@ -44,6 +57,7 @@ createApp({
   teacherService,
   leaveRequestService,
   monthlyReportService,
+  excelExportService,
   secureCookies,
 }).listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);

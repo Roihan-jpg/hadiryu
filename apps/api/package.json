@@ -19,6 +19,7 @@
     "@absensi/contracts": "*",
     "@supabase/supabase-js": "2.112.4",
     "cookie-parser": "1.4.7",
+    "exceljs": "4.4.0",
     "express": "^5.2.1",
     "zod": "4.4.3"
   },
