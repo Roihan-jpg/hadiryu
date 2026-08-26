@@ -1,6 +1,6 @@
 import type { AdminLeaveRequest, DecideLeaveRequest, LeaveStatus } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -11,12 +11,14 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
+import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 
 import { LeaveRequestsService } from '../../leave-requests/leave-requests.service';
+import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
+import { createIndonesianPaginatorIntl } from '../../../core/ui/paginator-intl';
 
 type StatusFilter = LeaveStatus | 'ALL';
 type DecisionAction = 'APPROVED' | 'REJECTED';
@@ -39,12 +41,12 @@ interface LeaveDecisionDialogData {
     <mat-dialog-content>
       <p>
         {{ data.request.teacherFullName }} mengajukan izin untuk
-        <strong>{{ data.request.leaveDate }}</strong>.
+        <strong>{{ dateLabel(data.request.leaveDate) }}</strong>.
       </p>
       <p class="reason">{{ data.request.reason }}</p>
       <mat-form-field appearance="outline">
         <mat-label>Catatan keputusan (opsional)</mat-label>
-        <textarea matInput rows="3" maxlength="1000" [formControl]="decisionNote"></textarea>
+        <textarea matInput rows="3" maxlength="1000" name="decisionNote" autocomplete="off" [formControl]="decisionNote"></textarea>
         @if (decisionNote.invalid) {
           <mat-error>Catatan maksimal 1.000 karakter.</mat-error>
         }
@@ -71,10 +73,19 @@ export class LeaveDecisionDialog {
     validators: [Validators.maxLength(1000)],
   });
   private readonly dialogRef = inject(MatDialogRef<LeaveDecisionDialog>);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  dateLabel(workDate: string): string {
+    return new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'medium',
+      timeZone: 'UTC',
+    }).format(new Date(`${workDate}T00:00:00.000Z`));
+  }
 
   submit(): void {
     if (this.decisionNote.invalid) {
       this.decisionNote.markAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     const decisionNote = this.decisionNote.value.trim();
@@ -84,6 +95,7 @@ export class LeaveDecisionDialog {
 
 @Component({
   imports: [MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatProgressSpinnerModule, MatSelectModule, ReactiveFormsModule, RouterLink],
+  providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   selector: 'app-admin-leave-requests-page', styleUrl: './admin-leave-requests-page.scss', templateUrl: './admin-leave-requests-page.html',
 })
 export class AdminLeaveRequestsPage implements OnInit {
@@ -150,6 +162,12 @@ export class AdminLeaveRequestsPage implements OnInit {
 
   typeLabel(type: AdminLeaveRequest['leaveType']): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya' })[type]; }
   statusLabel(status: LeaveStatus): string { return ({ PENDING: 'Pending', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' })[status]; }
+  dateLabel(workDate: string): string {
+    return new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'medium',
+      timeZone: 'UTC',
+    }).format(new Date(`${workDate}T00:00:00.000Z`));
+  }
   private async errorText(error: unknown, fallback: string): Promise<string> {
     if (error instanceof HttpErrorResponse) {
       const { ApiErrorSchema } = await import('@absensi/contracts');

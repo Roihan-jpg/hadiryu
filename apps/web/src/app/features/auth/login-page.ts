@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal } from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { focusFirstInvalidControl } from '../../core/ui/form-focus';
 
 @Component({
   imports: [
@@ -26,6 +27,7 @@ import { AuthService } from '../../core/auth/auth.service';
 })
 export class LoginPage {
   private readonly auth = inject(AuthService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
 
   readonly isSubmitting = signal(false);
@@ -45,6 +47,7 @@ export class LoginPage {
     if (this.isSubmitting()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
 

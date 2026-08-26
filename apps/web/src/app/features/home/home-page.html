@@ -34,7 +34,7 @@
       }
     </header>
 
-    <section class="attendance-board" aria-labelledby="attendance-title">
+    <section class="attendance-board" aria-labelledby="attendance-title" [attr.aria-busy]="loadingToday()">
       <div class="board-heading">
         <div>
           <p class="board-kicker">Kehadiran hari ini</p>
@@ -154,11 +154,11 @@
         <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
       }
       @if (successMessage()) {
-        <p class="feedback feedback--success" role="status">{{ successMessage() }}</p>
+        <p class="feedback feedback--success" role="status" aria-live="polite">{{ successMessage() }}</p>
       }
 
       @if (loadingToday()) {
-        <p class="loading-copy" role="status">Memuat jadwal dari server…</p>
+        <div class="loading-copy" role="status" aria-live="polite"><mat-spinner diameter="24" aria-hidden="true" /> <span>Memuat jadwal dari server…</span></div>
       } @else if (!today() && errorMessage()) {
         <button mat-stroked-button type="button" (click)="loadToday()">
           Coba lagi
@@ -197,7 +197,6 @@
       <div class="footer-actions">
         <a mat-button routerLink="/guru/riwayat">Lihat riwayat</a>
         <a mat-button routerLink="/guru/izin">Ajukan izin</a>
-        <button mat-button type="button" (click)="logout()">Keluar</button>
       </div>
     </footer>
   </section>

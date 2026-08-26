@@ -1,7 +1,30 @@
+<a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
 <mat-toolbar role="banner">
-  <span>{{ appName }}</span>
+  <a class="brand" [routerLink]="homeRoute()" aria-label="Absensi Guru, halaman utama">
+    <span class="brand-mark" aria-hidden="true">AG</span>
+    <span>{{ appName }}</span>
+  </a>
+
+  @if (user(); as currentUser) {
+    <nav aria-label="Navigasi utama">
+      @if (currentUser.role === 'USER' && !currentUser.mustChangePassword) {
+        <a mat-button routerLink="/guru" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Hari ini</a>
+        <a mat-button routerLink="/guru/riwayat" routerLinkActive="active" ariaCurrentWhenActive="page">Riwayat</a>
+        <a mat-button routerLink="/guru/izin" routerLinkActive="active" ariaCurrentWhenActive="page">Izin</a>
+      } @else if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
+        <a mat-button routerLink="/admin" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Monitoring</a>
+        <a mat-button routerLink="/admin/teachers" routerLinkActive="active" ariaCurrentWhenActive="page">Guru</a>
+        <a mat-button routerLink="/admin/leave-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Approval izin</a>
+        <a mat-button routerLink="/admin/settings" routerLinkActive="active" ariaCurrentWhenActive="page">Pengaturan</a>
+      }
+    </nav>
+    <span class="toolbar-spacer"></span>
+    <span class="account-name">{{ currentUser.fullName }}</span>
+    <button mat-button type="button" (click)="logout()">Keluar</button>
+  }
 </mat-toolbar>
 
-<main>
+<main id="main-content" tabindex="-1">
   <router-outlet />
 </main>

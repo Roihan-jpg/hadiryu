@@ -42,6 +42,9 @@ describe('LoginPage', () => {
 
     expect(login).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('NIP wajib diisi');
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('input[formControlName="nip"]'),
+    );
   });
 
   it('prevents double submit and routes first-login users to change password', async () => {

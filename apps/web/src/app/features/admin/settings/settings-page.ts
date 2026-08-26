@@ -11,8 +11,7 @@ import {
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DecimalPipe } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import {
   AbstractControl,
   FormControl,
@@ -29,6 +28,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 
 import { SettingsService } from './settings.service';
+import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
 
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const timeKeys = [
@@ -97,7 +97,6 @@ function scheduleRuleForm() {
 
 @Component({
   imports: [
-    DecimalPipe,
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
@@ -111,6 +110,7 @@ function scheduleRuleForm() {
 })
 export class SettingsPage implements OnInit {
   private readonly service = inject(SettingsService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly timeFields: ReadonlyArray<{
     key: (typeof timeKeys)[number];
@@ -201,6 +201,22 @@ export class SettingsPage implements OnInit {
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
 
+  dateLabel(workDate: string | null | undefined): string {
+    if (!workDate) return '—';
+    return new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'medium',
+      timeZone: 'UTC',
+    }).format(new Date(`${workDate}T00:00:00.000Z`));
+  }
+
+  currencyLabel(value: number): string {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 2,
+    }).format(value);
+  }
+
   ngOnInit(): void {
     void this.loadForDate(this.inspectionDate.value);
   }
@@ -208,6 +224,7 @@ export class SettingsPage implements OnInit {
   async inspectDate(): Promise<void> {
     if (this.inspectionDate.invalid) {
       this.inspectionDate.markAsTouched();
+      this.host.nativeElement.querySelector<HTMLInputElement>('[name="inspectionDate"]')?.focus();
       return;
     }
     await this.loadForDate(this.inspectionDate.value);
@@ -217,6 +234,18 @@ export class SettingsPage implements OnInit {
     if (this.actionInProgress() !== null) return;
     if (this.scheduleForm.invalid) {
       this.scheduleForm.markAllAsTouched();
+      const groupName = this.scheduleForm.controls.weekday.hasError('timeOrder')
+        ? 'weekday'
+        : this.scheduleForm.controls.saturday.hasError('timeOrder')
+          ? 'saturday'
+          : null;
+      if (groupName) {
+        this.host.nativeElement
+          .querySelector<HTMLInputElement>(`#${groupName}-checkInOpen`)
+          ?.focus();
+      } else {
+        focusFirstInvalidControl(this.host.nativeElement);
+      }
       return;
     }
     const input = CreateScheduleVersionRequestSchema.parse(
@@ -248,6 +277,7 @@ export class SettingsPage implements OnInit {
     if (this.actionInProgress() !== null) return;
     if (this.geofenceForm.invalid) {
       this.geofenceForm.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     const input = CreateGeofenceVersionRequestSchema.parse(
@@ -279,6 +309,7 @@ export class SettingsPage implements OnInit {
     if (this.actionInProgress() !== null) return;
     if (this.calendarForm.invalid) {
       this.calendarForm.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     const input = CalendarExceptionInputSchema.parse({
@@ -349,6 +380,7 @@ export class SettingsPage implements OnInit {
     if (this.actionInProgress() !== null) return;
     if (this.payrollForm.invalid) {
       this.payrollForm.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     const input = CreatePayrollVersionRequestSchema.parse(this.payrollForm.getRawValue());

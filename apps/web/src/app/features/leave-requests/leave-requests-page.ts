@@ -1,16 +1,18 @@
 import type { LeaveRequest, LeaveStatus, LeaveType } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators, type ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
+import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 
 import { LeaveRequestsService } from './leave-requests.service';
+import { focusFirstInvalidControl } from '../../core/ui/form-focus';
+import { createIndonesianPaginatorIntl } from '../../core/ui/paginator-intl';
 
 function todayJakarta(): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -18,15 +20,24 @@ function todayJakarta(): string {
   return `${find('year')}-${find('month')}-${find('day')}`;
 }
 
+function dateNotBefore(minimumDate: string): ValidatorFn {
+  return (control) =>
+    typeof control.value === 'string' && control.value !== '' && control.value < minimumDate
+      ? { pastDate: true }
+      : null;
+}
+
 @Component({
   imports: [MatButtonModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatProgressSpinnerModule, MatSelectModule, ReactiveFormsModule, RouterLink],
+  providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   selector: 'app-leave-requests-page', styleUrl: './leave-requests-page.scss', templateUrl: './leave-requests-page.html',
 })
 export class LeaveRequestsPage implements OnInit {
   private readonly service = inject(LeaveRequestsService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly minDate = todayJakarta();
   readonly form = new FormGroup({
-    leaveDate: new FormControl(this.minDate, { nonNullable: true, validators: [Validators.required] }),
+    leaveDate: new FormControl(this.minDate, { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/), dateNotBefore(this.minDate)] }),
     leaveType: new FormControl<LeaveType>('SICK', { nonNullable: true, validators: [Validators.required] }),
     reason: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(1000)] }),
   });
@@ -51,7 +62,7 @@ export class LeaveRequestsPage implements OnInit {
 
   async submit(): Promise<void> {
     if (this.actionInProgress()) return;
-    if (this.form.invalid) { this.form.markAllAsTouched(); return; }
+    if (this.form.invalid) { this.form.markAllAsTouched(); focusFirstInvalidControl(this.host.nativeElement); return; }
     this.actionInProgress.set('create'); this.errorMessage.set(''); this.successMessage.set('');
     try {
       const value = this.form.getRawValue();
@@ -82,6 +93,12 @@ export class LeaveRequestsPage implements OnInit {
 
   typeLabel(type: LeaveType): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya' })[type]; }
   statusLabel(status: LeaveStatus): string { return ({ PENDING: 'Menunggu keputusan', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' })[status]; }
+  dateLabel(workDate: string): string {
+    return new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'full',
+      timeZone: 'UTC',
+    }).format(new Date(`${workDate}T00:00:00.000Z`));
+  }
 
   private async errorText(error: unknown, fallback: string): Promise<string> {
     if (error instanceof HttpErrorResponse) {

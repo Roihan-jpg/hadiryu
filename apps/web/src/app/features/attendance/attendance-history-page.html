@@ -8,20 +8,20 @@
     </div>
   </header>
 
-  <form class="month-filter" (ngSubmit)="applyMonth()">
+  <form class="month-filter" (ngSubmit)="applyMonth()" novalidate>
     <label for="history-month">Bulan</label>
     <div>
-      <input id="history-month" type="month" [formControl]="monthControl" />
+      <input id="history-month" name="month" type="month" [formControl]="monthControl" autocomplete="off" />
       <button mat-stroked-button type="submit" [disabled]="loading()">Tampilkan</button>
     </div>
     @if (monthControl.invalid && monthControl.touched) {
-      <p class="field-error">Pilih bulan yang valid.</p>
+      <p class="field-error" role="alert">Pilih bulan yang valid.</p>
     }
   </form>
 
   @if (loading()) {
-    <div class="loading-state" role="status">
-      <mat-spinner diameter="32" />
+    <div class="loading-state" role="status" aria-live="polite">
+      <mat-spinner diameter="32" aria-hidden="true" />
       <span>Memuat riwayat absensi…</span>
     </div>
   } @else if (errorMessage()) {
@@ -30,7 +30,7 @@
       <button mat-button type="button" (click)="loadHistory()">Coba lagi</button>
     </div>
   } @else if (records().length === 0) {
-    <div class="empty-state">
+    <div class="empty-state" role="status">
       <h2>Belum ada absensi pada bulan ini</h2>
       <p>Catatan check-in dan checkout akan tampil di sini.</p>
     </div>

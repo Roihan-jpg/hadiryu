@@ -22,7 +22,7 @@
 
 .status-label {
   margin: 0 0 1rem;
-  color: #2f6fde;
+  color: #245ca8;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -73,7 +73,7 @@ h1 {
   padding: clamp(1.25rem, 4vw, 2rem);
   background: #ffffff;
   border: 1px solid #ccd6e4;
-  border-top: 4px solid #2f6fde;
+  border-top: 4px solid #245ca8;
   border-radius: 0.75rem;
   box-shadow: 0 1rem 2.5rem rgb(30 52 80 / 7%);
 }
@@ -87,7 +87,7 @@ h1 {
 
 .board-kicker {
   margin: 0 0 0.35rem;
-  color: #6b7a90;
+  color: #5d6b80;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -142,7 +142,7 @@ h2 {
   left: 0;
   width: 0.6rem;
   height: 0.6rem;
-  background: #2f6fde;
+  background: #245ca8;
   border: 3px solid #ffffff;
   border-radius: 50%;
   box-shadow: 0 0 0 1px #9fb9df;
@@ -151,7 +151,7 @@ h2 {
 
 .time-ruler span,
 .attendance-result dt {
-  color: #6b7a90;
+  color: #5d6b80;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -170,6 +170,12 @@ h2 {
 .state-copy {
   color: #58677d;
   line-height: 1.6;
+}
+
+.loading-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
 }
 
 .schedule-note {
@@ -222,7 +228,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   margin-top: 1.25rem;
-  color: #6b7a90;
+  color: #5d6b80;
   font-size: 0.85rem;
 }
 
@@ -233,7 +239,7 @@ h2 {
 }
 
 dt {
-  color: #6b7a90;
+  color: #5d6b80;
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -266,6 +272,22 @@ dd {
   .attendance-result {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+
+  .board-heading,
+  .teacher-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .attendance-board > button[data-action] {
+    width: 100%;
+    min-height: 3rem;
+  }
+
+  .footer-actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .time-ruler {

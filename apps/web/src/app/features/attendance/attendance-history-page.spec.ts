@@ -132,4 +132,17 @@ describe('AttendanceHistoryPage', () => {
       'Belum ada absensi pada bulan ini',
     );
   });
+
+  it('focuses the month field when its value is invalid', async () => {
+    await setup();
+    fixture.componentInstance.monthControl.setValue('bulan-tidak-valid');
+
+    await fixture.componentInstance.applyMonth();
+    fixture.detectChanges();
+
+    expect(getHistory).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('#history-month'),
+    );
+  });
 });

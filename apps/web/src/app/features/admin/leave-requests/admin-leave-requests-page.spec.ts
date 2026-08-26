@@ -55,4 +55,13 @@ describe('AdminLeaveRequestsPage', () => {
       { decisionNote: 'Data sesuai' },
     );
   });
+  it('does not show an empty result together with an error', async () => {
+    await setup({ data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } });
+    fixture.componentInstance.errorMessage.set('Daftar approval gagal dimuat.');
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Daftar approval gagal dimuat.');
+    expect(text).not.toContain('Tidak ada pengajuan izin yang sesuai filter.');
+  });
 });

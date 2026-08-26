@@ -87,6 +87,7 @@ describe('TeachersPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Guru Contoh');
     expect(fixture.nativeElement.textContent).toContain('19870001');
     expect(fixture.nativeElement.querySelector('mat-paginator')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.table-frame')?.tabIndex).toBe(0);
   });
 
   it('restarts at page one when applying a trimmed search', async () => {

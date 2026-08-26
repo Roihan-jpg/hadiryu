@@ -1,12 +1,13 @@
 import type { AttendanceRecord } from '@absensi/contracts';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
+import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 
 import { AttendanceService } from './attendance.service';
+import { createIndonesianPaginatorIntl } from '../../core/ui/paginator-intl';
 
 function currentJakartaMonth(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -28,11 +29,13 @@ function currentJakartaMonth(): string {
     RouterLink,
   ],
   selector: 'app-attendance-history-page',
+  providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   styleUrl: './attendance-history-page.scss',
   templateUrl: './attendance-history-page.html',
 })
 export class AttendanceHistoryPage implements OnInit {
   private readonly service = inject(AttendanceService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly monthControl = new FormControl(currentJakartaMonth(), {
     nonNullable: true,
@@ -55,6 +58,7 @@ export class AttendanceHistoryPage implements OnInit {
   async loadHistory(): Promise<void> {
     if (this.monthControl.invalid) {
       this.monthControl.markAsTouched();
+      this.focusMonthField();
       return;
     }
     this.loading.set(true);
@@ -80,6 +84,7 @@ export class AttendanceHistoryPage implements OnInit {
   async applyMonth(): Promise<void> {
     if (this.monthControl.invalid) {
       this.monthControl.markAsTouched();
+      this.focusMonthField();
       return;
     }
     this.pagination.update((value) => ({ ...value, page: 1 }));
@@ -115,5 +120,9 @@ export class AttendanceHistoryPage implements OnInit {
     if (record.status === 'COMPLETED') return 'Selesai';
     if (record.status === 'INCOMPLETE') return 'Tidak lengkap';
     return 'Sedang berlangsung';
+  }
+
+  private focusMonthField(): void {
+    this.host.nativeElement.querySelector<HTMLInputElement>('#history-month')?.focus();
   }
 }

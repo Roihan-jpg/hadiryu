@@ -31,6 +31,7 @@ describe('LeaveRequestsPage', () => {
     expect(text).toContain('Ajukan izin');
     expect(text).toContain('Menunggu keputusan');
     expect(text).toContain('Batalkan');
+    expect(text).toContain('Rabu, 26 Agustus 2026');
   });
   it('submits a single-date request and prevents duplicate submission', async () => {
     await setup();
@@ -51,6 +52,19 @@ describe('LeaveRequestsPage', () => {
 
     expect(create).not.toHaveBeenCalled();
     expect(page.form.controls.reason.invalid).toBe(true);
+  });
+  it('rejects a leave date before today on the client', async () => {
+    await setup();
+    const page = fixture.componentInstance;
+    const yesterday = new Date(`${page.minDate}T00:00:00.000Z`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    page.form.controls.leaveDate.setValue(yesterday.toISOString().slice(0, 10));
+    page.form.controls.reason.setValue('Perlu berobat');
+
+    await page.submit();
+
+    expect(create).not.toHaveBeenCalled();
+    expect(page.form.controls.leaveDate.hasError('pastDate')).toBe(true);
   });
   it('cancels only a pending request', async () => {
     await setup();

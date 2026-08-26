@@ -5,7 +5,7 @@ import type {
   CreateAttendanceAdminNote,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -23,27 +23,12 @@ import {
 } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
-import { RouterLink } from '@angular/router';
 
+import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
+import { createIndonesianPaginatorIntl } from '../../../core/ui/paginator-intl';
 import { AdminDashboardService } from './admin-dashboard.service';
 
 type StatusFilter = AdminAttendanceStatus | 'ALL';
-
-function createIndonesianPaginatorIntl(): MatPaginatorIntl {
-  const paginator = new MatPaginatorIntl();
-  paginator.itemsPerPageLabel = 'Baris per halaman:';
-  paginator.nextPageLabel = 'Halaman berikutnya';
-  paginator.previousPageLabel = 'Halaman sebelumnya';
-  paginator.firstPageLabel = 'Halaman pertama';
-  paginator.lastPageLabel = 'Halaman terakhir';
-  paginator.getRangeLabel = (page, pageSize, length) => {
-    if (length === 0 || pageSize === 0) return '0 dari 0';
-    const start = page * pageSize + 1;
-    const end = Math.min(start + pageSize - 1, length);
-    return `${start}–${end} dari ${length}`;
-  };
-  return paginator;
-}
 
 @Component({
   imports: [
@@ -59,7 +44,7 @@ function createIndonesianPaginatorIntl(): MatPaginatorIntl {
       <p>Catatan untuk <strong>{{ data.teacherFullName }}</strong> bersifat permanen dan tidak mengubah hasil absensi.</p>
       <mat-form-field appearance="outline">
         <mat-label>Catatan administratif</mat-label>
-        <textarea matInput rows="4" maxlength="2000" [formControl]="noteControl"></textarea>
+        <textarea matInput rows="4" maxlength="2000" name="attendanceNote" autocomplete="off" [formControl]="noteControl"></textarea>
         @if (noteControl.invalid && noteControl.touched) {
           <mat-error>Catatan wajib diisi dan maksimal 2.000 karakter.</mat-error>
         }
@@ -86,11 +71,13 @@ export class AttendanceNoteDialog {
     validators: [Validators.required, Validators.maxLength(2000)],
   });
   private readonly dialogRef = inject(MatDialogRef<AttendanceNoteDialog>);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   submit(): void {
     const note = this.noteControl.value.trim();
     if (!note || this.noteControl.invalid) {
       this.noteControl.markAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     this.dialogRef.close({ note } satisfies CreateAttendanceAdminNote);
@@ -107,7 +94,6 @@ export class AttendanceNoteDialog {
     MatProgressSpinnerModule,
     MatSelectModule,
     ReactiveFormsModule,
-    RouterLink,
   ],
   selector: 'app-admin-dashboard-page',
   providers: [

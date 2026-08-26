@@ -25,9 +25,13 @@
           autocomplete="username"
           formControlName="nip"
           inputmode="text"
+          name="nip"
+          spellcheck="false"
         />
         @if (form.controls.nip.hasError('required')) {
-          <mat-error>NIP wajib diisi</mat-error>
+          <mat-error>NIP wajib diisi.</mat-error>
+        } @else if (form.controls.nip.hasError('maxlength')) {
+          <mat-error>NIP maksimal 64 karakter.</mat-error>
         }
       </mat-form-field>
 
@@ -37,10 +41,11 @@
           matInput
           autocomplete="current-password"
           formControlName="password"
+          name="password"
           type="password"
         />
         @if (form.controls.password.hasError('required')) {
-          <mat-error>Password wajib diisi</mat-error>
+          <mat-error>Password wajib diisi.</mat-error>
         }
       </mat-form-field>
 

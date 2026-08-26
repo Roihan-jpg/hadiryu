@@ -154,10 +154,16 @@ describe('SettingsPage', () => {
       effectiveFrom: '2026-09-01',
       weekday: { checkInOpen: '07:00', workStart: '06:00' },
     });
+    fixture.detectChanges();
     await fixture.componentInstance.saveSchedules();
 
     expect(createSchedules).not.toHaveBeenCalled();
     expect(fixture.componentInstance.scheduleForm.invalid).toBe(true);
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector(
+        '#weekday-checkInOpen',
+      ),
+    );
   });
 
   it('creates new schedule and geofence versions through separate forms', async () => {

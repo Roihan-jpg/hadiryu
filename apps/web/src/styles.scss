@@ -5,13 +5,20 @@ html {
     (
       color: (
         primary: mat.$azure-palette,
-        tertiary: mat.$blue-palette,
+        tertiary: mat.$azure-palette,
       ),
       typography: Roboto,
       density: 0,
     )
   );
   color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html,
@@ -21,5 +28,157 @@ body {
 
 body {
   margin: 0;
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  color: #1d2b3d;
+  background: #f5f7fa;
+  font-family: 'Aptos', 'Segoe UI Variable', 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: rgb(47 111 222 / 14%);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #174ea6;
+  outline-offset: 3px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+app-settings-page {
+  .back-link {
+    display: inline-block;
+    margin-bottom: 2rem;
+    color: #245ca8;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .time-band {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .time-step {
+    position: relative;
+    min-width: 0;
+    padding-right: 0.65rem;
+  }
+
+  .time-step::after {
+    position: absolute;
+    top: 1.52rem;
+    right: 0;
+    left: 0;
+    height: 2px;
+    background: #9dbdf4;
+    content: '';
+  }
+
+  .time-step.last::after {
+    right: 50%;
+  }
+
+  .time-step span {
+    display: block;
+    min-height: 2.2rem;
+    color: #5d6b80;
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+
+  .time-step strong {
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+    margin-top: 0.45rem;
+    padding-right: 0.35rem;
+    background: #fff;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .calendar-table-wrap {
+    max-width: 100%;
+    margin-top: 1.5rem;
+    overflow-x: auto;
+    border: 1px solid #ccd6e4;
+    border-radius: 0.65rem;
+    background: #fff;
+  }
+
+  .calendar-table {
+    width: 100%;
+    min-width: 42rem;
+    border-collapse: collapse;
+  }
+
+  .calendar-table th,
+  .calendar-table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+  }
+
+  .calendar-table th {
+    color: #5d6b80;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .calendar-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  @media (max-width: 900px) {
+    .time-band {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .time-step {
+      padding-bottom: 0.75rem;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .time-band {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      row-gap: 0.75rem;
+    }
+  }
 }

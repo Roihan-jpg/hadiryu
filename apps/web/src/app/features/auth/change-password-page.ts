@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal } from '@angular/core';
 import {
   AbstractControl,
   FormControl,
@@ -14,6 +14,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { focusFirstInvalidControl } from '../../core/ui/form-focus';
 
 function matchingPasswords(control: AbstractControl): ValidationErrors | null {
   const newPassword = control.get('newPassword')?.value as string | undefined;
@@ -46,6 +47,7 @@ function matchingPasswords(control: AbstractControl): ValidationErrors | null {
 })
 export class ChangePasswordPage {
   private readonly auth = inject(AuthService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
 
   readonly isSubmitting = signal(false);
@@ -72,6 +74,7 @@ export class ChangePasswordPage {
     if (this.isSubmitting()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
 

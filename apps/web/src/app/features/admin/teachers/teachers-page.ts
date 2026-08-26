@@ -5,7 +5,7 @@ import type {
   UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -21,11 +21,13 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
+import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
 
 import { TeachersService } from './teachers.service';
+import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
+import { createIndonesianPaginatorIntl } from '../../../core/ui/paginator-intl';
 
 interface TeacherFormValue {
   nip: string;
@@ -53,14 +55,14 @@ interface ConfirmDialogData {
       <form class="dialog-form" [formGroup]="form" (ngSubmit)="submit()">
         <mat-form-field appearance="outline">
           <mat-label>NIP</mat-label>
-          <input matInput formControlName="nip" autocomplete="off" />
+          <input matInput formControlName="nip" name="nip" autocomplete="off" spellcheck="false" />
           @if (form.controls.nip.invalid) {
             <mat-error>NIP wajib diisi dengan format yang valid.</mat-error>
           }
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Nama lengkap</mat-label>
-          <input matInput formControlName="fullName" autocomplete="name" />
+          <input matInput formControlName="fullName" name="fullName" autocomplete="name" />
           @if (form.controls.fullName.invalid) {
             <mat-error>Nama lengkap wajib diisi.</mat-error>
           }
@@ -72,6 +74,7 @@ interface ConfirmDialogData {
               matInput
               type="password"
               formControlName="initialPassword"
+              name="initialPassword"
               autocomplete="new-password"
             />
             @if (form.controls.initialPassword.invalid) {
@@ -97,6 +100,7 @@ interface ConfirmDialogData {
 export class TeacherFormDialog {
   readonly teacher = inject<Teacher | null>(MAT_DIALOG_DATA);
   private readonly dialogRef = inject(MatDialogRef<TeacherFormDialog>);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly form = new FormGroup({
     nip: new FormControl(this.teacher?.nip ?? '', {
       nonNullable: true,
@@ -117,6 +121,7 @@ export class TeacherFormDialog {
   submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     const value = this.form.getRawValue();
@@ -147,6 +152,7 @@ export class TeacherFormDialog {
           type="password"
           [formControl]="password"
           autocomplete="new-password"
+          name="temporaryPassword"
           (keydown.enter)="submit()"
         />
         @if (password.invalid) {
@@ -163,6 +169,7 @@ export class TeacherFormDialog {
 })
 export class ResetPasswordDialog {
   private readonly dialogRef = inject(MatDialogRef<ResetPasswordDialog>);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly password = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
@@ -171,6 +178,7 @@ export class ResetPasswordDialog {
   submit(): void {
     if (this.password.invalid) {
       this.password.markAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
     this.dialogRef.close({
@@ -208,6 +216,7 @@ export class ConfirmTeacherDialog {
     ReactiveFormsModule,
   ],
   selector: 'app-teachers-page',
+  providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   styleUrl: './teachers-page.scss',
   templateUrl: './teachers-page.html',
 })

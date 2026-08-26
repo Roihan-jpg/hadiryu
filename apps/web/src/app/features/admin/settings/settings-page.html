@@ -11,14 +11,14 @@
     </div>
   </header>
 
-  <form class="inspection-bar" (ngSubmit)="inspectDate()">
+  <form class="inspection-bar" (ngSubmit)="inspectDate()" novalidate>
     <div>
       <strong>Lihat aturan pada tanggal</strong>
       <span>Gunakan tanggal lampau atau tanggal efektif untuk memeriksa resolver.</span>
     </div>
     <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Tanggal</mat-label>
-      <input matInput type="date" [formControl]="inspectionDate" />
+      <input matInput type="date" name="inspectionDate" autocomplete="off" [formControl]="inspectionDate" />
     </mat-form-field>
     <button mat-stroked-button type="submit" [disabled]="loading()">
       Tampilkan
@@ -26,23 +26,25 @@
   </form>
 
   @if (successMessage()) {
-    <p class="feedback success" role="status">{{ successMessage() }}</p>
-  }
-  @if (errorMessage()) {
-    <p class="feedback error" role="alert">{{ errorMessage() }}</p>
+    <p class="feedback success" role="status" aria-live="polite">{{ successMessage() }}</p>
   }
 
   @if (loading()) {
-    <div class="loading-state" role="status">
-      <mat-spinner diameter="32" />
+    <div class="loading-state" role="status" aria-live="polite">
+      <mat-spinner diameter="32" aria-hidden="true" />
       <span>Memuat aturan operasional…</span>
+    </div>
+  } @else if (errorMessage()) {
+    <div class="feedback error" role="alert">
+      <span>{{ errorMessage() }}</span>
+      <button mat-button type="button" (click)="inspectDate()">Coba lagi</button>
     </div>
   } @else {
     <section class="resolved-section" aria-labelledby="resolved-title">
       <div class="section-heading">
         <div>
           <p class="section-kicker">Hasil resolver</p>
-          <h2 id="resolved-title">Berlaku pada {{ schedules()?.effectiveOn }}</h2>
+          <h2 id="resolved-title">Berlaku pada {{ dateLabel(schedules()?.effectiveOn) }}</h2>
         </div>
         <p>Versi ini hanya dibaca; perubahan dibuat sebagai versi baru di bawah.</p>
       </div>
@@ -72,8 +74,8 @@
                 }
               </div>
               <p class="version-range">
-                Mulai {{ item.rule.effectiveFrom }} ·
-                {{ item.rule.effectiveTo ? 'Sampai ' + item.rule.effectiveTo : 'Versi terbuka' }}
+                Mulai {{ dateLabel(item.rule.effectiveFrom) }} ·
+                {{ item.rule.effectiveTo ? 'Sampai ' + dateLabel(item.rule.effectiveTo) : 'Versi terbuka' }}
               </p>
             } @else {
               <p class="empty-inline">Belum ada aturan untuk tanggal ini.</p>
@@ -92,7 +94,7 @@
             <dl>
               <div><dt>Koordinat</dt><dd>{{ rule.latitude }}, {{ rule.longitude }}</dd></div>
               <div><dt>Akurasi maksimum</dt><dd>{{ rule.maxAccuracyMeters }} meter</dd></div>
-              <div><dt>Mulai berlaku</dt><dd>{{ rule.effectiveFrom }}</dd></div>
+              <div><dt>Mulai berlaku</dt><dd>{{ dateLabel(rule.effectiveFrom) }}</dd></div>
             </dl>
           } @else {
             <p class="empty-inline">Belum ada geofence untuk tanggal ini.</p>
@@ -103,13 +105,13 @@
           <div class="summary-title">
             <h3>Upah kinerja</h3>
             @if (payroll()?.payrollRule; as rule) {
-              <strong>Rp{{ rule.basePerformancePay | number: '1.2-2' }}</strong>
+              <strong>{{ currencyLabel(rule.basePerformancePay) }}</strong>
             }
           </div>
           @if (payroll()?.payrollRule; as rule) {
             <dl>
-              <div><dt>Potongan per menit</dt><dd>Rp{{ rule.deductionRatePerMinute | number: '1.2-2' }}</dd></div>
-              <div><dt>Mulai berlaku</dt><dd>{{ rule.effectiveFrom }}</dd></div>
+              <div><dt>Potongan per menit</dt><dd>{{ currencyLabel(rule.deductionRatePerMinute) }}</dd></div>
+              <div><dt>Mulai berlaku</dt><dd>{{ dateLabel(rule.effectiveFrom) }}</dd></div>
               <div><dt>Status</dt><dd>{{ rule.effectiveTo ? 'Versi tertutup' : 'Versi terbuka' }}</dd></div>
             </dl>
           } @else {
@@ -118,8 +120,6 @@
         </article>
       </div>
     </section>
-  }
-
   <section class="setting-section" aria-labelledby="schedule-form-title">
     <div class="section-heading">
       <div>
@@ -129,12 +129,14 @@
       <p>Senin–Jumat dan Sabtu selalu diterbitkan bersama pada satu tanggal.</p>
     </div>
 
-    <form [formGroup]="scheduleForm" (ngSubmit)="saveSchedules()">
+    <form [formGroup]="scheduleForm" (ngSubmit)="saveSchedules()" novalidate>
       <mat-form-field appearance="outline">
         <mat-label>Mulai berlaku</mat-label>
         <input
           matInput
           type="date"
+          name="scheduleEffectiveFrom"
+          autocomplete="off"
           [min]="minimumEffectiveDate"
           formControlName="effectiveFrom"
         />
@@ -150,19 +152,19 @@
         ];
         track schedule.key
       ) {
-        <fieldset [formGroupName]="schedule.key">
+        <fieldset [id]="'schedule-' + schedule.key" [formGroupName]="schedule.key">
           <legend>{{ schedule.label }}</legend>
           <div class="time-form-grid">
             @for (field of timeFields; track field.key) {
               <mat-form-field appearance="outline">
                 <mat-label>{{ field.label }}</mat-label>
-                <input matInput type="time" [formControlName]="field.key" />
+                <input matInput type="time" autocomplete="off" [id]="schedule.key + '-' + field.key" [attr.name]="schedule.key + '-' + field.key" [formControlName]="field.key" />
                 <mat-error>Waktu wajib diisi.</mat-error>
               </mat-form-field>
             }
             <mat-form-field appearance="outline">
               <mat-label>Target menit</mat-label>
-              <input matInput type="number" min="1" formControlName="targetMinutes" />
+              <input matInput type="number" min="1" inputmode="numeric" autocomplete="off" [attr.name]="schedule.key + '-targetMinutes'" formControlName="targetMinutes" />
               <mat-error>Target wajib lebih dari nol.</mat-error>
             </mat-form-field>
           </div>
@@ -194,13 +196,15 @@
       <p>Koordinat, radius, dan batas akurasi selalu divalidasi kembali oleh backend.</p>
     </div>
 
-    <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofence()">
+    <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofence()" novalidate>
       <div class="geofence-form-grid">
         <mat-form-field appearance="outline">
           <mat-label>Mulai berlaku</mat-label>
           <input
             matInput
             type="date"
+            name="geofenceEffectiveFrom"
+            autocomplete="off"
             [min]="minimumEffectiveDate"
             formControlName="effectiveFrom"
           />
@@ -208,22 +212,22 @@
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Latitude</mat-label>
-          <input matInput type="number" step="0.000001" formControlName="latitude" />
+          <input matInput type="number" step="0.000001" name="latitude" inputmode="decimal" autocomplete="off" formControlName="latitude" />
           <mat-error>Latitude harus antara -90 dan 90.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Longitude</mat-label>
-          <input matInput type="number" step="0.000001" formControlName="longitude" />
+          <input matInput type="number" step="0.000001" name="longitude" inputmode="decimal" autocomplete="off" formControlName="longitude" />
           <mat-error>Longitude harus antara -180 dan 180.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Radius (meter)</mat-label>
-          <input matInput type="number" min="25" max="1000" formControlName="radiusMeters" />
+          <input matInput type="number" min="25" max="1000" name="radiusMeters" inputmode="numeric" autocomplete="off" formControlName="radiusMeters" />
           <mat-error>Radius harus 25–1000 meter.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Akurasi maksimum (meter)</mat-label>
-          <input matInput type="number" min="5" max="200" formControlName="maxAccuracyMeters" />
+          <input matInput type="number" min="5" max="200" name="maxAccuracyMeters" inputmode="numeric" autocomplete="off" formControlName="maxAccuracyMeters" />
           <mat-error>Akurasi harus 5–200 meter.</mat-error>
         </mat-form-field>
       </div>
@@ -249,16 +253,16 @@
       <p>Hari libur dan hari kerja pengganti hanya dapat diubah sebelum tanggalnya berlalu.</p>
     </div>
 
-    <form [formGroup]="calendarForm" (ngSubmit)="saveCalendarException()">
+    <form [formGroup]="calendarForm" (ngSubmit)="saveCalendarException()" novalidate>
       <div class="calendar-form-grid">
         <mat-form-field appearance="outline">
           <mat-label>Tanggal</mat-label>
-          <input matInput type="date" [min]="minimumEffectiveDate" formControlName="workDate" />
+          <input matInput type="date" name="calendarWorkDate" autocomplete="off" [min]="minimumEffectiveDate" formControlName="workDate" />
           <mat-error>Tanggal wajib diisi.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Jenis aturan</mat-label>
-          <select matNativeControl formControlName="exceptionType">
+          <select matNativeControl name="exceptionType" autocomplete="off" formControlName="exceptionType">
             <option value="HOLIDAY">Hari libur</option>
             <option value="WORKING_DAY">Hari kerja khusus</option>
           </select>
@@ -266,7 +270,7 @@
         @if (calendarForm.controls.exceptionType.value === 'WORKING_DAY') {
           <mat-form-field appearance="outline">
             <mat-label>Pakai jadwal</mat-label>
-            <select matNativeControl formControlName="scheduleType">
+            <select matNativeControl name="scheduleType" autocomplete="off" formControlName="scheduleType">
               <option [ngValue]="null" disabled>Pilih jadwal</option>
               <option value="WEEKDAY">Senin–Jumat</option>
               <option value="SATURDAY">Sabtu</option>
@@ -276,7 +280,7 @@
         }
         <mat-form-field appearance="outline" class="calendar-name">
           <mat-label>Nama / keterangan</mat-label>
-          <input matInput maxlength="200" formControlName="name" />
+          <input matInput maxlength="200" name="calendarName" autocomplete="off" formControlName="name" />
           <mat-error>Keterangan wajib diisi (maks. 200 karakter).</mat-error>
         </mat-form-field>
       </div>
@@ -294,13 +298,14 @@
     </form>
 
     @if (calendar()?.exceptions?.length) {
-      <div class="calendar-table-wrap">
+      <div class="calendar-table-wrap" tabindex="0" role="region" aria-label="Tabel kalender sekolah, dapat digeser secara horizontal pada layar sempit">
         <table class="calendar-table">
-          <thead><tr><th>Tanggal</th><th>Aturan</th><th>Keterangan</th><th aria-label="Tindakan"></th></tr></thead>
+          <caption class="visually-hidden">Daftar hari libur dan hari kerja khusus</caption>
+          <thead><tr><th scope="col">Tanggal</th><th scope="col">Aturan</th><th scope="col">Keterangan</th><th scope="col"><span class="visually-hidden">Tindakan</span></th></tr></thead>
           <tbody>
             @for (exception of calendar()!.exceptions; track exception.id) {
               <tr>
-                <td>{{ exception.workDate }}</td>
+                <td>{{ dateLabel(exception.workDate) }}</td>
                 <td>{{ exception.exceptionType === 'HOLIDAY' ? 'Libur' : 'Kerja · ' + (exception.scheduleType === 'SATURDAY' ? 'Jadwal Sabtu' : 'Jadwal Senin–Jumat') }}</td>
                 <td>{{ exception.name }}</td>
                 <td class="table-actions">
@@ -326,11 +331,11 @@
       <p>Aturan baru selalu berlaku pada tanggal 1 dan tidak membatasi hasil upah akhir menjadi nol.</p>
     </div>
 
-    <form [formGroup]="payrollForm" (ngSubmit)="savePayroll()">
+    <form [formGroup]="payrollForm" (ngSubmit)="savePayroll()" novalidate>
       <div class="payroll-form-grid">
         <mat-form-field appearance="outline">
           <mat-label>Mulai berlaku</mat-label>
-          <input matInput type="date" [min]="minimumEffectiveDate" formControlName="effectiveFrom" />
+          <input matInput type="date" name="payrollEffectiveFrom" autocomplete="off" [min]="minimumEffectiveDate" formControlName="effectiveFrom" />
           @if (payrollForm.controls.effectiveFrom.hasError('monthStart')) {
             <mat-error>Tanggal mulai harus tanggal 1.</mat-error>
           } @else {
@@ -339,13 +344,13 @@
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Upah dasar bulanan</mat-label>
-          <input matInput type="number" min="0" step="0.01" formControlName="basePerformancePay" />
+          <input matInput type="number" min="0" step="0.01" name="basePerformancePay" inputmode="decimal" autocomplete="off" formControlName="basePerformancePay" />
           <span matTextPrefix>Rp&nbsp;</span>
           <mat-error>Nilai wajib nol atau lebih.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Potongan per menit</mat-label>
-          <input matInput type="number" min="0" step="0.01" formControlName="deductionRatePerMinute" />
+          <input matInput type="number" min="0" step="0.01" name="deductionRatePerMinute" inputmode="decimal" autocomplete="off" formControlName="deductionRatePerMinute" />
           <span matTextPrefix>Rp&nbsp;</span>
           <mat-error>Nilai wajib nol atau lebih.</mat-error>
         </mat-form-field>
@@ -358,4 +363,5 @@
       </div>
     </form>
   </section>
+  }
 </section>

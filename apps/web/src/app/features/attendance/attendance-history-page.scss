@@ -16,7 +16,7 @@
 
 .eyebrow {
   margin: 0 0 0.75rem;
-  color: #2f6fde;
+  color: #245ca8;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -66,6 +66,10 @@ h1 {
   border: 1px solid #8998ac;
   border-radius: 0.35rem;
   font: inherit;
+}
+
+.month-filter input:focus-visible {
+  border-color: #174ea6;
 }
 
 .history-list {
@@ -123,7 +127,7 @@ dl div {
 }
 
 dt {
-  color: #6b7a90;
+  color: #5d6b80;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -189,5 +193,18 @@ mat-paginator {
 
   dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .month-filter div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .month-filter button {
+    width: 100%;
+  }
+
+  mat-paginator {
+    margin-inline: -0.75rem;
   }
 }

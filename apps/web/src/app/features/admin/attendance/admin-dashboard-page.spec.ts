@@ -104,6 +104,7 @@ describe('AdminDashboardPage', () => {
     const paginator = fixture.debugElement.injector.get(MatPaginatorIntl);
     expect(paginator.itemsPerPageLabel).toBe('Baris per halaman:');
     expect(paginator.getRangeLabel(0, 20, 5)).toBe('1–5 dari 5');
+    expect(fixture.nativeElement.querySelector('.table-frame')?.tabIndex).toBe(0);
   });
 
   it('applies date, status, and teacher filters from the first page', async () => {
@@ -168,5 +169,16 @@ describe('AdminDashboardPage', () => {
     await Promise.all([first, repeated]);
 
     expect(addNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not announce an empty result together with an error', async () => {
+    await setup();
+    fixture.componentInstance.records.set([]);
+    fixture.componentInstance.errorMessage.set('Monitoring gagal dimuat.');
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Monitoring gagal dimuat.');
+    expect(text).not.toContain('Tidak ada data kehadiran yang sesuai filter.');
   });
 });

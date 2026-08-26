@@ -59,6 +59,21 @@ describe('ChangePasswordPage auth completion', () => {
     );
   });
 
+  it('explains every required password field in Indonesian', async () => {
+    await fixture.componentInstance.submit();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Password saat ini wajib diisi.');
+    expect(text).toContain('Password baru wajib diisi.');
+    expect(text).toContain('Ulangi password baru.');
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector(
+        'input[formControlName="currentPassword"]',
+      ),
+    );
+  });
+
   it('changes the initial password and routes according to the server role', async () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);

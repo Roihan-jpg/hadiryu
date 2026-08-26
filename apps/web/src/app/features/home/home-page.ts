@@ -5,6 +5,7 @@ import type {
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
@@ -26,7 +27,7 @@ class LocationRequestError extends Error {
 }
 
 @Component({
-  imports: [MatButtonModule, RouterLink],
+  imports: [MatButtonModule, MatProgressSpinnerModule, RouterLink],
   selector: 'app-home-page',
   styleUrl: './home-page.scss',
   templateUrl: './home-page.html',
