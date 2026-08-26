@@ -9,6 +9,8 @@ import { createAttendanceService } from './attendance.js';
 import { SupabaseAttendanceRepository } from './supabase-attendance.js';
 import { createLeaveRequestService } from './leave-requests.js';
 import { SupabaseLeaveRequestRepository } from './supabase-leave-requests.js';
+import { createAdminAttendanceService } from './admin-attendance.js';
+import { SupabaseAdminAttendanceRepository } from './supabase-admin-attendance.js';
 
 const port = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
 const supabaseConfig = loadSupabaseAuthConfig(process.env);
@@ -21,12 +23,16 @@ const attendanceService = createAttendanceService(
 const leaveRequestService = createLeaveRequestService(
   new SupabaseLeaveRequestRepository(supabaseConfig),
 );
+const adminAttendanceService = createAdminAttendanceService(
+  new SupabaseAdminAttendanceRepository(supabaseConfig),
+);
 const secureCookies =
   process.env['SESSION_COOKIE_SECURE'] === undefined
     ? process.env['NODE_ENV'] === 'production'
     : process.env['SESSION_COOKIE_SECURE'] === 'true';
 
 createApp({
+  adminAttendanceService,
   attendanceService,
   authService,
   settingsService,

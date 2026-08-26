@@ -20,6 +20,10 @@ import {
   registerLeaveRequestRoutes,
   type LeaveRequestService,
 } from './leave-requests.js';
+import {
+  registerAdminAttendanceRoutes,
+  type AdminAttendanceService,
+} from './admin-attendance.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -27,6 +31,7 @@ export interface CreateAppOptions {
   settingsService?: SettingsService;
   teacherService?: TeacherService;
   leaveRequestService?: LeaveRequestService;
+  adminAttendanceService?: AdminAttendanceService;
   secureCookies?: boolean;
 }
 
@@ -121,6 +126,23 @@ const unavailableLeaveRequestService: LeaveRequestService = {
   async reject() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
 };
 
+const unavailableAdminAttendanceService: AdminAttendanceService = {
+  async list() {
+    throw new AppError(
+      500,
+      'ADMIN_ATTENDANCE_NOT_CONFIGURED',
+      'Monitoring absensi belum dikonfigurasi',
+    );
+  },
+  async addNote() {
+    throw new AppError(
+      500,
+      'ADMIN_ATTENDANCE_NOT_CONFIGURED',
+      'Monitoring absensi belum dikonfigurasi',
+    );
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
@@ -157,6 +179,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.leaveRequestService ?? unavailableLeaveRequestService,
+  );
+  registerAdminAttendanceRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.adminAttendanceService ?? unavailableAdminAttendanceService,
   );
   app.use(authErrorHandler);
 

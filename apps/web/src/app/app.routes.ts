@@ -87,7 +87,9 @@ export const routes: Routes = [
       roleGuard('SUPER_ADMIN'),
     ],
     loadComponent: () =>
-      import('./features/home/home-page').then((module) => module.HomePage),
+      import('./features/admin/attendance/admin-dashboard-page').then(
+        (module) => module.AdminDashboardPage,
+      ),
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },

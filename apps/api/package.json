@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build --workspace @absensi/contracts",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=1"
   },
   "dependencies": {
     "@absensi/contracts": "*",

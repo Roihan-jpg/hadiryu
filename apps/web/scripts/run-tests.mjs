@@ -15,7 +15,7 @@ const angularCli = path.join(
   'ng.js',
 );
 const filters = process.argv.slice(2).filter(Boolean);
-const args = [angularCli, 'test'];
+const args = [angularCli, 'test', '--watch=false'];
 
 if (filters.length > 0) {
   for (const filter of filters) {
