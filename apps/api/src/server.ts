@@ -17,6 +17,23 @@ import { createMonthlyReportService } from './monthly-report.js';
 import { SupabaseMonthlyReportRepository } from './supabase-monthly-report.js';
 import { createExcelExportService } from './excel-export.js';
 import { SupabaseExcelExportAuditRepository } from './supabase-excel-export.js';
+import { createStructuredLogger } from './observability.js';
+
+function commaSeparated(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function trustProxy(value: string | undefined): number | undefined {
+  if (value === undefined || value === '') return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== value) {
+    throw new Error('TRUST_PROXY_HOPS harus berupa bilangan bulat non-negatif');
+  }
+  return parsed;
+}
 
 const port = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
 const supabaseConfig = loadSupabaseAuthConfig(process.env);
@@ -48,6 +65,8 @@ const secureCookies =
   process.env['SESSION_COOKIE_SECURE'] === undefined
     ? process.env['NODE_ENV'] === 'production'
     : process.env['SESSION_COOKIE_SECURE'] === 'true';
+const logger = createStructuredLogger();
+const configuredTrustProxy = trustProxy(process.env['TRUST_PROXY_HOPS']);
 
 createApp({
   adminAttendanceService,
@@ -58,7 +77,15 @@ createApp({
   leaveRequestService,
   monthlyReportService,
   excelExportService,
+  logger,
   secureCookies,
+  security: {
+    production: process.env['NODE_ENV'] === 'production',
+    allowedOrigins: commaSeparated(process.env['CORS_ALLOWED_ORIGINS']),
+    ...(configuredTrustProxy === undefined
+      ? {}
+      : { trustProxy: configuredTrustProxy }),
+  },
 }).listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+  logger.info({ event: 'api.started', port });
 });

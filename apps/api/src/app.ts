@@ -3,7 +3,7 @@ import cookieParser from 'cookie-parser';
 import type { HealthResponse } from '@absensi/contracts';
 import {
   AppError,
-  authErrorHandler,
+  createAuthErrorHandler,
   registerAuthRoutes,
   type AuthService,
 } from './auth.js';
@@ -32,6 +32,21 @@ import {
   registerExcelExportRoutes,
   type ExcelExportService,
 } from './excel-export.js';
+import {
+  createNotFoundHandler,
+  createRequestObservabilityMiddleware,
+  createStructuredLogger,
+  silentLogger,
+  type AppLogger,
+} from './observability.js';
+import {
+  createCorsMiddleware,
+  createCsrfProtectionMiddleware,
+  createRateLimiter,
+  createSecurityHeadersMiddleware,
+  resolveSecurityConfig,
+  type SecurityConfig,
+} from './security.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -43,6 +58,8 @@ export interface CreateAppOptions {
   monthlyReportService?: MonthlyReportService;
   excelExportService?: ExcelExportService;
   secureCookies?: boolean;
+  logger?: AppLogger;
+  security?: Partial<SecurityConfig>;
 }
 
 const unavailableAttendanceService: AttendanceService = {
@@ -175,9 +192,33 @@ const unavailableExcelExportService: ExcelExportService = {
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
+  const security = resolveSecurityConfig(options.security);
+  const logger =
+    options.logger ??
+    (process.env['NODE_ENV'] === 'test' ? silentLogger : createStructuredLogger());
+
+  app.disable('x-powered-by');
+  if (security.trustProxy !== undefined) {
+    app.set('trust proxy', security.trustProxy);
+  }
+  app.use(createRequestObservabilityMiddleware(logger));
+  app.use(createSecurityHeadersMiddleware(security.production));
+  if (security.production || security.allowedOrigins.length > 0) {
+    app.use(createCorsMiddleware(security.allowedOrigins));
+  }
+  app.use(createCsrfProtectionMiddleware(security.production));
 
   app.use(express.json({ limit: '32kb' }));
   app.use(cookieParser());
+
+  app.use(
+    ['/api/auth/login', '/api/auth/refresh', '/api/auth/change-password'],
+    createRateLimiter(security.authRateLimit),
+  );
+  app.use(
+    ['/api/attendance/check-in', '/api/attendance/checkout'],
+    createRateLimiter(security.attendanceRateLimit),
+  );
 
   app.get('/health', (_request, response) => {
     const body: HealthResponse = { status: 'ok' };
@@ -225,7 +266,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
     options.authService ?? unavailableAuthService,
     options.excelExportService ?? unavailableExcelExportService,
   );
-  app.use(authErrorHandler);
+  app.use(createNotFoundHandler());
+  app.use(createAuthErrorHandler(logger));
 
   return app;
 }

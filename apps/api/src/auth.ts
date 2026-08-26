@@ -11,6 +11,11 @@ import {
 } from '@absensi/contracts';
 import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
 
+import {
+  logRequestFailure,
+  type AppLogger,
+} from './observability.js';
+
 export const ACCESS_COOKIE_NAME = 'absensi_access';
 export const REFRESH_COOKIE_NAME = 'absensi_refresh';
 const REFRESH_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
@@ -49,7 +54,8 @@ function cookies(request: Request): Record<string, string | undefined> {
   return (request.cookies ?? {}) as Record<string, string | undefined>;
 }
 
-function sendAppError(response: Response, error: AppError): void {
+export function sendAppError(response: Response, error: AppError): void {
+  response.locals['errorCode'] = error.code;
   const body: ApiError = {
     error: {
       code: error.code,
@@ -265,9 +271,10 @@ export function registerAuthRoutes(
   });
 }
 
-export function authErrorHandler(
+function handleAuthError(
+  logger: AppLogger,
   error: unknown,
-  _request: Request,
+  request: Request,
   response: Response,
   _next: NextFunction,
 ): void {
@@ -285,10 +292,26 @@ export function authErrorHandler(
     );
     return;
   }
-  sendAppError(
-    response,
+  const sourceError =
     error instanceof AppError
       ? error
-      : new AppError(500, 'INTERNAL_ERROR', 'Terjadi kesalahan pada server'),
-  );
+      : new AppError(500, 'INTERNAL_ERROR', 'Terjadi kesalahan pada server');
+  if (sourceError.status >= 500) {
+    logRequestFailure(logger, request, response, error);
+    sendAppError(
+      response,
+      new AppError(500, 'INTERNAL_ERROR', 'Terjadi kesalahan pada server'),
+    );
+    return;
+  }
+  sendAppError(response, sourceError);
+}
+
+export function createAuthErrorHandler(logger: AppLogger) {
+  return (
+    error: unknown,
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): void => handleAuthError(logger, error, request, response, next);
 }
