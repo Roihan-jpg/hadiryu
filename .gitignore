@@ -9,5 +9,9 @@ dist/
 coverage/
 .angular/
 .env
+.env.*
+!.env.production.example
 *.log
 apps/web/.cache/
+playwright-report/
+test-results/

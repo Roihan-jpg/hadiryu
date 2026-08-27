@@ -1,11 +1,12 @@
-# T02 Checklist
+# T15 Checklist
 
-- [x] Supabase CLI/config lokal dan root scripts tersedia.
-- [x] Integration test database ditulis sebelum migration dan berjalan pada PostgreSQL Supabase lokal.
-- [x] Seluruh enum, tabel, constraint, dan index TechDesign tersedia dan terverifikasi.
-- [x] RLS aktif pada seluruh tabel public dan akses lintas-user ditolak.
-- [x] Attendance timestamp tidak dapat diubah dan admin note append-only.
-- [x] Audit foundation tersedia tanpa secret atau data production.
-- [x] Seed development deterministik dan non-rahasia.
-- [x] `npm run db:reset && npm run db:advisors && npm run test:api -- database` berhasil.
-- [x] T02 dicentang dan `MEMORY.md` diganti dengan snapshot terbaru.
+- [x] Playwright dan Chromium smoke project terpasang serta dikonfigurasi.
+- [x] Guardrail script hosted menolak project ref/URL yang tidak sesuai dan tidak memuat reset/seed remote.
+- [x] `.env.production.example` hanya berisi placeholder/non-secret.
+- [x] Bootstrap SuperAdmin membaca NIP, nama, dan password hanya dari environment.
+- [x] Local E2E mencakup setup, Guru login/ganti password, check-in/checkout, izin, approval, preview, dan ekspor.
+- [x] Hosted smoke memakai credential khusus dari environment dan tidak membuat/menimpa akun secara otomatis.
+- [x] Dokumentasi environment/deployment menyertakan dry-run, advisors, dan larangan reset/seed hosted.
+- [x] Seluruh verification gate lokal lulus.
+- [ ] Link, deploy migration, advisors, dan smoke hosted lulus pada project `agtmvpjtqcmsqvatskjg`.
+- [ ] Review akhir selesai; T15 dan `MEMORY.md` diperbarui hanya jika seluruh gate lulus.

@@ -1,51 +1,58 @@
-# Implementation Plan: T02 Database dan Keamanan Dasar
+# Implementation Plan: T15 E2E dan Release Readiness
 
 ## Overview
 
-Menambahkan stack Supabase lokal yang dapat dibangun ulang secara deterministik, schema domain lengkap sesuai `TechDesign.md`, policy RLS minimum, audit foundation, seed development non-rahasia, dan integration test database tanpa membuat endpoint auth atau UI.
+Menambahkan harness Playwright yang menjalankan smoke test MVP melalui API dan UI nyata, command hosted Supabase yang terkunci ke project `agtmvpjtqcmsqvatskjg`, bootstrap SuperAdmin berbasis environment secret, serta dokumentasi deployment tanpa menyimpan credential atau mereset/seed database hosted.
 
 ## Architecture Decisions
 
-- Supabase CLI dipasang sebagai root dev dependency dan seluruh script database selalu menargetkan local stack secara eksplisit.
-- Schema domain berada pada satu baseline migration yang dibuat melalui Supabase CLI; seed hanya berisi data development deterministik.
-- RLS memberi USER akses baca ke row miliknya dan menolak akses lintas-user; mutation data domain tetap tidak diberikan kepada client. SUPER_ADMIN memperoleh akses baca minimum untuk kebutuhan task berikutnya.
-- Test menjalankan SQL terhadap PostgreSQL lokal dengan `psql` di container Supabase sehingga policy diuji sebagai role `authenticated`, bukan dilewati oleh koneksi admin.
+- Playwright dijalankan dari root workspace dan hanya memakai Chromium agar smoke suite tetap kecil; API dan Angular lokal dinyalakan melalui `webServer` Playwright.
+- Runner lokal mengambil URL dan key ephemeral dari `supabase status`, lalu meneruskannya hanya melalui environment child process.
+- Runner hosted mewajibkan seluruh URL, key, dan credential smoke melalui environment; ia tidak membuat project, tidak seed/reset database, dan tidak mengubah konfigurasi hosted secara otomatis.
+- Script hosted memvalidasi project ref tetap sebelum menjalankan CLI. Deploy selalu melakukan `db push --dry-run` sebelum `db push --linked` dan tidak pernah memakai `--include-seed`.
+- Local smoke menyiapkan data disposable setelah `db:reset`; hosted smoke memakai akun Guru khusus yang sudah disiapkan agar test berulang tidak menimpa akun/data production yang ada.
 
 ## Task List
 
-### Phase 1: Local Foundation
+### Phase 1: Toolchain dan Guardrail
 
-- [x] Tambahkan Supabase CLI, konfigurasi lokal, script `db:reset`/`db:advisors`, dan test harness database sebelum migration tersedia.
+- [x] Tambahkan dependency/config Playwright, ignore artefak, contoh environment production, dan wrapper command hosted yang fail-closed.
+- [x] Tambahkan test untuk validasi konfigurasi/guardrail runner sebelum implementasinya.
 
-### Checkpoint: Foundation
+### Checkpoint: Toolchain
 
-- [x] Local stack dapat dimulai dan test database mengeksekusi SQL pada database lokal.
+- [x] Unit test guardrail lulus dan seluruh command hanya menerima secret dari environment.
 
-### Phase 2: Schema dan Security
+### Phase 2: Local E2E
 
-- [x] Tambahkan enum, tabel, constraint, dan index seluruh model data.
-- [x] Tambahkan RLS minimum, privilege minimum, immutability attendance, dan audit foundation.
-- [x] Tambahkan seed development deterministik tanpa credential atau data production.
+- [x] Tambahkan setup lokal yang membaca key Supabase lokal dan bootstrap SuperAdmin tanpa menulis secret ke disk.
+- [x] Tambahkan smoke flow setup Guru, login/ganti password, check-in/checkout, izin, approval, preview, dan ekspor.
 
-### Checkpoint: Schema dan Security
+### Checkpoint: Local Smoke
 
-- [x] Reset dari database kosong berhasil.
-- [x] Constraint, index, seed, dan isolasi lintas-user lulus integration test.
+- [x] `npm run db:reset && npm run test:e2e` lulus tanpa skip atau retry berlebihan.
 
-### Phase 3: Completion
+### Phase 3: Hosted Readiness
 
-- [x] Jalankan advisors dan command verifikasi T02.
-- [x] Tinjau perubahan, centang T02, dan perbarui `MEMORY.md` bila semua gate berhasil.
+- [x] Tambahkan mode hosted yang memvalidasi project URL/ref dan memakai credential smoke khusus dari environment.
+- [x] Dokumentasikan link, dry-run/deploy migration, advisors, bootstrap, dan smoke test hosted.
+
+### Phase 4: Release Gate
+
+- [x] Jalankan seluruh command verifikasi lokal.
+- [ ] Jalankan command hosted yang dapat dijalankan dengan akses tersedia; catat blocker credential/akses secara eksplisit tanpa menandai hasil palsu.
+- [ ] Review correctness, simplicity, architecture, security, dan performance; lalu perbarui `TASKS.md`/`MEMORY.md` hanya bila semua acceptance gate benar-benar lulus.
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Policy terlihat benar tetapi koneksi test bypass RLS | Tinggi | Test memakai `SET ROLE authenticated` dan JWT claim per user. |
-| Reset lokal tidak deterministik | Tinggi | Seed memakai UUID/nilai tetap dan verifikasi menjalankan reset penuh. |
-| Constraint versi efektif terlalu lemah | Sedang | Gunakan exclusion constraint rentang tanggal per jenis aturan dan test overlap. |
-| Advisor menghasilkan temuan karena FK/policy | Sedang | Index seluruh FK dan kolom policy, lalu jalankan advisors sebelum menandai selesai. |
+| Command salah menargetkan project lain | Tinggi | Project ref dan URL target berupa konstanta yang divalidasi sebelum setiap command hosted. |
+| Seed/reset development mengenai hosted | Tinggi | Tidak ada wrapper hosted untuk reset; deploy menolak argumen tambahan dan hanya memanggil `db push` tanpa seed. |
+| Secret bocor ke repository/log | Tinggi | Input hanya melalui environment, placeholder saja yang dikomit, dan output runner tidak mencetak nilai secret. |
+| Absensi E2E bergantung jam nyata | Sedang | Local setup membuat window satu menit berikutnya dengan waktu server; hosted smoke memvalidasi konfigurasi/window yang memang disiapkan untuk akun smoke. |
+| Smoke hosted meninggalkan data uji | Sedang | Gunakan akun Guru khusus dan tanggal izin yang dikonfigurasi operator; dokumentasikan bahwa project harus non-production/staging atau data smoke telah disetujui. |
 
 ## Open Questions
 
-- Tidak ada; detail schema dan batas akses cukup ditentukan oleh PRD, TechDesign, TASKS, dan instruksi repository.
+- Akses CLI aktif saat ini tidak menampilkan project target, dan environment belum menyediakan database password/key/credential smoke. Implementasi dapat diselesaikan serta diverifikasi lokal; gate hosted tetap terbuka sampai credential environment yang sesuai tersedia.
