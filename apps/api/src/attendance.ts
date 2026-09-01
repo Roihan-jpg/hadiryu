@@ -91,7 +91,7 @@ export interface AttendanceService {
   ): Promise<AttendanceHistoryResponse>;
 }
 
-interface JakartaDateTime {
+export interface JakartaDateTime {
   workDate: string;
   minuteOfDay: number;
 }
@@ -119,7 +119,7 @@ export function haversineDistanceMeters(
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(haversine));
 }
 
-function jakartaDateTime(value: Date): JakartaDateTime {
+export function jakartaDateTime(value: Date): JakartaDateTime {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: JAKARTA_TIME_ZONE,
     year: 'numeric',
@@ -139,7 +139,7 @@ function jakartaDateTime(value: Date): JakartaDateTime {
   };
 }
 
-function timeMinutes(value: string): number {
+export function timeMinutes(value: string): number {
   const [hour = '0', minute = '0'] = value.split(':');
   return Number(hour) * 60 + Number(minute);
 }
@@ -176,7 +176,7 @@ function roundedMeters(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function validatedDistance(
+export function validatedDistance(
   location: LocationInput,
   geofence: GeofenceRule,
 ): number {

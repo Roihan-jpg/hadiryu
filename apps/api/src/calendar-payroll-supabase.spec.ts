@@ -168,16 +168,26 @@ describe('SupabaseSettingsService calendar-payroll integration', () => {
     expect(audits?.[2]?.after_data).toBeNull();
   });
 
-  it('versions payroll by month without changing the historical rule or restricting negative pay', async () => {
+  it('versions the monthly payroll policy without changing the historical rule', async () => {
     const created = await service.createPayrollVersion(adminId, {
       effectiveFrom: payrollDate,
-      basePerformancePay: 1_000_000,
-      deductionRatePerMinute: 2500,
+      basePerformancePay: 600_000,
+      minimumPerformancePay: 300_000,
+      lateDeductionAmount: 10_000,
+      absentDeductionAmount: 20_000,
+      rejectedEarlyDepartureRatePerHour: 10_000,
     });
     const historical = await service.getPayroll('2098-12-01');
     const effective = await service.getPayroll(payrollDate);
     const calculation = calculatePerformancePay({
       totalWorkDeficitMinutes: 500,
+      days: [
+        {
+          status: 'WORKED',
+          arrivalLateMinutes: 1,
+          rejectedEarlyDepartureMinutes: 0,
+        },
+      ],
       payrollRule: created.payrollRule!,
     });
     const { data: audit } = await client
@@ -187,11 +197,11 @@ describe('SupabaseSettingsService calendar-payroll integration', () => {
       .eq('action', 'PAYROLL_RULE_VERSION_CREATED')
       .single();
 
-    expect(historical.payrollRule?.basePerformancePay).toBe(0);
+    expect(historical.payrollRule?.basePerformancePay).toBe(600_000);
     expect(effective.payrollRule?.id).toBe(created.payrollRule?.id);
-    expect(calculation.finalPerformancePay).toBe(-250_000);
-    expect(audit?.before_data).toMatchObject({ basePerformancePay: 0 });
-    expect(audit?.after_data).toMatchObject({ basePerformancePay: 1_000_000 });
+    expect(calculation.finalPerformancePay).toBe(590_000);
+    expect(audit?.before_data).toMatchObject({ basePerformancePay: 600_000 });
+    expect(audit?.after_data).toMatchObject({ basePerformancePay: 600_000 });
   });
 
   it('rejects calendar history and keeps configuration mutations unavailable to browser roles', async () => {
@@ -207,7 +217,10 @@ describe('SupabaseSettingsService calendar-payroll integration', () => {
       p_actor_id: adminId,
       p_effective_from: '2099-02-01',
       p_base_performance_pay: 1,
-      p_deduction_rate_per_minute: 1,
+      p_minimum_performance_pay: 0,
+      p_late_deduction_amount: 1,
+      p_absent_deduction_amount: 1,
+      p_rejected_early_departure_rate_per_hour: 1,
     });
     expect(error).toBeTruthy();
   });

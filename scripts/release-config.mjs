@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const HOSTED_PROJECT_REF = 'agtmvpjtqcmsqvatskjg';
+export const HOSTED_PROJECT_REF = 'jlqzeytwwdnooepagknb';
 export const HOSTED_SUPABASE_URL = `https://${HOSTED_PROJECT_REF}.supabase.co`;
 
 const RequiredText = z.string().trim().min(1);
@@ -26,6 +26,10 @@ const HostedEnvironmentSchema = z.strictObject({
   ),
 });
 
+const HostedSetupEnvironmentSchema = HostedEnvironmentSchema.extend({
+  E2E_TEACHER_INITIAL_PASSWORD: z.string().min(8),
+});
+
 const HostedCliEnvironmentSchema = z.strictObject({
   SUPABASE_ACCESS_TOKEN: RequiredText,
   SUPABASE_DB_PASSWORD: RequiredText,
@@ -38,6 +42,12 @@ function selected(environment, names) {
 export function loadHostedEnvironment(environment) {
   return HostedEnvironmentSchema.parse(
     selected(environment, Object.keys(HostedEnvironmentSchema.shape)),
+  );
+}
+
+export function loadHostedSetupEnvironment(environment) {
+  return HostedSetupEnvironmentSchema.parse(
+    selected(environment, Object.keys(HostedSetupEnvironmentSchema.shape)),
   );
 }
 

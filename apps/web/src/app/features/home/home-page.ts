@@ -10,13 +10,17 @@ import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { AttendanceService } from '../attendance/attendance.service';
-import { GEOLOCATION } from '../attendance/geolocation';
+import {
+  GEOLOCATION,
+  GEOLOCATION_PERMISSIONS,
+} from '../attendance/geolocation';
 
 type PermissionState =
   | 'IDLE'
   | 'REQUESTING'
   | 'GRANTED'
   | 'DENIED'
+  | 'SYSTEM_DENIED'
   | 'UNAVAILABLE'
   | 'TIMEOUT';
 
@@ -36,6 +40,7 @@ export class HomePage implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly attendanceService = inject(AttendanceService);
   private readonly geolocation = inject(GEOLOCATION);
+  private readonly geolocationPermissions = inject(GEOLOCATION_PERMISSIONS);
   private readonly router = inject(Router);
 
   readonly user = this.auth.user;
@@ -154,10 +159,37 @@ export class HomePage implements OnInit {
     await this.router.navigateByUrl('/login');
   }
 
-  private currentLocation(): Promise<LocationInput> {
+  private async currentLocation(): Promise<LocationInput> {
     if (!this.geolocation) {
-      return Promise.reject(new LocationRequestError('UNAVAILABLE'));
+      throw new LocationRequestError('UNAVAILABLE');
     }
+
+    try {
+      return await this.requestCurrentLocation(true);
+    } catch (error) {
+      if (
+        !(error instanceof LocationRequestError) ||
+        error.permissionState !== 'DENIED' ||
+        !(await this.isLocationPermissionGranted())
+      ) {
+        throw error;
+      }
+
+      try {
+        return await this.requestCurrentLocation(false);
+      } catch (fallbackError) {
+        if (
+          fallbackError instanceof LocationRequestError &&
+          fallbackError.permissionState === 'DENIED'
+        ) {
+          throw new LocationRequestError('SYSTEM_DENIED');
+        }
+        throw fallbackError;
+      }
+    }
+  }
+
+  private requestCurrentLocation(enableHighAccuracy: boolean): Promise<LocationInput> {
     return new Promise((resolve, reject) => {
       this.geolocation!.getCurrentPosition(
         (position) => {
@@ -178,14 +210,29 @@ export class HomePage implements OnInit {
             ),
           );
         },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
+        { enableHighAccuracy, maximumAge: 0, timeout: 15_000 },
       );
     });
+  }
+
+  private async isLocationPermissionGranted(): Promise<boolean> {
+    if (!this.geolocationPermissions) return false;
+    try {
+      const permission = await this.geolocationPermissions.query({
+        name: 'geolocation',
+      });
+      return permission.state === 'granted';
+    } catch {
+      return false;
+    }
   }
 
   private locationErrorText(state: PermissionState): string {
     if (state === 'DENIED') {
       return 'Aktifkan izin lokasi untuk situs ini di pengaturan browser, lalu coba lagi.';
+    }
+    if (state === 'SYSTEM_DENIED') {
+      return 'Izin situs sudah aktif, tetapi browser belum dapat membaca lokasi perangkat. Pastikan akses lokasi untuk aplikasi desktop aktif, lalu coba lagi atau gunakan browser lain.';
     }
     if (state === 'TIMEOUT') {
       return 'Lokasi belum ditemukan. Berpindah ke area terbuka lalu coba lagi.';

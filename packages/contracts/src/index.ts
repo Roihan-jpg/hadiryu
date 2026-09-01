@@ -5,6 +5,7 @@ export interface HealthResponse {
 export * from './admin-attendance.js';
 export * from './auth.js';
 export * from './attendance.js';
+export * from './early-departure-requests.js';
 export * from './leave-requests.js';
 export * from './monthly-report.js';
 export * from './settings.js';

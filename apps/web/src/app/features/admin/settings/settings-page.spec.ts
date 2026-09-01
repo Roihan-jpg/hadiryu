@@ -222,14 +222,20 @@ describe('SettingsPage', () => {
 
     fixture.componentInstance.payrollForm.patchValue({
       effectiveFrom: '2026-09-01',
-      basePerformancePay: 1_500_000,
-      deductionRatePerMinute: 2500,
+      basePerformancePay: 600_000,
+      minimumPerformancePay: 300_000,
+      lateDeductionAmount: 10_000,
+      absentDeductionAmount: 20_000,
+      rejectedEarlyDepartureRatePerHour: 10_000,
     });
     await fixture.componentInstance.savePayroll();
     expect(createPayroll).toHaveBeenCalledWith({
       effectiveFrom: '2026-09-01',
-      basePerformancePay: 1_500_000,
-      deductionRatePerMinute: 2500,
+      basePerformancePay: 600_000,
+      minimumPerformancePay: 300_000,
+      lateDeductionAmount: 10_000,
+      absentDeductionAmount: 20_000,
+      rejectedEarlyDepartureRatePerHour: 10_000,
     });
   });
 

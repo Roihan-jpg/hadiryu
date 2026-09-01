@@ -21,6 +21,10 @@ import {
   type LeaveRequestService,
 } from './leave-requests.js';
 import {
+  registerEarlyDepartureRequestRoutes,
+  type EarlyDepartureRequestService,
+} from './early-departure-requests.js';
+import {
   registerAdminAttendanceRoutes,
   type AdminAttendanceService,
 } from './admin-attendance.js';
@@ -54,6 +58,7 @@ export interface CreateAppOptions {
   settingsService?: SettingsService;
   teacherService?: TeacherService;
   leaveRequestService?: LeaveRequestService;
+  earlyDepartureRequestService?: EarlyDepartureRequestService;
   adminAttendanceService?: AdminAttendanceService;
   monthlyReportService?: MonthlyReportService;
   excelExportService?: ExcelExportService;
@@ -153,6 +158,14 @@ const unavailableLeaveRequestService: LeaveRequestService = {
   async reject() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
 };
 
+const unavailableEarlyDepartureRequestService: EarlyDepartureRequestService = {
+  async create() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
+  async listOwn() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
+  async listAdmin() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
+  async approve() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
+  async reject() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
+};
+
 const unavailableAdminAttendanceService: AdminAttendanceService = {
   async list() {
     throw new AppError(
@@ -216,7 +229,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     createRateLimiter(security.authRateLimit),
   );
   app.use(
-    ['/api/attendance/check-in', '/api/attendance/checkout'],
+    [
+      '/api/attendance/check-in',
+      '/api/attendance/checkout',
+      '/api/early-departure-requests',
+    ],
     createRateLimiter(security.attendanceRateLimit),
   );
 
@@ -250,6 +267,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.leaveRequestService ?? unavailableLeaveRequestService,
+  );
+  registerEarlyDepartureRequestRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.earlyDepartureRequestService ?? unavailableEarlyDepartureRequestService,
   );
   registerAdminAttendanceRoutes(
     app,

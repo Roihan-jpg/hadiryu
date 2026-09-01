@@ -60,7 +60,7 @@ const GEOFENCE_FIELDS =
   'id,latitude,longitude,radius_meters,max_accuracy_meters,effective_from,effective_to';
 const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
 const PAYROLL_FIELDS =
-  'id,base_performance_pay,deduction_rate_per_minute,effective_from,effective_to';
+  'id,calculation_mode,base_performance_pay,minimum_performance_pay,deduction_rate_per_minute,late_deduction_amount,absent_deduction_amount,rejected_early_departure_rate_per_hour,effective_from,effective_to';
 
 const CalendarExceptionRowSchema = z.strictObject({
   id: z.uuid(),
@@ -79,8 +79,13 @@ const CalendarExceptionResultRowSchema = z.union([
 ]);
 const PayrollRuleRowSchema = z.strictObject({
   id: z.uuid(),
+  calculation_mode: z.enum(['LEGACY_PER_MINUTE', 'MONTHLY_POLICY']),
   base_performance_pay: NumericDatabaseValueSchema,
+  minimum_performance_pay: NumericDatabaseValueSchema,
   deduction_rate_per_minute: NumericDatabaseValueSchema,
+  late_deduction_amount: NumericDatabaseValueSchema,
+  absent_deduction_amount: NumericDatabaseValueSchema,
+  rejected_early_departure_rate_per_hour: NumericDatabaseValueSchema,
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
@@ -144,8 +149,15 @@ function toPayrollRule(value: unknown): PayrollRule {
   const row = PayrollRuleRowSchema.parse(value);
   return PayrollRuleSchema.parse({
     id: row.id,
+    calculationMode: row.calculation_mode,
     basePerformancePay: Number(row.base_performance_pay),
+    minimumPerformancePay: Number(row.minimum_performance_pay),
     deductionRatePerMinute: Number(row.deduction_rate_per_minute),
+    lateDeductionAmount: Number(row.late_deduction_amount),
+    absentDeductionAmount: Number(row.absent_deduction_amount),
+    rejectedEarlyDepartureRatePerHour: Number(
+      row.rejected_early_departure_rate_per_hour,
+    ),
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
   });
@@ -335,7 +347,11 @@ export class SupabaseSettingsService implements SettingsService {
       p_actor_id: actorId,
       p_effective_from: input.effectiveFrom,
       p_base_performance_pay: input.basePerformancePay,
-      p_deduction_rate_per_minute: input.deductionRatePerMinute,
+      p_minimum_performance_pay: input.minimumPerformancePay,
+      p_late_deduction_amount: input.lateDeductionAmount,
+      p_absent_deduction_amount: input.absentDeductionAmount,
+      p_rejected_early_departure_rate_per_hour:
+        input.rejectedEarlyDepartureRatePerHour,
     });
     if (error) throw mutationError(error);
     return this.getPayroll(input.effectiveFrom);

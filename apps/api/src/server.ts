@@ -11,6 +11,8 @@ import { createAttendanceService } from './attendance.js';
 import { SupabaseAttendanceRepository } from './supabase-attendance.js';
 import { createLeaveRequestService } from './leave-requests.js';
 import { SupabaseLeaveRequestRepository } from './supabase-leave-requests.js';
+import { createEarlyDepartureRequestService } from './early-departure-requests.js';
+import { SupabaseEarlyDepartureRequestRepository } from './supabase-early-departure-requests.js';
 import { createAdminAttendanceService } from './admin-attendance.js';
 import { SupabaseAdminAttendanceRepository } from './supabase-admin-attendance.js';
 import { createMonthlyReportService } from './monthly-report.js';
@@ -46,6 +48,9 @@ const attendanceService = createAttendanceService(
 const leaveRequestService = createLeaveRequestService(
   new SupabaseLeaveRequestRepository(supabaseConfig),
 );
+const earlyDepartureRequestService = createEarlyDepartureRequestService(
+  new SupabaseEarlyDepartureRequestRepository(supabaseConfig),
+);
 const adminAttendanceService = createAdminAttendanceService(
   new SupabaseAdminAttendanceRepository(supabaseConfig),
 );
@@ -75,6 +80,7 @@ createApp({
   settingsService,
   teacherService,
   leaveRequestService,
+  earlyDepartureRequestService,
   monthlyReportService,
   excelExportService,
   logger,

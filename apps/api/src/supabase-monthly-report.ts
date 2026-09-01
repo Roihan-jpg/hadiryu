@@ -14,6 +14,7 @@ import type {
   MonthlyReportRepository,
   MonthlyReportSource,
   MonthlyReportSourceAttendance,
+  MonthlyReportSourceEarlyDeparture,
   MonthlyReportSourceLeave,
   MonthlyReportSourceTeacher,
 } from './monthly-report.js';
@@ -41,8 +42,13 @@ const ScheduleRowSchema = z.strictObject({
 });
 const PayrollRowSchema = z.strictObject({
   id: z.uuid(),
+  calculation_mode: z.enum(['LEGACY_PER_MINUTE', 'MONTHLY_POLICY']),
   base_performance_pay: NumericValueSchema,
+  minimum_performance_pay: NumericValueSchema,
   deduction_rate_per_minute: NumericValueSchema,
+  late_deduction_amount: NumericValueSchema,
+  absent_deduction_amount: NumericValueSchema,
+  rejected_early_departure_rate_per_hour: NumericValueSchema,
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
@@ -84,11 +90,18 @@ const LeaveRowSchema = z.strictObject({
   leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']),
   status: z.enum(['PENDING', 'APPROVED']),
 });
+const EarlyDepartureRowSchema = z.strictObject({
+  attendance_id: z.uuid(),
+  teacher_id: z.uuid(),
+  work_date: z.string(),
+  requested_at: z.string(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+});
 
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const PAYROLL_FIELDS =
-  'id,base_performance_pay,deduction_rate_per_minute,effective_from,effective_to';
+  'id,calculation_mode,base_performance_pay,minimum_performance_pay,deduction_rate_per_minute,late_deduction_amount,absent_deduction_amount,rejected_early_departure_rate_per_hour,effective_from,effective_to';
 const ATTENDANCE_FIELDS =
   'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
 
@@ -157,8 +170,15 @@ function toPayroll(value: unknown): PayrollRule {
   const row = PayrollRowSchema.parse(value);
   return PayrollRuleSchema.parse({
     id: row.id,
+    calculationMode: row.calculation_mode,
     basePerformancePay: Number(row.base_performance_pay),
+    minimumPerformancePay: Number(row.minimum_performance_pay),
     deductionRatePerMinute: Number(row.deduction_rate_per_minute),
+    lateDeductionAmount: Number(row.late_deduction_amount),
+    absentDeductionAmount: Number(row.absent_deduction_amount),
+    rejectedEarlyDepartureRatePerHour: Number(
+      row.rejected_early_departure_rate_per_hour,
+    ),
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
   });
@@ -215,6 +235,17 @@ function toLeave(value: unknown): MonthlyReportSourceLeave {
   };
 }
 
+function toEarlyDeparture(value: unknown): MonthlyReportSourceEarlyDeparture {
+  const row = EarlyDepartureRowSchema.parse(value);
+  return {
+    attendanceId: row.attendance_id,
+    teacherId: row.teacher_id,
+    workDate: row.work_date,
+    requestedAt: row.requested_at,
+    status: row.status,
+  };
+}
+
 export class SupabaseMonthlyReportRepository
   implements MonthlyReportRepository
 {
@@ -239,6 +270,7 @@ export class SupabaseMonthlyReportRepository
       calendarRows,
       attendanceRows,
       leaveRows,
+      earlyDepartureRows,
     ] = await Promise.all([
       loadAllPages(async (from, to) =>
         this.client
@@ -302,6 +334,16 @@ export class SupabaseMonthlyReportRepository
           .order('teacher_id', { ascending: true })
           .range(from, to),
       ),
+      loadAllPages(async (from, to) =>
+        this.client
+          .from('early_departure_requests')
+          .select('attendance_id,teacher_id,work_date,requested_at,status')
+          .gte('work_date', startDate)
+          .lte('work_date', endDate)
+          .order('work_date', { ascending: true })
+          .order('teacher_id', { ascending: true })
+          .range(from, to),
+      ),
     ]);
 
     const teachers = teacherRows.map(toTeacher);
@@ -317,6 +359,9 @@ export class SupabaseMonthlyReportRepository
       leaves: leaveRows
         .map(toLeave)
         .filter((leave) => teacherIds.has(leave.teacherId)),
+      earlyDepartures: earlyDepartureRows
+        .map(toEarlyDeparture)
+        .filter((request) => teacherIds.has(request.teacherId)),
     };
   }
 }

@@ -59,6 +59,16 @@ const monthStartValidator: ValidatorFn = (control: AbstractControl): ValidationE
     ? { monthStart: true }
     : null;
 
+const payrollMinimumValidator: ValidatorFn = (
+  control: AbstractControl,
+): ValidationErrors | null => {
+  const base = Number(control.get('basePerformancePay')?.value);
+  const minimum = Number(control.get('minimumPerformancePay')?.value);
+  return Number.isFinite(base) && Number.isFinite(minimum) && minimum > base
+    ? { minimumExceedsBase: true }
+    : null;
+};
+
 function scheduleRuleForm() {
   return new FormGroup(
     {
@@ -180,15 +190,27 @@ export class SettingsPage implements OnInit {
       nonNullable: true,
       validators: [Validators.required, monthStartValidator],
     }),
-    basePerformancePay: new FormControl(0, {
+    basePerformancePay: new FormControl(600_000, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
-    deductionRatePerMinute: new FormControl(0, {
+    minimumPerformancePay: new FormControl(300_000, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
-  });
+    lateDeductionAmount: new FormControl(10_000, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    absentDeductionAmount: new FormControl(20_000, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    rejectedEarlyDepartureRatePerHour: new FormControl(10_000, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+  }, { validators: payrollMinimumValidator });
   readonly schedules = signal<ScheduleSettingsResponse | null>(null);
   readonly geofence = signal<GeofenceSettingsResponse | null>(null);
   readonly calendar = signal<CalendarExceptionsResponse | null>(null);
@@ -435,7 +457,11 @@ export class SettingsPage implements OnInit {
       if (payroll.payrollRule) {
         this.payrollForm.patchValue({
           basePerformancePay: payroll.payrollRule.basePerformancePay,
-          deductionRatePerMinute: payroll.payrollRule.deductionRatePerMinute,
+          minimumPerformancePay: payroll.payrollRule.minimumPerformancePay,
+          lateDeductionAmount: payroll.payrollRule.lateDeductionAmount,
+          absentDeductionAmount: payroll.payrollRule.absentDeductionAmount,
+          rejectedEarlyDepartureRatePerHour:
+            payroll.payrollRule.rejectedEarlyDepartureRatePerHour,
         });
       }
       return true;

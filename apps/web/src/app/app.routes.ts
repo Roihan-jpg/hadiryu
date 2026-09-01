@@ -8,6 +8,14 @@ import {
 
 export const routes: Routes = [
   {
+    path: 'guru/pulang-awal',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
+    loadComponent: () =>
+      import('./features/early-departure-requests/early-departure-requests-page').then(
+        (module) => module.EarlyDepartureRequestsPage,
+      ),
+  },
+  {
     path: 'guru/izin',
     canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
@@ -20,6 +28,14 @@ export const routes: Routes = [
     canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/auth/login-page').then((module) => module.LoginPage),
+  },
+  {
+    path: 'admin/early-departure-requests',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
+    loadComponent: () =>
+      import('./features/admin/early-departure-requests/admin-early-departure-requests-page').then(
+        (module) => module.AdminEarlyDepartureRequestsPage,
+      ),
   },
   {
     path: 'admin/leave-requests',

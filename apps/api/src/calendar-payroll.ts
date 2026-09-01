@@ -85,18 +85,128 @@ function toCents(value: number): number {
   return Math.round(value * 100);
 }
 
+const MAX_DAILY_DEDUCTION_IN_CENTS = 20_000 * 100;
+
 export function calculatePerformancePay(input: {
   totalWorkDeficitMinutes: number;
+  days: readonly {
+    status: 'WORKED' | 'INCOMPLETE' | 'LEAVE' | 'ABSENT' | 'NON_WORKING_DAY';
+    arrivalLateMinutes: number;
+    rejectedEarlyDepartureMinutes: number;
+  }[];
   payrollRule: PayrollRule;
 }): PerformancePayCalculation {
-  const deductionAmountInCents =
-    input.totalWorkDeficitMinutes * toCents(input.payrollRule.deductionRatePerMinute);
+  const ruleFields = {
+    calculationMode: input.payrollRule.calculationMode,
+    basePerformancePay: input.payrollRule.basePerformancePay,
+    minimumPerformancePay: input.payrollRule.minimumPerformancePay,
+    deductionRatePerMinute: input.payrollRule.deductionRatePerMinute,
+    lateDeductionAmount: input.payrollRule.lateDeductionAmount,
+    absentDeductionAmount: input.payrollRule.absentDeductionAmount,
+    rejectedEarlyDepartureRatePerHour:
+      input.payrollRule.rejectedEarlyDepartureRatePerHour,
+  };
+  if (input.payrollRule.calculationMode === 'LEGACY_PER_MINUTE') {
+    const deductionAmountInCents =
+      input.totalWorkDeficitMinutes *
+      toCents(input.payrollRule.deductionRatePerMinute);
+    const basePerformancePayInCents = toCents(
+      input.payrollRule.basePerformancePay,
+    );
+    return PerformancePayCalculationSchema.parse({
+      totalWorkDeficitMinutes: input.totalWorkDeficitMinutes,
+      lateDayCount: 0,
+      absentDayCount: 0,
+      rejectedEarlyDepartureMinutes: 0,
+      ...ruleFields,
+      lateDeductionTotal: 0,
+      absentDeductionTotal: 0,
+      rejectedEarlyDepartureDeductionTotal: 0,
+      deductionAmount: deductionAmountInCents / 100,
+      finalPerformancePay:
+        (basePerformancePayInCents - deductionAmountInCents) / 100,
+    });
+  }
+
   const basePerformancePayInCents = toCents(input.payrollRule.basePerformancePay);
+  const minimumPerformancePayInCents = toCents(
+    input.payrollRule.minimumPerformancePay,
+  );
+  const maximumMonthlyDeductionInCents = Math.max(
+    0,
+    basePerformancePayInCents - minimumPerformancePayInCents,
+  );
+  const lateDeductionInCents = toCents(input.payrollRule.lateDeductionAmount);
+  const absentDeductionInCents = toCents(input.payrollRule.absentDeductionAmount);
+  const earlyRateInCents = toCents(
+    input.payrollRule.rejectedEarlyDepartureRatePerHour,
+  );
+  let lateDayCount = 0;
+  let absentDayCount = 0;
+  let rejectedEarlyDepartureMinutes = 0;
+  let lateDeductionTotalInCents = 0;
+  let absentDeductionTotalInCents = 0;
+  let rejectedEarlyDepartureDeductionTotalInCents = 0;
+  let appliedMonthlyDeductionInCents = 0;
+
+  for (const day of input.days) {
+    const monthlyRemaining =
+      maximumMonthlyDeductionInCents - appliedMonthlyDeductionInCents;
+
+    if (day.status === 'ABSENT') {
+      absentDayCount += 1;
+      const applied = Math.min(
+        absentDeductionInCents,
+        MAX_DAILY_DEDUCTION_IN_CENTS,
+        monthlyRemaining,
+      );
+      absentDeductionTotalInCents += applied;
+      appliedMonthlyDeductionInCents += applied;
+      continue;
+    }
+    if (day.status !== 'WORKED' && day.status !== 'INCOMPLETE') continue;
+
+    const dayCapInCents = MAX_DAILY_DEDUCTION_IN_CENTS;
+    let dayAppliedInCents = 0;
+    if (day.arrivalLateMinutes > 0) {
+      lateDayCount += 1;
+      const applied = Math.min(
+        lateDeductionInCents,
+        dayCapInCents,
+        monthlyRemaining,
+      );
+      lateDeductionTotalInCents += applied;
+      dayAppliedInCents += applied;
+    }
+
+    if (day.rejectedEarlyDepartureMinutes > 0) {
+      rejectedEarlyDepartureMinutes += day.rejectedEarlyDepartureMinutes;
+      const calculated = Math.round(
+        (day.rejectedEarlyDepartureMinutes * earlyRateInCents) / 60,
+      );
+      const applied = Math.min(
+        calculated,
+        Math.max(0, dayCapInCents - dayAppliedInCents),
+        Math.max(0, monthlyRemaining - dayAppliedInCents),
+      );
+      rejectedEarlyDepartureDeductionTotalInCents += applied;
+      dayAppliedInCents += applied;
+    }
+    appliedMonthlyDeductionInCents += dayAppliedInCents;
+  }
+
   return PerformancePayCalculationSchema.parse({
     totalWorkDeficitMinutes: input.totalWorkDeficitMinutes,
-    basePerformancePay: input.payrollRule.basePerformancePay,
-    deductionRatePerMinute: input.payrollRule.deductionRatePerMinute,
-    deductionAmount: deductionAmountInCents / 100,
-    finalPerformancePay: (basePerformancePayInCents - deductionAmountInCents) / 100,
+    lateDayCount,
+    absentDayCount,
+    rejectedEarlyDepartureMinutes,
+    ...ruleFields,
+    lateDeductionTotal: lateDeductionTotalInCents / 100,
+    absentDeductionTotal: absentDeductionTotalInCents / 100,
+    rejectedEarlyDepartureDeductionTotal:
+      rejectedEarlyDepartureDeductionTotalInCents / 100,
+    deductionAmount: appliedMonthlyDeductionInCents / 100,
+    finalPerformancePay:
+      (basePerformancePayInCents - appliedMonthlyDeductionInCents) / 100,
   });
 }

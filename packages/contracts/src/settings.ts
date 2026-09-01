@@ -170,18 +170,70 @@ const MoneySchema = z
     message: 'Nilai uang maksimal memiliki dua angka desimal',
   });
 
-export const PayrollRuleInputSchema = z.strictObject({
-  basePerformancePay: MoneySchema,
-  deductionRatePerMinute: MoneySchema,
-});
+export const PayrollCalculationModeSchema = z.enum([
+  'LEGACY_PER_MINUTE',
+  'MONTHLY_POLICY',
+]);
+export type PayrollCalculationMode = z.infer<
+  typeof PayrollCalculationModeSchema
+>;
+
+export const PayrollRuleInputSchema = z
+  .strictObject({
+    basePerformancePay: MoneySchema,
+    minimumPerformancePay: MoneySchema,
+    lateDeductionAmount: MoneySchema,
+    absentDeductionAmount: MoneySchema,
+    rejectedEarlyDepartureRatePerHour: MoneySchema,
+  })
+  .refine((value) => value.minimumPerformancePay <= value.basePerformancePay, {
+    message: 'Upah minimum tidak boleh melebihi upah dasar',
+    path: ['minimumPerformancePay'],
+  });
 export type PayrollRuleInput = z.infer<typeof PayrollRuleInputSchema>;
 
-export const PayrollRuleSchema = z.strictObject({
-  id: z.uuid(),
-  ...PayrollRuleInputSchema.shape,
-  effectiveFrom: LocalDateSchema,
-  effectiveTo: LocalDateSchema.nullable(),
-});
+export const PayrollRuleSchema = z
+  .strictObject({
+    id: z.uuid(),
+    calculationMode: PayrollCalculationModeSchema,
+    basePerformancePay: MoneySchema,
+    minimumPerformancePay: MoneySchema,
+    deductionRatePerMinute: MoneySchema,
+    lateDeductionAmount: MoneySchema,
+    absentDeductionAmount: MoneySchema,
+    rejectedEarlyDepartureRatePerHour: MoneySchema,
+    effectiveFrom: LocalDateSchema,
+    effectiveTo: LocalDateSchema.nullable(),
+  })
+  .refine((value) => value.minimumPerformancePay <= value.basePerformancePay, {
+    message: 'Upah minimum tidak boleh melebihi upah dasar',
+    path: ['minimumPerformancePay'],
+  })
+  .superRefine((value, context) => {
+    if (
+      value.calculationMode === 'MONTHLY_POLICY' &&
+      value.deductionRatePerMinute !== 0
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Mode upah bulanan tidak memakai tarif potongan per menit legacy',
+        path: ['deductionRatePerMinute'],
+      });
+    }
+    if (
+      value.calculationMode === 'LEGACY_PER_MINUTE' &&
+      (value.minimumPerformancePay !== 0 ||
+        value.lateDeductionAmount !== 0 ||
+        value.absentDeductionAmount !== 0 ||
+        value.rejectedEarlyDepartureRatePerHour !== 0)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Mode legacy tidak memakai field kebijakan upah bulanan',
+        path: ['calculationMode'],
+      });
+    }
+  });
 export type PayrollRule = z.infer<typeof PayrollRuleSchema>;
 
 export const CreatePayrollVersionRequestSchema = z
@@ -208,8 +260,19 @@ export type PayrollSettingsResponse = z.infer<typeof PayrollSettingsResponseSche
 
 export const PerformancePayCalculationSchema = z.strictObject({
   totalWorkDeficitMinutes: z.number().int().nonnegative(),
+  lateDayCount: z.number().int().nonnegative(),
+  absentDayCount: z.number().int().nonnegative(),
+  rejectedEarlyDepartureMinutes: z.number().int().nonnegative(),
+  calculationMode: PayrollCalculationModeSchema,
   basePerformancePay: MoneySchema,
+  minimumPerformancePay: MoneySchema,
   deductionRatePerMinute: MoneySchema,
+  lateDeductionAmount: MoneySchema,
+  absentDeductionAmount: MoneySchema,
+  rejectedEarlyDepartureRatePerHour: MoneySchema,
+  lateDeductionTotal: MoneySchema,
+  absentDeductionTotal: MoneySchema,
+  rejectedEarlyDepartureDeductionTotal: MoneySchema,
   deductionAmount: MoneySchema,
   finalPerformancePay: z.number().finite(),
 });

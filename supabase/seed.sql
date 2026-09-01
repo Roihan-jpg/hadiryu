@@ -66,15 +66,25 @@ insert into public.geofence_rules (
 
 insert into public.payroll_rules (
   id,
+  calculation_mode,
   base_performance_pay,
+  minimum_performance_pay,
   deduction_rate_per_minute,
+  late_deduction_amount,
+  absent_deduction_amount,
+  rejected_early_departure_rate_per_hour,
   effective_from,
   created_at,
   updated_at
 ) values (
   '30000000-0000-4000-8000-000000000001',
+  'MONTHLY_POLICY',
+  600000,
+  300000,
   0,
-  0,
+  10000,
+  20000,
+  10000,
   '2026-01-01',
   '2026-01-01 00:00:00+00',
   '2026-01-01 00:00:00+00'

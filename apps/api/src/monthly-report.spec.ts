@@ -35,8 +35,25 @@ const saturday: ScheduleRule = {
 };
 const payrollRule: PayrollRule = {
   id: '30000000-0000-4000-8000-000000000001',
+  calculationMode: 'LEGACY_PER_MINUTE',
   basePerformancePay: 1_000_000,
+  minimumPerformancePay: 0,
   deductionRatePerMinute: 3000,
+  lateDeductionAmount: 0,
+  absentDeductionAmount: 0,
+  rejectedEarlyDepartureRatePerHour: 0,
+  effectiveFrom: '2020-01-01',
+  effectiveTo: null,
+};
+const monthlyPolicy: PayrollRule = {
+  id: '30000000-0000-4000-8000-000000000002',
+  calculationMode: 'MONTHLY_POLICY',
+  basePerformancePay: 600_000,
+  minimumPerformancePay: 300_000,
+  deductionRatePerMinute: 0,
+  lateDeductionAmount: 10_000,
+  absentDeductionAmount: 20_000,
+  rejectedEarlyDepartureRatePerHour: 10_000,
   effectiveFrom: '2020-01-01',
   effectiveTo: null,
 };
@@ -55,6 +72,7 @@ function source(input: Partial<MonthlyReportSource> = {}): MonthlyReportSource {
     calendarExceptions: [],
     attendances: [],
     leaves: [],
+    earlyDepartures: [],
     ...input,
   };
 }
@@ -266,6 +284,139 @@ describe('monthly report calculator', () => {
       status: 409,
       code: 'PENDING_LEAVE_EXISTS',
       details: { pendingLeaveCount: 1 },
+    });
+  });
+
+  it('credits approved early departure and charges rejected empty time proportionally', async () => {
+    const completed = {
+      id: '40000000-0000-4000-8000-000000000001',
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      workDate: '2026-06-01',
+      checkInAt: '2026-06-01T00:05:00.000Z',
+      checkOutAt: '2026-06-01T07:05:00.000Z',
+      workStart: '07:00',
+      workEnd: '15:35',
+      checkoutClose: '17:00',
+      targetMinutes: 515,
+      workedMinutes: 420,
+      arrivalLateMinutes: 5,
+      workDeficitMinutes: 95,
+      status: 'COMPLETED' as const,
+    };
+    const rejectedRepository = new FakeMonthlyReportRepository(
+      source({
+        payrollRules: [monthlyPolicy],
+        attendances: [completed],
+        earlyDepartures: [
+          {
+            attendanceId: completed.id,
+            teacherId: completed.teacherId,
+            workDate: completed.workDate,
+            requestedAt: completed.checkOutAt,
+            status: 'REJECTED',
+          },
+        ],
+      }),
+    );
+
+    const rejected = await service(rejectedRepository).preview({ year: 2026, month: 6 });
+    expect(rejected.teachers[0]?.days[0]).toMatchObject({
+      workedMinutes: 425,
+      workDeficitMinutes: 90,
+    });
+    expect(rejected.teachers[0]).toMatchObject({
+      lateDayCount: 1,
+      rejectedEarlyDepartureMinutes: 90,
+      lateDeductionTotal: 10_000,
+      rejectedEarlyDepartureDeductionTotal: 10_000,
+      finalPerformancePay: 300_000,
+    });
+
+    const approvedRepository = new FakeMonthlyReportRepository(
+      source({
+        payrollRules: [monthlyPolicy],
+        attendances: [{ ...completed, arrivalLateMinutes: 0 }],
+        earlyDepartures: [
+          {
+            attendanceId: completed.id,
+            teacherId: completed.teacherId,
+            workDate: completed.workDate,
+            requestedAt: completed.checkOutAt,
+            status: 'APPROVED',
+          },
+        ],
+      }),
+    );
+    const approved = await service(approvedRepository).preview({ year: 2026, month: 6 });
+    expect(approved.teachers[0]?.days[0]).toMatchObject({
+      workedMinutes: 515,
+      workDeficitMinutes: 0,
+    });
+  });
+
+  it('caps rejected early-departure empty time at the daily target', async () => {
+    const attendance = {
+      id: '40000000-0000-4000-8000-000000000001',
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      workDate: '2026-06-01',
+      checkInAt: '2026-05-31T22:30:00.000Z',
+      checkOutAt: '2026-05-31T22:31:00.000Z',
+      workStart: '07:00',
+      workEnd: '15:35',
+      checkoutClose: '17:00',
+      targetMinutes: 515,
+      workedMinutes: 1,
+      arrivalLateMinutes: 0,
+      workDeficitMinutes: 514,
+      status: 'COMPLETED' as const,
+    };
+    const repository = new FakeMonthlyReportRepository(
+      source({
+        payrollRules: [monthlyPolicy],
+        attendances: [attendance],
+        earlyDepartures: [
+          {
+            attendanceId: attendance.id,
+            teacherId: attendance.teacherId,
+            workDate: attendance.workDate,
+            requestedAt: attendance.checkOutAt,
+            status: 'REJECTED',
+          },
+        ],
+      }),
+    );
+
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+
+    expect(report.teachers[0]?.days[0]).toMatchObject({
+      targetMinutes: 515,
+      workedMinutes: 0,
+      workDeficitMinutes: 515,
+    });
+    expect(report.teachers[0]?.rejectedEarlyDepartureMinutes).toBe(515);
+  });
+
+  it('blocks preview while an early departure request is Pending', async () => {
+    const repository = new FakeMonthlyReportRepository(
+      source({
+        earlyDepartures: [
+          {
+            attendanceId: '40000000-0000-4000-8000-000000000001',
+            teacherId: '50000000-0000-4000-8000-000000000001',
+            workDate: '2026-06-01',
+            requestedAt: '2026-06-01T07:05:00.000Z',
+            status: 'PENDING',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      service(repository).preview({ year: 2026, month: 6 }),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'PENDING_EARLY_DEPARTURE_EXISTS',
+      details: { pendingEarlyDepartureCount: 1 },
     });
   });
 

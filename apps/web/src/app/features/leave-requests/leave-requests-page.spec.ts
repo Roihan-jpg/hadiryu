@@ -36,12 +36,12 @@ describe('LeaveRequestsPage', () => {
   it('submits a single-date request and prevents duplicate submission', async () => {
     await setup();
     const page = fixture.componentInstance;
-    page.form.controls.leaveDate.setValue('2026-08-27');
+    page.form.controls.leaveDate.setValue(page.minDate);
     page.form.controls.leaveType.setValue('FAMILY');
     page.form.controls.reason.setValue('Acara keluarga');
     await Promise.all([page.submit(), page.submit()]);
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith({ leaveDate: '2026-08-27', leaveType: 'FAMILY', reason: 'Acara keluarga' });
+    expect(create).toHaveBeenCalledWith({ leaveDate: page.minDate, leaveType: 'FAMILY', reason: 'Acara keluarga' });
   });
   it('rejects a whitespace-only reason before calling the API', async () => {
     await setup();

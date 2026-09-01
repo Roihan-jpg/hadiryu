@@ -2,8 +2,8 @@
 
 Dokumen ini menjelaskan release gate untuk project Supabase hosted yang sudah ditetapkan:
 
-- Project ref: `agtmvpjtqcmsqvatskjg`
-- URL: `https://agtmvpjtqcmsqvatskjg.supabase.co`
+- Project ref: `jlqzeytwwdnooepagknb`
+- URL: `https://jlqzeytwwdnooepagknb.supabase.co`
 
 Repository tidak membuat project Supabase baru dan belum mendeploy Web/API ke provider aplikasi. Smoke hosted menjalankan Web dan API di komputer lokal, tetapi memakai Auth/PostgreSQL project hosted di atas.
 
@@ -46,6 +46,16 @@ npm run bootstrap:super-admin
 
 Command bersifat idempotent untuk NIP SuperAdmin yang sudah ada dan tidak mereset password akun tersebut. Password awal wajib diganti melalui halaman login pertama.
 
+Untuk hosted project baru yang belum memiliki konfigurasi operasional dan akun smoke,
+isi `.env` lokal yang di-ignore Git lalu jalankan setup idempotent berikut satu kali:
+
+```bash
+npm run setup:hosted
+```
+
+Setup hanya membuat versi ketika konfigurasi belum ada. Bila aturan hosted sudah ada tetapi
+nilainya berbeda, proses berhenti dan tidak menimpanya.
+
 ## Verifikasi Lokal
 
 Install browser satu kali, lalu jalankan gate lokal dari database bersih:
@@ -63,10 +73,24 @@ npm run build
 `test:e2e` membaca key lokal langsung dari `supabase status -o env`, meneruskannya hanya ke child process, lalu menjalankan flow berikut:
 
 1. bootstrap dan login SuperAdmin;
-2. siapkan window jadwal/geofence disposable dan akun Guru setelah local reset;
-3. Guru login, mengganti password awal, check-in, checkout, dan mengajukan izin;
-4. SuperAdmin menyetujui izin;
-5. API preview laporan diverifikasi dan file XLSX diekspor.
+2. siapkan window jadwal/geofence disposable dan dua akun Guru setelah local reset;
+3. Guru pertama login, mengganti password awal, check-in, checkout, dan mengajukan izin;
+4. Guru kedua check-in lalu mengajukan pulang awal sehingga waktu/lokasi server menjadi checkout aktual;
+5. SuperAdmin menyetujui izin dan pulang awal;
+6. preview memverifikasi mode upah bulanan serta batas minimum, lalu file XLSX diekspor.
+
+## Konfigurasi Upah dan Pulang Awal
+
+Aturan upah dibuat sebagai versi efektif baru melalui **Pengaturan → Upah kinerja**; versi lama tidak diubah agar laporan historis tetap dapat direproduksi. Nilai awal operasional adalah:
+
+- upah dasar bulanan Rp600.000;
+- upah minimum Rp300.000;
+- potongan terlambat Rp10.000 per hari;
+- potongan alpa Rp20.000 per hari;
+- waktu kosong pulang awal yang ditolak Rp10.000 per 60 menit;
+- total potongan dibatasi Rp20.000 per hari.
+
+Permohonan pulang awal tersedia di navigasi Guru setelah check-in. Pengiriman permohonan meminta lokasi saat tombol ditekan, mencatat timestamp server sebagai checkout, dan membuat status `PENDING`. SuperAdmin wajib menyelesaikannya melalui **Approval pulang awal** sebelum laporan bulan terkait diekspor. Approval memberi kredit target penuh untuk kekurangan akibat pulang awal; penolakan menghitung interval pengajuan sampai `workEnd` sebagai waktu kosong. Potongan terlambat tetap berlaku pada kedua keputusan.
 
 ## Link dan Migration Hosted
 
@@ -80,7 +104,7 @@ npm run db:advisors:hosted
 
 Guardrail setiap script:
 
-- target selalu divalidasi sebagai `agtmvpjtqcmsqvatskjg`;
+- target selalu divalidasi sebagai `jlqzeytwwdnooepagknb`;
 - deploy menjalankan `db push --linked --dry-run` sebelum apply;
 - deploy tidak memakai `--include-seed`;
 - advisors memeriksa security dan performance serta gagal pada warning;
@@ -97,13 +121,17 @@ Siapkan satu akun Guru khusus smoke melalui GUI SuperAdmin. Akun harus aktif, pa
 - `E2E_LATITUDE` dan `E2E_LONGITUDE`: titik valid di dalam geofence sekolah;
 - `E2E_LEAVE_DATE`: tanggal hari ini/masa depan yang disetujui untuk data smoke.
 
-Jalankan smoke saat window check-in hosted aktif, atau setelah akun smoke memiliki absensi hari itu. Test melakukan checkout bila window checkout sudah aktif; bila belum, status check-in yang tersimpan tetap diverifikasi. Test tidak membuat Guru, tidak mengubah konfigurasi, tidak mereset password, serta tidak menghapus data. Test dapat membuat absensi dan izin untuk akun smoke, menyetujui izin tersebut, lalu melakukan preview/export:
+Jalankan smoke saat window check-in hosted aktif, atau setelah akun smoke memiliki absensi hari itu. Bila absensi masih aktif sebelum `workEnd`, test mengajukan pulang awal dan kemudian menyetujuinya sebagai SuperAdmin; setelah `workEnd`, test memakai checkout normal bila window checkout masih terbuka. Test tidak membuat Guru, tidak mengubah konfigurasi, tidak mereset password, serta tidak menghapus data. Test dapat membuat absensi, permohonan pulang awal, dan izin untuk akun smoke, menyelesaikan approval, lalu melakukan preview/export:
 
 ```bash
 npm run test:e2e:hosted
 ```
 
-Jika tanggal izin sudah memiliki izin Pending atau Approved untuk akun smoke, test memakai record itu sehingga rerun tidak membuat duplikat. Preview/export sengaja gagal bila masih ada izin Pending lain pada bulan tersebut; itu adalah release blocker yang harus diselesaikan, bukan di-skip.
+Jika tanggal izin sudah memiliki izin Pending atau Approved untuk akun smoke, test memakai record itu sehingga rerun tidak membuat duplikat. Permohonan pulang awal Pending milik akun smoke pada hari yang sama juga diselesaikan saat rerun. Preview/export sengaja gagal bila masih ada izin atau pulang awal Pending lain pada bulan tersebut; itu adalah release blocker yang harus diselesaikan, bukan di-skip.
+
+Advisors Auth dapat melaporkan `auth_leaked_password_protection` pada project Free.
+Supabase menyediakan proteksi HaveIBeenPwned tersebut hanya pada paket Pro atau lebih tinggi;
+jangan melemahkan command advisor atau membeli paket tanpa keputusan pemilik project.
 
 ## Batas Deployment Aplikasi
 

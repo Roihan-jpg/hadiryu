@@ -12,10 +12,12 @@
         <a mat-button routerLink="/guru" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Hari ini</a>
         <a mat-button routerLink="/guru/riwayat" routerLinkActive="active" ariaCurrentWhenActive="page">Riwayat</a>
         <a mat-button routerLink="/guru/izin" routerLinkActive="active" ariaCurrentWhenActive="page">Izin</a>
+        <a mat-button routerLink="/guru/pulang-awal" routerLinkActive="active" ariaCurrentWhenActive="page">Pulang awal</a>
       } @else if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
         <a mat-button routerLink="/admin" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Monitoring</a>
         <a mat-button routerLink="/admin/teachers" routerLinkActive="active" ariaCurrentWhenActive="page">Guru</a>
         <a mat-button routerLink="/admin/leave-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Approval izin</a>
+        <a mat-button routerLink="/admin/early-departure-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Approval pulang awal</a>
         <a mat-button routerLink="/admin/settings" routerLinkActive="active" ariaCurrentWhenActive="page">Pengaturan</a>
       }
     </nav>

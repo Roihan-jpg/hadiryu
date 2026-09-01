@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  EarlyDepartureRequestListResponseSchema,
   LeaveRequestListResponseSchema,
   MonthlyReportPreviewSchema,
   TodayAttendanceResponseSchema,
@@ -56,6 +57,17 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
 
   await login(page, teacherNip, teacherPassword);
   await expect(page).toHaveURL(/\/guru$/);
+  const existingEarlyRequests = EarlyDepartureRequestListResponseSchema.parse(
+    await expectSuccessfulGet(
+      page,
+      '/api/early-departure-requests?page=1&pageSize=100',
+    ),
+  );
+  let pendingEarlyDeparture = existingEarlyRequests.data.some(
+    (request) =>
+      request.workDate === jakartaDateTime().workDate &&
+      request.status === 'PENDING',
+  );
   const checkIn = page.getByRole('button', { name: 'Check-in sekarang' });
   if (await checkIn.isVisible()) {
     await checkIn.click();
@@ -66,7 +78,21 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
   );
   if (today.state === 'CHECKED_IN' && today.schedule) {
     const serverMinute = jakartaDateTime(new Date(today.serverNow)).time;
-    if (
+    if (serverMinute < today.schedule.workEnd) {
+      await page.getByRole('link', { name: 'Pulang awal', exact: true }).click();
+      await page
+        .getByLabel('Alasan pulang awal')
+        .fill('Verifikasi release readiness hosted');
+      await page
+        .getByRole('button', { name: 'Kirim permohonan dan catat pulang' })
+        .click();
+      await expect(
+        page.getByText(
+          'Permohonan terkirim. Absensi pulang dicatat dan menunggu keputusan admin.',
+        ),
+      ).toBeVisible();
+      pendingEarlyDeparture = true;
+    } else if (
       serverMinute >= today.schedule.checkoutOpen &&
       serverMinute <= today.schedule.checkoutClose
     ) {
@@ -128,6 +154,15 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
     await expect(page.getByText('Izin berhasil disetujui.')).toBeVisible();
   } else {
     await expect(request).toContainText('Disetujui');
+  }
+
+  if (pendingEarlyDeparture) {
+    await page.getByRole('link', { name: 'Approval pulang awal' }).click();
+    const earlyRequest = page.locator('article').filter({ hasText: teacherNip });
+    await expect(earlyRequest).toContainText('Pending');
+    page.once('dialog', (dialog) => dialog.accept());
+    await earlyRequest.getByRole('button', { name: 'Setujui' }).click();
+    await expect(page.getByText('Pulang awal disetujui.')).toBeVisible();
   }
 
   const [year, month] = leaveDate.split('-').map(Number);

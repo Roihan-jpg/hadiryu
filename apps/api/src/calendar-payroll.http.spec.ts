@@ -34,13 +34,18 @@ const exception: CalendarException = {
 };
 const payrollInput: CreatePayrollVersionRequest = {
   effectiveFrom: '2026-09-01',
-  basePerformancePay: 1_500_000,
-  deductionRatePerMinute: 2500,
+  basePerformancePay: 600_000,
+  minimumPerformancePay: 300_000,
+  lateDeductionAmount: 10_000,
+  absentDeductionAmount: 20_000,
+  rejectedEarlyDepartureRatePerHour: 10_000,
 };
 const payroll: PayrollSettingsResponse = {
   effectiveOn: payrollInput.effectiveFrom,
   payrollRule: {
     id: '30000000-0000-4000-8000-000000000001',
+    calculationMode: 'MONTHLY_POLICY',
+    deductionRatePerMinute: 0,
     ...payrollInput,
     effectiveTo: null,
   },

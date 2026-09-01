@@ -62,6 +62,14 @@ export interface MonthlyReportSourceLeave {
   status: 'PENDING' | 'APPROVED';
 }
 
+export interface MonthlyReportSourceEarlyDeparture {
+  attendanceId: string;
+  teacherId: string;
+  workDate: string;
+  requestedAt: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
 export interface MonthlyReportSource {
   teachers: MonthlyReportSourceTeacher[];
   schedules: ScheduleRule[];
@@ -69,6 +77,7 @@ export interface MonthlyReportSource {
   calendarExceptions: CalendarException[];
   attendances: MonthlyReportSourceAttendance[];
   leaves: MonthlyReportSourceLeave[];
+  earlyDepartures: MonthlyReportSourceEarlyDeparture[];
 }
 
 export interface MonthlyReportRepository {
@@ -182,6 +191,7 @@ function nonWorkingDay(day: ResolvedReportDay): MonthlyReportDay {
 function attendanceDay(
   day: ResolvedReportDay,
   attendance: MonthlyReportSourceAttendance,
+  earlyDeparture: MonthlyReportSourceEarlyDeparture | undefined,
 ): MonthlyReportDay {
   const common = {
     workDate: day.workDate,
@@ -196,6 +206,29 @@ function attendanceDay(
     calendarExceptionName: day.calendarExceptionName,
   };
   if (attendance.status === 'COMPLETED') {
+    if (earlyDeparture?.status === 'APPROVED') {
+      return {
+        ...common,
+        status: 'WORKED',
+        checkOutAt: attendance.checkOutAt,
+        workedMinutes: attendance.targetMinutes,
+        workDeficitMinutes: 0,
+      };
+    }
+    if (earlyDeparture?.status === 'REJECTED') {
+      const emptyMinutes = rejectedEarlyDepartureMinutes(
+        earlyDeparture.requestedAt,
+        attendance.workEnd,
+        attendance.targetMinutes,
+      );
+      return {
+        ...common,
+        status: 'WORKED',
+        checkOutAt: attendance.checkOutAt,
+        workedMinutes: Math.max(0, attendance.targetMinutes - emptyMinutes),
+        workDeficitMinutes: emptyMinutes,
+      };
+    }
     return {
       ...common,
       status: 'WORKED',
@@ -211,6 +244,30 @@ function attendanceDay(
     workedMinutes: Math.max(0, attendance.targetMinutes - 60),
     workDeficitMinutes: Math.min(60, attendance.targetMinutes),
   };
+}
+
+function rejectedEarlyDepartureMinutes(
+  requestedAt: string,
+  workEnd: string,
+  maximumMinutes: number,
+): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(requestedAt));
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const requestedMinute = value('hour') * 60 + value('minute');
+  const [endHour = '0', endMinute = '0'] = workEnd.split(':');
+  return Math.min(
+    maximumMinutes,
+    Math.max(
+      0,
+      Number(endHour) * 60 + Number(endMinute) - requestedMinute,
+    ),
+  );
 }
 
 function scheduledDay(
@@ -269,6 +326,17 @@ export function createMonthlyReportService(
           { pendingLeaveCount },
         );
       }
+      const pendingEarlyDepartureCount = source.earlyDepartures.filter(
+        (request) => request.status === 'PENDING',
+      ).length;
+      if (pendingEarlyDepartureCount > 0) {
+        throw new AppError(
+          409,
+          'PENDING_EARLY_DEPARTURE_EXISTS',
+          'Selesaikan seluruh permohonan pulang awal Pending sebelum membuat laporan',
+          { pendingEarlyDepartureCount },
+        );
+      }
 
       const payrollRule = resolvePayrollRule(source.payrollRules, startDate);
       if (!payrollRule) {
@@ -289,6 +357,9 @@ export function createMonthlyReportService(
           .filter((leave) => leave.status === 'APPROVED')
           .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave]),
       );
+      const earlyDepartureByAttendanceId = new Map(
+        source.earlyDepartures.map((request) => [request.attendanceId, request]),
+      );
       const teachers = [...source.teachers]
         .sort(
           (left, right) =>
@@ -301,7 +372,13 @@ export function createMonthlyReportService(
             const attendance = attendanceByTeacherDate.get(
               sourceKey(teacher.teacherId, day.workDate),
             );
-            if (attendance) return attendanceDay(day, attendance);
+            if (attendance) {
+              return attendanceDay(
+                day,
+                attendance,
+                earlyDepartureByAttendanceId.get(attendance.id),
+              );
+            }
             return scheduledDay(
               day,
               approvedLeaveByTeacherDate.get(
@@ -318,6 +395,23 @@ export function createMonthlyReportService(
             days,
             ...calculatePerformancePay({
               totalWorkDeficitMinutes,
+              days: days.map((day) => {
+                const earlyDeparture = day.attendanceId
+                  ? earlyDepartureByAttendanceId.get(day.attendanceId)
+                  : undefined;
+                return {
+                  status: day.status,
+                  arrivalLateMinutes: day.arrivalLateMinutes,
+                  rejectedEarlyDepartureMinutes:
+                    earlyDeparture?.status === 'REJECTED'
+                      ? rejectedEarlyDepartureMinutes(
+                          earlyDeparture.requestedAt,
+                          day.workEnd!,
+                          day.targetMinutes,
+                        )
+                      : 0,
+                };
+              }),
               payrollRule,
             }),
           };

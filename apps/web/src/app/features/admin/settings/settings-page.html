@@ -110,7 +110,10 @@
           </div>
           @if (payroll()?.payrollRule; as rule) {
             <dl>
-              <div><dt>Potongan per menit</dt><dd>{{ currencyLabel(rule.deductionRatePerMinute) }}</dd></div>
+              <div><dt>Upah minimum</dt><dd>{{ currencyLabel(rule.minimumPerformancePay) }}</dd></div>
+              <div><dt>Potongan terlambat</dt><dd>{{ currencyLabel(rule.lateDeductionAmount) }} / hari</dd></div>
+              <div><dt>Potongan alpa</dt><dd>{{ currencyLabel(rule.absentDeductionAmount) }} / hari</dd></div>
+              <div><dt>Waktu kosong ditolak</dt><dd>{{ currencyLabel(rule.rejectedEarlyDepartureRatePerHour) }} / 60 menit</dd></div>
               <div><dt>Mulai berlaku</dt><dd>{{ dateLabel(rule.effectiveFrom) }}</dd></div>
               <div><dt>Status</dt><dd>{{ rule.effectiveTo ? 'Versi tertutup' : 'Versi terbuka' }}</dd></div>
             </dl>
@@ -328,7 +331,7 @@
         <p class="section-kicker">Versi bulanan global</p>
         <h2 id="payroll-form-title">Upah kinerja</h2>
       </div>
-      <p>Aturan baru selalu berlaku pada tanggal 1 dan tidak membatasi hasil upah akhir menjadi nol.</p>
+      <p>Aturan baru selalu berlaku pada tanggal 1. Total potongan dibatasi Rp20.000 per hari dan upah akhir tidak turun di bawah upah minimum.</p>
     </div>
 
     <form [formGroup]="payrollForm" (ngSubmit)="savePayroll()" novalidate>
@@ -349,14 +352,32 @@
           <mat-error>Nilai wajib nol atau lebih.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Potongan per menit</mat-label>
-          <input matInput type="number" min="0" step="0.01" name="deductionRatePerMinute" inputmode="decimal" autocomplete="off" formControlName="deductionRatePerMinute" />
+          <mat-label>Upah minimum</mat-label>
+          <input matInput type="number" min="0" step="0.01" name="minimumPerformancePay" inputmode="decimal" autocomplete="off" formControlName="minimumPerformancePay" />
+          <span matTextPrefix>Rp&nbsp;</span>
+          <mat-error>Nilai wajib nol atau lebih dan tidak melebihi upah dasar.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Potongan terlambat per hari</mat-label>
+          <input matInput type="number" min="0" step="0.01" name="lateDeductionAmount" inputmode="decimal" autocomplete="off" formControlName="lateDeductionAmount" />
+          <span matTextPrefix>Rp&nbsp;</span>
+          <mat-error>Nilai wajib nol atau lebih.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Potongan alpa per hari</mat-label>
+          <input matInput type="number" min="0" step="0.01" name="absentDeductionAmount" inputmode="decimal" autocomplete="off" formControlName="absentDeductionAmount" />
+          <span matTextPrefix>Rp&nbsp;</span>
+          <mat-error>Nilai wajib nol atau lebih.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Nilai 60 menit kosong</mat-label>
+          <input matInput type="number" min="0" step="0.01" name="rejectedEarlyDepartureRatePerHour" inputmode="decimal" autocomplete="off" formControlName="rejectedEarlyDepartureRatePerHour" />
           <span matTextPrefix>Rp&nbsp;</span>
           <mat-error>Nilai wajib nol atau lebih.</mat-error>
         </mat-form-field>
       </div>
       <div class="form-actions">
-        <span>Potongan dan upah akhir resmi dihitung oleh backend saat laporan dibuat.</span>
+        <span>Default: Rp600.000; minimum Rp300.000; telat Rp10.000; alpa Rp20.000; waktu kosong Rp10.000/60 menit.</span>
         <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">
           {{ actionInProgress() === 'payroll' ? 'Menyimpan…' : 'Buat versi upah' }}
         </button>

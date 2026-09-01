@@ -14,6 +14,7 @@ import {
 } from './support/release-helpers';
 
 test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
+  browser,
   context,
   page,
 }) => {
@@ -27,6 +28,13 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     'E2E_TEACHER_INITIAL_PASSWORD',
   );
   const teacherPassword = requiredEnvironment('E2E_TEACHER_PASSWORD');
+  const earlyTeacherNip = requiredEnvironment('E2E_EARLY_TEACHER_NIP');
+  const earlyTeacherInitialPassword = requiredEnvironment(
+    'E2E_EARLY_TEACHER_INITIAL_PASSWORD',
+  );
+  const earlyTeacherPassword = requiredEnvironment(
+    'E2E_EARLY_TEACHER_PASSWORD',
+  );
   const latitude = Number(requiredEnvironment('E2E_LATITUDE'));
   const longitude = Number(requiredEnvironment('E2E_LONGITUDE'));
 
@@ -43,8 +51,8 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     workStart: attendanceWindow.time,
     checkInClose: attendanceWindow.time,
     checkoutOpen: attendanceWindow.time,
-    workEnd: attendanceWindow.time,
-    checkoutClose: attendanceWindow.time,
+    workEnd: '23:59',
+    checkoutClose: '23:59',
     targetMinutes: 1,
   };
   await expectSuccessfulJsonMutation(page, '/api/admin/settings/schedules', {
@@ -70,20 +78,60 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     fullName: 'Guru Smoke E2E',
     initialPassword: teacherInitialPassword,
   });
+  await expectSuccessfulJsonMutation(page, '/api/admin/teachers', {
+    nip: earlyTeacherNip,
+    fullName: 'Guru Pulang Awal E2E',
+    initialPassword: earlyTeacherInitialPassword,
+  });
 
   await logout(page);
   await login(page, teacherNip, teacherInitialPassword);
   await changeInitialPassword(page, teacherInitialPassword, teacherPassword);
   await expect(page.getByRole('heading', { name: /Hari ini, Guru Smoke E2E/ })).toBeVisible();
 
+  const earlyContext = await browser.newContext({
+    baseURL: APP_BASE_URL,
+    geolocation: { latitude, longitude, accuracy: 10 },
+    permissions: ['geolocation'],
+  });
+  const earlyPage = await earlyContext.newPage();
+  await login(earlyPage, earlyTeacherNip, earlyTeacherInitialPassword);
+  await changeInitialPassword(
+    earlyPage,
+    earlyTeacherInitialPassword,
+    earlyTeacherPassword,
+  );
+  await expect(
+    earlyPage.getByRole('heading', { name: /Hari ini, Guru Pulang Awal E2E/ }),
+  ).toBeVisible();
+
   await waitForJakartaMinute(attendanceWindow);
   if (jakartaDateTime().workDate !== attendanceWindow.workDate) {
-    await page.reload();
+    await Promise.all([page.reload(), earlyPage.reload()]);
   }
-  await page.getByRole('button', { name: 'Check-in sekarang' }).click();
-  await expect(page.getByRole('heading', { name: 'Sudah check-in' })).toBeVisible();
+  await Promise.all([
+    page.getByRole('button', { name: 'Check-in sekarang' }).click(),
+    earlyPage.getByRole('button', { name: 'Check-in sekarang' }).click(),
+  ]);
+  await Promise.all([
+    expect(page.getByRole('heading', { name: 'Sudah check-in' })).toBeVisible(),
+    expect(
+      earlyPage.getByRole('heading', { name: 'Sudah check-in' }),
+    ).toBeVisible(),
+  ]);
   await page.getByRole('button', { name: 'Checkout sekarang' }).click();
   await expect(page.getByRole('heading', { name: 'Absensi selesai' })).toBeVisible();
+
+  await earlyPage.getByRole('link', { name: 'Pulang awal', exact: true }).click();
+  await earlyPage.getByLabel('Alasan pulang awal').fill('Keperluan keluarga untuk smoke E2E');
+  await earlyPage
+    .getByRole('button', { name: 'Kirim permohonan dan catat pulang' })
+    .click();
+  await expect(
+    earlyPage.getByText(
+      'Permohonan terkirim. Absensi pulang dicatat dan menunggu keputusan admin.',
+    ),
+  ).toBeVisible();
 
   const leaveDate = nextJakartaDate(attendanceWindow.workDate);
   await page.getByRole('link', { name: 'Izin', exact: true }).click();
@@ -98,6 +146,8 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     ),
   ).toBeVisible();
 
+  await logout(earlyPage);
+  await earlyContext.close();
   await logout(page);
   await login(page, adminNip, adminPassword);
   await page.getByRole('link', { name: 'Approval izin' }).click();
@@ -106,6 +156,35 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await request.getByRole('button', { name: 'Setujui' }).click();
   await page.getByRole('button', { name: 'Setujui izin' }).click();
   await expect(page.getByText('Izin berhasil disetujui.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Approval pulang awal' }).click();
+  const earlyRequest = page.locator('article').filter({ hasText: earlyTeacherNip });
+  await expect(earlyRequest).toContainText('Pending');
+  page.once('dialog', (dialog) => dialog.accept());
+  await earlyRequest.getByRole('button', { name: 'Setujui' }).click();
+  await expect(page.getByText('Pulang awal disetujui.')).toBeVisible();
+
+  const [attendanceYear, attendanceMonth] = attendanceWindow.workDate
+    .split('-')
+    .map(Number);
+  const attendancePreview = await page.context().request.get(
+    `${APP_BASE_URL}/api/admin/reports/monthly/${attendanceYear}/${attendanceMonth}/preview`,
+  );
+  const attendancePreviewBody = await attendancePreview.text();
+  expect(attendancePreview.ok(), attendancePreviewBody).toBe(true);
+  const parsedAttendancePreview = MonthlyReportPreviewSchema.parse(
+    JSON.parse(attendancePreviewBody),
+  );
+  expect(parsedAttendancePreview.teachers).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        teacherNip: earlyTeacherNip,
+        calculationMode: 'MONTHLY_POLICY',
+        minimumPerformancePay: 300_000,
+        rejectedEarlyDepartureMinutes: 0,
+      }),
+    ]),
+  );
 
   const [year, month] = leaveDate.split('-').map(Number);
   const preview = await page.context().request.get(

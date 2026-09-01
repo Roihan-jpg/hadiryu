@@ -13,7 +13,10 @@ import { AuthService } from '../../core/auth/auth.service';
 import {
   AttendanceService,
 } from '../attendance/attendance.service';
-import { GEOLOCATION } from '../attendance/geolocation';
+import {
+  GEOLOCATION,
+  GEOLOCATION_PERMISSIONS,
+} from '../attendance/geolocation';
 import { HomePage } from './home-page';
 
 const teacher: AuthUser = {
@@ -59,15 +62,17 @@ const checkedIn: CheckInRecord = {
 };
 
 class FakeGeolocation {
-  success?: PositionCallback;
-  failure?: PositionErrorCallback;
+  readonly successes: PositionCallback[] = [];
+  readonly failures: PositionErrorCallback[] = [];
   readonly getCurrentPosition = vi.fn(
     (
       success: PositionCallback,
       failure?: PositionErrorCallback | null,
+      options?: PositionOptions,
     ) => {
-      this.success = success;
-      this.failure = failure ?? undefined;
+      void options;
+      this.successes.push(success);
+      if (failure) this.failures.push(failure);
     },
   );
 }
@@ -77,11 +82,13 @@ describe('HomePage check-in', () => {
   let geolocation: FakeGeolocation;
   let getToday: ReturnType<typeof vi.fn>;
   let checkIn: ReturnType<typeof vi.fn>;
+  let queryPermission: ReturnType<typeof vi.fn>;
 
   async function setup(today = ready): Promise<void> {
     geolocation = new FakeGeolocation();
     getToday = vi.fn(async () => today);
     checkIn = vi.fn(async () => checkedIn);
+    queryPermission = vi.fn(async () => ({ state: 'prompt' as PermissionState }));
     await TestBed.configureTestingModule({
       imports: [HomePage],
       providers: [
@@ -95,6 +102,10 @@ describe('HomePage check-in', () => {
         },
         { provide: AttendanceService, useValue: { getToday, checkIn } },
         { provide: GEOLOCATION, useValue: geolocation },
+        {
+          provide: GEOLOCATION_PERMISSIONS,
+          useValue: { query: queryPermission },
+        },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(HomePage);
@@ -134,7 +145,7 @@ describe('HomePage check-in', () => {
       fixture.nativeElement.querySelector('button[data-action="check-in"]').disabled,
     ).toBe(true);
 
-    geolocation.success?.({
+    geolocation.successes[0]?.({
       coords: {
         latitude: -6.2,
         longitude: 106.816666,
@@ -158,13 +169,62 @@ describe('HomePage check-in', () => {
   it('shows actionable permission guidance without calling the API', async () => {
     await setup();
     const promise = fixture.componentInstance.checkIn();
-    geolocation.failure?.({ code: 1 } as GeolocationPositionError);
+    geolocation.failures[0]?.({ code: 1 } as GeolocationPositionError);
     await promise;
     fixture.detectChanges();
 
     expect(checkIn).not.toHaveBeenCalled();
     expect(fixture.componentInstance.permissionState()).toBe('DENIED');
     expect(fixture.nativeElement.textContent).toContain(
+      'Aktifkan izin lokasi untuk situs ini',
+    );
+  });
+
+  it('retries with standard accuracy when Brave denies high accuracy despite granted permission', async () => {
+    await setup();
+    queryPermission.mockResolvedValueOnce({ state: 'granted' as PermissionState });
+
+    const promise = fixture.componentInstance.checkIn();
+    geolocation.failures[0]?.({ code: 1 } as GeolocationPositionError);
+    await vi.waitFor(() => {
+      expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(2);
+    });
+    expect(geolocation.getCurrentPosition.mock.calls[1]?.[2]).toEqual({
+      enableHighAccuracy: false,
+      maximumAge: 0,
+      timeout: 15_000,
+    });
+
+    geolocation.successes[1]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 25 },
+    } as GeolocationPosition);
+    await promise;
+
+    expect(checkIn).toHaveBeenCalledWith({
+      latitude: -6.2,
+      longitude: 106.816666,
+      accuracyMeters: 25,
+    });
+  });
+
+  it('explains a browser or device denial when site permission is already granted', async () => {
+    await setup();
+    queryPermission.mockResolvedValueOnce({ state: 'granted' as PermissionState });
+
+    const promise = fixture.componentInstance.checkIn();
+    geolocation.failures[0]?.({ code: 1 } as GeolocationPositionError);
+    await vi.waitFor(() => {
+      expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(2);
+    });
+    geolocation.failures[1]?.({ code: 1 } as GeolocationPositionError);
+    await promise;
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.permissionState()).toBe('SYSTEM_DENIED');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Izin situs sudah aktif, tetapi browser belum dapat membaca lokasi perangkat',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
       'Aktifkan izin lokasi untuk situs ini',
     );
   });
@@ -183,7 +243,7 @@ describe('HomePage check-in', () => {
       }),
     );
     const promise = fixture.componentInstance.checkIn();
-    geolocation.success?.({
+    geolocation.successes[0]?.({
       coords: { latitude: -6.19, longitude: 106.816666, accuracy: 10 },
     } as GeolocationPosition);
     await promise;

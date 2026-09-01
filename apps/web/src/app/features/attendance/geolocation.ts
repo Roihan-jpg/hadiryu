@@ -9,3 +9,11 @@ export const GEOLOCATION = new InjectionToken<Geolocation | null>(
   },
 );
 
+export const GEOLOCATION_PERMISSIONS = new InjectionToken<Permissions | null>(
+  'Browser permissions',
+  {
+    providedIn: 'root',
+    factory: () =>
+      typeof navigator === 'undefined' ? null : (navigator.permissions ?? null),
+  },
+);
