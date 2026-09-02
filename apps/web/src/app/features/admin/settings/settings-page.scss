@@ -137,17 +137,12 @@ h1 {
 }
 
 .schedule-summary,
-.geofence-summary,
-.payroll-summary {
+.geofence-summary {
   padding: 1.25rem;
   background: #fff;
 }
 
 .geofence-summary {
-  grid-column: 1 / -1;
-}
-
-.payroll-summary {
   grid-column: 1 / -1;
 }
 
@@ -218,7 +213,7 @@ legend {
 
 .geofence-form-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0 0.85rem;
 }
 
@@ -230,12 +225,6 @@ legend {
 
 .calendar-name {
   grid-column: span 2;
-}
-
-.payroll-form-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 0.85rem;
 }
 
 .button-pair,
@@ -263,8 +252,7 @@ legend {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .calendar-form-grid,
-  .payroll-form-grid {
+  .calendar-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -319,8 +307,7 @@ legend {
     grid-template-columns: 1fr;
   }
 
-  .calendar-form-grid,
-  .payroll-form-grid {
+  .calendar-form-grid {
     grid-template-columns: 1fr;
   }
 }

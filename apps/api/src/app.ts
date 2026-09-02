@@ -120,13 +120,13 @@ const unavailableSettingsService: SettingsService = {
   async getSchedules() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
-  async createScheduleVersion() {
+  async saveSchedules() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
   async getGeofence() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
-  async createGeofenceVersion() {
+  async saveGeofence() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
   async listCalendarExceptions() {
@@ -139,12 +139,6 @@ const unavailableSettingsService: SettingsService = {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
   async deleteCalendarException() {
-    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
-  },
-  async getPayroll() {
-    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
-  },
-  async createPayrollVersion() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
 };

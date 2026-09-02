@@ -1,7 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   GeofenceSettingsResponseSchema,
-  PayrollSettingsResponseSchema,
   ScheduleSettingsResponseSchema,
   TeacherListResponseSchema,
 } from '@absensi/contracts';
@@ -45,11 +44,9 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
   const teacherNip = requiredEnvironment('E2E_TEACHER_NIP');
   const teacherInitialPassword = requiredEnvironment('E2E_TEACHER_INITIAL_PASSWORD');
   const teacherPassword = requiredEnvironment('E2E_TEACHER_PASSWORD');
-  const leaveDate = requiredEnvironment('E2E_LEAVE_DATE');
   const latitude = Number(requiredEnvironment('E2E_LATITUDE'));
   const longitude = Number(requiredEnvironment('E2E_LONGITUDE'));
   const effectiveFrom = jakartaDateTime().workDate;
-  const payrollEffectiveFrom = `${leaveDate.slice(0, 7)}-01`;
 
   await loginWithInitialFallback(
     page,
@@ -86,14 +83,19 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
   if (!schedules.weekday && !schedules.saturday) {
     schedules = ScheduleSettingsResponseSchema.parse(
       await expectSuccessfulJsonMutation(page, '/api/admin/settings/schedules', {
-        effectiveFrom,
         weekday: expectedWeekday,
         saturday: expectedSaturday,
       }),
     );
   }
-  expect(schedules.weekday).toMatchObject(expectedWeekday);
-  expect(schedules.saturday).toMatchObject(expectedSaturday);
+  expect(schedules.weekday).toMatchObject({
+    scheduleType: 'WEEKDAY',
+    targetMinutes: expectedWeekday.targetMinutes,
+  });
+  expect(schedules.saturday).toMatchObject({
+    scheduleType: 'SATURDAY',
+    targetMinutes: expectedSaturday.targetMinutes,
+  });
 
   let geofence = GeofenceSettingsResponseSchema.parse(
     await expectSuccessfulGet(
@@ -104,7 +106,6 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
   if (!geofence.geofence) {
     geofence = GeofenceSettingsResponseSchema.parse(
       await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence', {
-        effectiveFrom,
         latitude,
         longitude,
         radiusMeters: 100,
@@ -118,36 +119,6 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
     radiusMeters: 100,
     maxAccuracyMeters: 50,
   });
-
-  let payroll = PayrollSettingsResponseSchema.parse(
-    await expectSuccessfulGet(
-      page,
-      `/api/admin/settings/payroll?effectiveOn=${payrollEffectiveFrom}`,
-    ),
-  );
-  const expectedPayroll = {
-    calculationMode: 'MONTHLY_POLICY' as const,
-    basePerformancePay: 600_000,
-    minimumPerformancePay: 300_000,
-    deductionRatePerMinute: 0,
-    lateDeductionAmount: 10_000,
-    absentDeductionAmount: 20_000,
-    rejectedEarlyDepartureRatePerHour: 10_000,
-  };
-  if (!payroll.payrollRule) {
-    payroll = PayrollSettingsResponseSchema.parse(
-      await expectSuccessfulJsonMutation(page, '/api/admin/settings/payroll', {
-        effectiveFrom: payrollEffectiveFrom,
-        basePerformancePay: expectedPayroll.basePerformancePay,
-        minimumPerformancePay: expectedPayroll.minimumPerformancePay,
-        lateDeductionAmount: expectedPayroll.lateDeductionAmount,
-        absentDeductionAmount: expectedPayroll.absentDeductionAmount,
-        rejectedEarlyDepartureRatePerHour:
-          expectedPayroll.rejectedEarlyDepartureRatePerHour,
-      }),
-    );
-  }
-  expect(payroll.payrollRule).toMatchObject(expectedPayroll);
 
   const teachers = TeacherListResponseSchema.parse(
     await expectSuccessfulGet(

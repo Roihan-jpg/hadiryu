@@ -63,24 +63,13 @@ describe('monthly report contracts', () => {
           lateDayCount: 0,
           absentDayCount: 0,
           rejectedEarlyDepartureMinutes: 0,
-          calculationMode: 'LEGACY_PER_MINUTE',
-          basePerformancePay: 1_200_000,
-          minimumPerformancePay: 0,
-          deductionRatePerMinute: 3000,
-          lateDeductionAmount: 0,
-          absentDeductionAmount: 0,
-          rejectedEarlyDepartureRatePerHour: 0,
-          lateDeductionTotal: 0,
-          absentDeductionTotal: 0,
-          rejectedEarlyDepartureDeductionTotal: 0,
-          deductionAmount: 0,
-          finalPerformancePay: 1_200_000,
         },
       ],
     });
 
     expect(result.endDate).toBe('2028-02-29');
     expect(result.teachers[0]?.days[0]?.status).toBe('WORKED');
+    expect(result.teachers[0]).not.toHaveProperty('finalPerformancePay');
   });
 
   it('rejects report values that would delegate calculation to a template', () => {

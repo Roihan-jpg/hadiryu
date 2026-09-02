@@ -145,6 +145,8 @@ describe('HomePage checkout states', () => {
     expect(fixture.nativeElement.textContent).toContain('Absensi selesai');
     expect(fixture.nativeElement.textContent).toContain('510 menit');
     expect(fixture.nativeElement.textContent).toContain('Kekurangan5 menit');
+    expect(fixture.nativeElement.textContent).toContain('-6.200000');
+    expect(fixture.nativeElement.querySelector('app-teacher-location-map')).not.toBeNull();
   });
 
   it('shows derived incomplete values without offering checkout after cutoff', async () => {

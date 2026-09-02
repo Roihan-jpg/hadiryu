@@ -4,7 +4,6 @@ import { LeaveTypeSchema } from './leave-requests.js';
 import { LocalDateSchema, ScheduleTypeSchema } from './settings.js';
 
 const TimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
-const NonnegativeMoneySchema = z.number().finite().nonnegative();
 
 export const MonthlyReportParamsSchema = z.strictObject({
   year: z.coerce.number().int().min(2000).max(9999),
@@ -129,18 +128,6 @@ export const MonthlyReportTeacherSchema = z
     lateDayCount: z.number().int().nonnegative(),
     absentDayCount: z.number().int().nonnegative(),
     rejectedEarlyDepartureMinutes: z.number().int().nonnegative(),
-    calculationMode: z.enum(['LEGACY_PER_MINUTE', 'MONTHLY_POLICY']),
-    basePerformancePay: NonnegativeMoneySchema,
-    minimumPerformancePay: NonnegativeMoneySchema,
-    deductionRatePerMinute: NonnegativeMoneySchema,
-    lateDeductionAmount: NonnegativeMoneySchema,
-    absentDeductionAmount: NonnegativeMoneySchema,
-    rejectedEarlyDepartureRatePerHour: NonnegativeMoneySchema,
-    lateDeductionTotal: NonnegativeMoneySchema,
-    absentDeductionTotal: NonnegativeMoneySchema,
-    rejectedEarlyDepartureDeductionTotal: NonnegativeMoneySchema,
-    deductionAmount: NonnegativeMoneySchema,
-    finalPerformancePay: z.number().finite(),
   })
   .superRefine((teacher, context) => {
     const total = teacher.days.reduce(

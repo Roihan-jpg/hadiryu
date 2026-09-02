@@ -119,7 +119,7 @@ select throws_ok(
       and effective_from = '1900-01-01'
   $$,
   'P0001',
-  'Historical configuration is immutable; only an open version may be closed',
+  'Historical configuration is immutable; only the current Jakarta date may be changed',
   'historical configuration cannot be edited in place'
 );
 

@@ -1,11 +1,9 @@
 import type {
   CalendarExceptionInput,
   CalendarExceptionsResponse,
-  CreatePayrollVersionRequest,
-  CreateGeofenceVersionRequest,
-  CreateScheduleVersionRequest,
   GeofenceSettingsResponse,
-  PayrollSettingsResponse,
+  SaveGeofenceSettingsRequest,
+  SaveScheduleSettingsRequest,
   ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { provideHttpClient } from '@angular/common/http';
@@ -29,11 +27,6 @@ const geofence: GeofenceSettingsResponse = {
 };
 
 const calendar: CalendarExceptionsResponse = { exceptions: [] };
-const payroll: PayrollSettingsResponse = {
-  effectiveOn: '2026-08-25',
-  payrollRule: null,
-};
-
 describe('SettingsService', () => {
   let service: SettingsService;
   let http: HttpTestingController;
@@ -68,9 +61,8 @@ describe('SettingsService', () => {
     await expect(geofencePromise).resolves.toEqual(geofence);
   });
 
-  it('posts new effective schedule and geofence versions', async () => {
-    const scheduleInput: CreateScheduleVersionRequest = {
-      effectiveFrom: '2026-09-01',
+  it('posts schedule and geofence settings without client dates', async () => {
+    const scheduleInput: SaveScheduleSettingsRequest = {
       weekday: {
         checkInOpen: '05:30',
         workStart: '07:00',
@@ -90,25 +82,24 @@ describe('SettingsService', () => {
         targetMinutes: 215,
       },
     };
-    const geofenceInput: CreateGeofenceVersionRequest = {
-      effectiveFrom: '2026-09-01',
+    const geofenceInput: SaveGeofenceSettingsRequest = {
       latitude: -6.2,
       longitude: 106.816666,
       radiusMeters: 100,
       maxAccuracyMeters: 50,
     };
 
-    const schedulePromise = service.createSchedules(scheduleInput);
+    const schedulePromise = service.saveSchedules(scheduleInput);
     const scheduleRequest = http.expectOne('/api/admin/settings/schedules');
     expect(scheduleRequest.request.method).toBe('POST');
     expect(scheduleRequest.request.body).toEqual(scheduleInput);
-    scheduleRequest.flush({ ...schedules, effectiveOn: scheduleInput.effectiveFrom });
+    scheduleRequest.flush({ ...schedules, effectiveOn: '2026-09-01' });
 
-    const geofencePromise = service.createGeofence(geofenceInput);
+    const geofencePromise = service.saveGeofence(geofenceInput);
     const geofenceRequest = http.expectOne('/api/admin/settings/geofence');
     expect(geofenceRequest.request.method).toBe('POST');
     expect(geofenceRequest.request.body).toEqual(geofenceInput);
-    geofenceRequest.flush({ ...geofence, effectiveOn: geofenceInput.effectiveFrom });
+    geofenceRequest.flush({ ...geofence, effectiveOn: '2026-09-01' });
 
     await schedulePromise;
     await geofencePromise;
@@ -123,22 +114,13 @@ describe('SettingsService', () => {
     await expect(promise).rejects.toBeDefined();
   });
 
-  it('manages calendar exceptions and a globally versioned payroll rule', async () => {
+  it('manages calendar exceptions', async () => {
     const calendarInput: CalendarExceptionInput = {
       workDate: '2026-12-25',
       exceptionType: 'HOLIDAY',
       name: 'Libur Natal',
       scheduleType: null,
     };
-    const payrollInput: CreatePayrollVersionRequest = {
-      effectiveFrom: '2026-09-01',
-      basePerformancePay: 600_000,
-      minimumPerformancePay: 300_000,
-      lateDeductionAmount: 10_000,
-      absentDeductionAmount: 20_000,
-      rejectedEarlyDepartureRatePerHour: 10_000,
-    };
-
     const listPromise = service.getCalendarExceptions();
     const listRequest = http.expectOne('/api/admin/settings/calendar');
     expect(listRequest.request.method).toBe('GET');
@@ -149,19 +131,6 @@ describe('SettingsService', () => {
     expect(createRequest.request.method).toBe('POST');
     expect(createRequest.request.body).toEqual(calendarInput);
     createRequest.flush({ id: '40000000-0000-4000-8000-000000000001', ...calendarInput });
-
-    const payrollPromise = service.getPayroll('2026-08-25');
-    const payrollRequest = http.expectOne(
-      '/api/admin/settings/payroll?effectiveOn=2026-08-25',
-    );
-    expect(payrollRequest.request.method).toBe('GET');
-    payrollRequest.flush(payroll);
-
-    const createPayrollPromise = service.createPayroll(payrollInput);
-    const createPayrollRequest = http.expectOne('/api/admin/settings/payroll');
-    expect(createPayrollRequest.request.method).toBe('POST');
-    expect(createPayrollRequest.request.body).toEqual(payrollInput);
-    createPayrollRequest.flush({ ...payroll, effectiveOn: payrollInput.effectiveFrom });
 
     const id = '40000000-0000-4000-8000-000000000001';
     const updatePromise = service.updateCalendarException(id, {
@@ -179,8 +148,6 @@ describe('SettingsService', () => {
 
     await expect(listPromise).resolves.toEqual(calendar);
     await createPromise;
-    await expect(payrollPromise).resolves.toEqual(payroll);
-    await createPayrollPromise;
     await updatePromise;
     await deletePromise;
   });

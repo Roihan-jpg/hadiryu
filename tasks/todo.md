@@ -13,8 +13,8 @@
 - [x] Migration upah bulanan/pulang awal berhasil diterapkan tanpa reset/seed remote.
 - [x] Advisors hosted pascamigration baru lulus tanpa warning atau temuan kritis.
 - [x] Bootstrap SuperAdmin dan siapkan akun Guru khusus smoke melalui input secret.
-- [ ] Smoke hosted lulus sampai preview dan ekspor laporan.
-- [ ] Review akhir selesai; T15 dan `MEMORY.md` diperbarui hanya jika seluruh gate lulus.
+- [x] Smoke hosted lulus sampai preview dan ekspor laporan.
+- [x] Review akhir selesai; T15 dan `MEMORY.md` diperbarui dengan pengecualian warning Free Plan yang disetujui pemilik project.
 
 ## Extension T15: Upah Bulanan dan Pulang Awal
 
@@ -27,4 +27,4 @@
 - [x] Implementasikan kontrak dan migration payroll additive dengan kompatibilitas formula legacy.
 - [x] Integrasikan kalkulator backend, preview, dan ekspor.
 - [x] Adaptasi GUI payroll, tambahkan pengajuan pulang awal Guru serta antrean approval admin, dan tambahkan test.
-- [ ] Jalankan release gate lokal/hosted tanpa reset atau seed remote.
+- [x] Jalankan release gate lokal/hosted tanpa reset atau seed remote.

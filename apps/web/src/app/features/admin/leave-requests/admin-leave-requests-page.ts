@@ -1,7 +1,7 @@
 import type { AdminLeaveRequest, DecideLeaveRequest, LeaveStatus } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -94,7 +94,7 @@ export class LeaveDecisionDialog {
 }
 
 @Component({
-  imports: [MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatProgressSpinnerModule, MatSelectModule, ReactiveFormsModule, RouterLink],
+  imports: [MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatProgressSpinnerModule, MatSelectModule, FormsModule, ReactiveFormsModule, RouterLink],
   providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   selector: 'app-admin-leave-requests-page', styleUrl: './admin-leave-requests-page.scss', templateUrl: './admin-leave-requests-page.html',
 })

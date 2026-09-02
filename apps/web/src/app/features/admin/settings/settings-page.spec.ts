@@ -1,11 +1,7 @@
 import type {
   CalendarExceptionInput,
   CalendarExceptionsResponse,
-  CreatePayrollVersionRequest,
-  CreateGeofenceVersionRequest,
-  CreateScheduleVersionRequest,
   GeofenceSettingsResponse,
-  PayrollSettingsResponse,
   ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -58,25 +54,21 @@ const geofence: GeofenceSettingsResponse = {
   },
 };
 const calendar: CalendarExceptionsResponse = { exceptions: [] };
-const payroll: PayrollSettingsResponse = {
-  effectiveOn: '2026-08-25',
-  payrollRule: null,
-};
 
 describe('SettingsPage', () => {
   let fixture: ComponentFixture<SettingsPage>;
   const getSchedules = vi.fn(async () => schedules);
   const getGeofence = vi.fn(async () => geofence);
-  const createSchedules = vi.fn(
-    async (input: CreateScheduleVersionRequest) => ({
+  const saveSchedules = vi.fn(
+    async () => ({
       ...schedules,
-      effectiveOn: input.effectiveFrom,
+      effectiveOn: '2026-09-01',
     }),
   );
-  const createGeofence = vi.fn(
-    async (input: CreateGeofenceVersionRequest) => ({
+  const saveGeofence = vi.fn(
+    async () => ({
       ...geofence,
-      effectiveOn: input.effectiveFrom,
+      effectiveOn: '2026-09-01',
     }),
   );
   const getCalendarExceptions = vi.fn(async () => calendar);
@@ -88,23 +80,14 @@ describe('SettingsPage', () => {
   );
   const updateCalendarException = vi.fn();
   const deleteCalendarException = vi.fn();
-  const getPayroll = vi.fn(async () => payroll);
-  const createPayroll = vi.fn(
-    async (input: CreatePayrollVersionRequest) => ({
-      ...payroll,
-      effectiveOn: input.effectiveFrom,
-    }),
-  );
 
   beforeEach(async () => {
     getSchedules.mockClear();
     getGeofence.mockClear();
-    createSchedules.mockClear();
-    createGeofence.mockClear();
+    saveSchedules.mockClear();
+    saveGeofence.mockClear();
     getCalendarExceptions.mockClear();
     createCalendarException.mockClear();
-    getPayroll.mockClear();
-    createPayroll.mockClear();
     await TestBed.configureTestingModule({
       imports: [SettingsPage],
       providers: [
@@ -114,14 +97,12 @@ describe('SettingsPage', () => {
           useValue: {
             getSchedules,
             getGeofence,
-            createSchedules,
-            createGeofence,
+            saveSchedules,
+            saveGeofence,
             getCalendarExceptions,
             createCalendarException,
             updateCalendarException,
             deleteCalendarException,
-            getPayroll,
-            createPayroll,
           },
         },
       ],
@@ -139,6 +120,9 @@ describe('SettingsPage', () => {
     expect(text).toContain('Sabtu');
     expect(text).toContain('515 menit');
     expect(text).toContain('Radius 100 meter');
+    expect(text).not.toContain('Upah kinerja');
+    expect(fixture.nativeElement.querySelector('[name="scheduleEffectiveFrom"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[name="geofenceEffectiveFrom"]')).toBeNull();
   });
 
   it('resolves both settings for a selected historical date', async () => {
@@ -151,13 +135,12 @@ describe('SettingsPage', () => {
 
   it('blocks an invalid schedule order before calling the API', async () => {
     fixture.componentInstance.scheduleForm.patchValue({
-      effectiveFrom: '2026-09-01',
       weekday: { checkInOpen: '07:00', workStart: '06:00' },
     });
     fixture.detectChanges();
     await fixture.componentInstance.saveSchedules();
 
-    expect(createSchedules).not.toHaveBeenCalled();
+    expect(saveSchedules).not.toHaveBeenCalled();
     expect(fixture.componentInstance.scheduleForm.invalid).toBe(true);
     expect(document.activeElement).toBe(
       fixture.nativeElement.querySelector(
@@ -166,46 +149,38 @@ describe('SettingsPage', () => {
     );
   });
 
-  it('creates new schedule and geofence versions through separate forms', async () => {
-    fixture.componentInstance.scheduleForm.patchValue({
-      effectiveFrom: '2026-09-01',
-    });
+  it('saves schedule and geofence settings without effective dates', async () => {
     await fixture.componentInstance.saveSchedules();
-    expect(createSchedules).toHaveBeenCalledWith(
+    expect(saveSchedules).toHaveBeenCalledWith(
       expect.objectContaining({
-        effectiveFrom: '2026-09-01',
         weekday: expect.objectContaining({ targetMinutes: 515 }),
         saturday: expect.objectContaining({ targetMinutes: 215 }),
       }),
     );
 
     fixture.componentInstance.geofenceForm.patchValue({
-      effectiveFrom: '2026-10-01',
       radiusMeters: 125,
     });
     await fixture.componentInstance.saveGeofence();
-    expect(createGeofence).toHaveBeenCalledWith(
-      expect.objectContaining({ effectiveFrom: '2026-10-01', radiusMeters: 125 }),
+    expect(saveGeofence).toHaveBeenCalledWith(
+      expect.objectContaining({ radiusMeters: 125 }),
     );
+    expect(fixture.componentInstance.inspectionDate.value).toBe('2026-09-01');
   });
 
   it('prevents duplicate submissions while a version request is running', async () => {
     let finish!: (value: ScheduleSettingsResponse) => void;
-    createSchedules.mockImplementationOnce(
+    saveSchedules.mockImplementationOnce(
       () => new Promise<ScheduleSettingsResponse>((resolve) => (finish = resolve)),
     );
-    fixture.componentInstance.scheduleForm.patchValue({
-      effectiveFrom: '2026-09-01',
-    });
-
     const first = fixture.componentInstance.saveSchedules();
     const second = fixture.componentInstance.saveSchedules();
-    expect(createSchedules).toHaveBeenCalledTimes(1);
+    expect(saveSchedules).toHaveBeenCalledTimes(1);
     finish({ ...schedules, effectiveOn: '2026-09-01' });
     await Promise.all([first, second]);
   });
 
-  it('creates a calendar exception and a month-start payroll version', async () => {
+  it('creates a calendar exception without exposing payroll settings', async () => {
     fixture.componentInstance.calendarForm.patchValue({
       workDate: '2026-12-25',
       exceptionType: 'HOLIDAY',
@@ -220,23 +195,7 @@ describe('SettingsPage', () => {
       scheduleType: null,
     });
 
-    fixture.componentInstance.payrollForm.patchValue({
-      effectiveFrom: '2026-09-01',
-      basePerformancePay: 600_000,
-      minimumPerformancePay: 300_000,
-      lateDeductionAmount: 10_000,
-      absentDeductionAmount: 20_000,
-      rejectedEarlyDepartureRatePerHour: 10_000,
-    });
-    await fixture.componentInstance.savePayroll();
-    expect(createPayroll).toHaveBeenCalledWith({
-      effectiveFrom: '2026-09-01',
-      basePerformancePay: 600_000,
-      minimumPerformancePay: 300_000,
-      lateDeductionAmount: 10_000,
-      absentDeductionAmount: 20_000,
-      rejectedEarlyDepartureRatePerHour: 10_000,
-    });
+    expect(fixture.nativeElement.textContent).not.toContain('Upah kinerja');
   });
 
   it('edits and confirms deletion of a calendar exception', async () => {

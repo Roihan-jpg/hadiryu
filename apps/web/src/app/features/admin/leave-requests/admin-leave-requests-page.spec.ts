@@ -14,13 +14,15 @@ const pending: AdminLeaveRequest = {
 describe('AdminLeaveRequestsPage', () => {
   let fixture: ComponentFixture<AdminLeaveRequestsPage>;
   let decide: ReturnType<typeof vi.fn>;
+  let listAdmin: ReturnType<typeof vi.fn>;
   let open: ReturnType<typeof vi.fn>;
   async function setup(result: AdminLeaveRequestListResponse = { data: [pending], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } }) {
     decide = vi.fn(async () => ({ ...pending, status: 'APPROVED' as const }));
+    listAdmin = vi.fn(async () => result);
     open = vi.fn(() => ({ afterClosed: () => of({ decisionNote: 'Data sesuai' }) }));
     await TestBed.configureTestingModule({
       imports: [AdminLeaveRequestsPage], providers: [provideRouter([]), {
-        provide: LeaveRequestsService, useValue: { listAdmin: vi.fn(async () => result), decide },
+        provide: LeaveRequestsService, useValue: { listAdmin, decide },
       }],
     });
     TestBed.overrideProvider(MatDialog, { useValue: { open } });
@@ -63,5 +65,16 @@ describe('AdminLeaveRequestsPage', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Daftar approval gagal dimuat.');
     expect(text).not.toContain('Tidak ada pengajuan izin yang sesuai filter.');
+  });
+  it('prevents native navigation when submitting the filter form', async () => {
+    await setup();
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    const event = new Event('submit', { bubbles: true, cancelable: true });
+
+    form.dispatchEvent(event);
+    await fixture.whenStable();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(listAdmin).toHaveBeenCalledTimes(2);
   });
 });

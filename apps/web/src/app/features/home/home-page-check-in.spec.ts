@@ -125,6 +125,95 @@ describe('HomePage check-in', () => {
     expect(fixture.nativeElement.textContent).toContain('Dibuka05:30');
     expect(fixture.nativeElement.textContent).toContain('Ditutup08:00');
     expect(fixture.nativeElement.textContent).toContain('Check-in sekarang');
+    expect(fixture.nativeElement.textContent).toContain('Tampilkan lokasi saya');
+    expect(fixture.nativeElement.querySelector('app-teacher-location-map')).toBeNull();
+  });
+
+  it('previews and refreshes the current location without submitting attendance', async () => {
+    await setup();
+
+    const first = fixture.componentInstance.showLocationPreview();
+    const repeated = fixture.componentInstance.showLocationPreview();
+    fixture.detectChanges();
+
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(
+      fixture.nativeElement.querySelector('button[data-action="location-preview"]')
+        .disabled,
+    ).toBe(true);
+
+    geolocation.successes[0]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10.4 },
+    } as GeolocationPosition);
+    await Promise.all([first, repeated]);
+    fixture.detectChanges();
+
+    expect(checkIn).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('-6.200000');
+    expect(fixture.nativeElement.textContent).toContain('106.816666');
+    expect(fixture.nativeElement.textContent).toContain('10 meter');
+    expect(fixture.nativeElement.textContent).toContain('Perbarui lokasi');
+
+    const refresh = fixture.componentInstance.showLocationPreview();
+    geolocation.successes[1]?.({
+      coords: { latitude: -6.21, longitude: 106.82, accuracy: 18.6 },
+    } as GeolocationPosition);
+    await refresh;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('-6.210000');
+    expect(fixture.nativeElement.textContent).toContain('106.820000');
+    expect(fixture.nativeElement.textContent).toContain('19 meter');
+  });
+
+  it('blocks attendance while a location preview request is active', async () => {
+    await setup();
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    await fixture.componentInstance.checkIn();
+
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(checkIn).not.toHaveBeenCalled();
+
+    geolocation.successes[0]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
+    await preview;
+  });
+
+  it('shows a preview-specific timeout without leaving a stale map', async () => {
+    await setup();
+
+    const promise = fixture.componentInstance.showLocationPreview();
+    geolocation.failures[0]?.({ code: 3 } as GeolocationPositionError);
+    await promise;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Lokasi belum ditemukan. Berpindah ke area terbuka lalu coba lagi.',
+    );
+    expect(fixture.nativeElement.querySelector('app-teacher-location-map')).toBeNull();
+    expect(checkIn).not.toHaveBeenCalled();
+  });
+
+  it('replaces a failed preview with the fresh location used for check-in', async () => {
+    await setup();
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    geolocation.failures[0]?.({ code: 3 } as GeolocationPositionError);
+    await preview;
+
+    const attendance = fixture.componentInstance.checkIn();
+    geolocation.successes[1]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
+    await attendance;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Lokasi belum ditemukan. Berpindah ke area terbuka lalu coba lagi.',
+    );
+    expect(fixture.nativeElement.querySelector('app-teacher-location-map')).not.toBeNull();
   });
 
   it('requests precise current location from the button and prevents double submit', async () => {
@@ -252,6 +341,8 @@ describe('HomePage check-in', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Anda berada di luar radius sekolah',
     );
+    expect(fixture.nativeElement.textContent).toContain('-6.190000');
+    expect(fixture.nativeElement.querySelector('app-teacher-location-map')).not.toBeNull();
     expect(fixture.componentInstance.actionInProgress()).toBe(false);
   });
 });

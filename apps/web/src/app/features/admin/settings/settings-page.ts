@@ -2,11 +2,9 @@ import {
   CalendarExceptionInputSchema,
   type CalendarException,
   type CalendarExceptionsResponse,
-  CreatePayrollVersionRequestSchema,
-  CreateGeofenceVersionRequestSchema,
-  CreateScheduleVersionRequestSchema,
   type GeofenceSettingsResponse,
-  type PayrollSettingsResponse,
+  SaveGeofenceSettingsRequestSchema,
+  SaveScheduleSettingsRequestSchema,
   type ScheduleRuleInput,
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
@@ -16,6 +14,7 @@ import {
   AbstractControl,
   FormControl,
   FormGroup,
+  FormsModule,
   ReactiveFormsModule,
   Validators,
   type ValidationErrors,
@@ -51,21 +50,6 @@ const scheduleOrderValidator: ValidatorFn = (
   });
   return minutes.some((value, index) => index > 0 && value < minutes[index - 1]!)
     ? { timeOrder: true }
-    : null;
-};
-
-const monthStartValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
-  typeof control.value === 'string' && control.value !== '' && !control.value.endsWith('-01')
-    ? { monthStart: true }
-    : null;
-
-const payrollMinimumValidator: ValidatorFn = (
-  control: AbstractControl,
-): ValidationErrors | null => {
-  const base = Number(control.get('basePerformancePay')?.value);
-  const minimum = Number(control.get('minimumPerformancePay')?.value);
-  return Number.isFinite(base) && Number.isFinite(minimum) && minimum > base
-    ? { minimumExceedsBase: true }
     : null;
 };
 
@@ -111,6 +95,7 @@ function scheduleRuleForm() {
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    FormsModule,
     ReactiveFormsModule,
     RouterLink,
   ],
@@ -139,18 +124,10 @@ export class SettingsPage implements OnInit {
     validators: [Validators.required],
   });
   readonly scheduleForm = new FormGroup({
-    effectiveFrom: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required],
-    }),
     weekday: scheduleRuleForm(),
     saturday: scheduleRuleForm(),
   });
   readonly geofenceForm = new FormGroup({
-    effectiveFrom: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required],
-    }),
     latitude: new FormControl(0, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(-90), Validators.max(90)],
@@ -185,40 +162,13 @@ export class SettingsPage implements OnInit {
     control.get('exceptionType')?.value === 'WORKING_DAY' && !control.get('scheduleType')?.value
       ? { scheduleRequired: true }
       : null });
-  readonly payrollForm = new FormGroup({
-    effectiveFrom: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required, monthStartValidator],
-    }),
-    basePerformancePay: new FormControl(600_000, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
-    minimumPerformancePay: new FormControl(300_000, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
-    lateDeductionAmount: new FormControl(10_000, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
-    absentDeductionAmount: new FormControl(20_000, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
-    rejectedEarlyDepartureRatePerHour: new FormControl(10_000, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
-  }, { validators: payrollMinimumValidator });
   readonly schedules = signal<ScheduleSettingsResponse | null>(null);
   readonly geofence = signal<GeofenceSettingsResponse | null>(null);
   readonly calendar = signal<CalendarExceptionsResponse | null>(null);
-  readonly payroll = signal<PayrollSettingsResponse | null>(null);
   readonly editingCalendarId = signal<string | null>(null);
   readonly loading = signal(true);
   readonly actionInProgress = signal<
-    'schedule' | 'geofence' | 'calendar' | 'payroll' | null
+    'schedule' | 'geofence' | 'calendar' | null
   >(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -229,14 +179,6 @@ export class SettingsPage implements OnInit {
       dateStyle: 'medium',
       timeZone: 'UTC',
     }).format(new Date(`${workDate}T00:00:00.000Z`));
-  }
-
-  currencyLabel(value: number): string {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 2,
-    }).format(value);
   }
 
   ngOnInit(): void {
@@ -270,25 +212,24 @@ export class SettingsPage implements OnInit {
       }
       return;
     }
-    const input = CreateScheduleVersionRequestSchema.parse(
+    const input = SaveScheduleSettingsRequestSchema.parse(
       this.scheduleForm.getRawValue(),
     );
     this.actionInProgress.set('schedule');
     this.clearFeedback();
     try {
-      await this.service.createSchedules(input);
-      this.inspectionDate.setValue(input.effectiveFrom);
-      this.scheduleForm.controls.effectiveFrom.reset('');
-      if (await this.loadForDate(input.effectiveFrom)) {
-        this.successMessage.set('Versi jadwal baru berhasil dibuat.');
+      const saved = await this.service.saveSchedules(input);
+      this.inspectionDate.setValue(saved.effectiveOn);
+      if (await this.loadForDate(saved.effectiveOn)) {
+        this.successMessage.set('Jadwal berhasil disimpan.');
       } else {
         this.errorMessage.set(
-          'Versi jadwal berhasil dibuat, tetapi tampilan terbaru belum dapat dimuat.',
+          'Jadwal berhasil disimpan, tetapi tampilan terbaru belum dapat dimuat.',
         );
       }
     } catch (error) {
       this.errorMessage.set(
-        this.errorText(error, 'Versi jadwal tidak dapat dibuat.'),
+        this.errorText(error, 'Jadwal tidak dapat disimpan.'),
       );
     } finally {
       this.actionInProgress.set(null);
@@ -302,25 +243,24 @@ export class SettingsPage implements OnInit {
       focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
-    const input = CreateGeofenceVersionRequestSchema.parse(
+    const input = SaveGeofenceSettingsRequestSchema.parse(
       this.geofenceForm.getRawValue(),
     );
     this.actionInProgress.set('geofence');
     this.clearFeedback();
     try {
-      await this.service.createGeofence(input);
-      this.inspectionDate.setValue(input.effectiveFrom);
-      this.geofenceForm.controls.effectiveFrom.reset('');
-      if (await this.loadForDate(input.effectiveFrom)) {
-        this.successMessage.set('Versi geofence baru berhasil dibuat.');
+      const saved = await this.service.saveGeofence(input);
+      this.inspectionDate.setValue(saved.effectiveOn);
+      if (await this.loadForDate(saved.effectiveOn)) {
+        this.successMessage.set('Geofence berhasil disimpan.');
       } else {
         this.errorMessage.set(
-          'Versi geofence berhasil dibuat, tetapi tampilan terbaru belum dapat dimuat.',
+          'Geofence berhasil disimpan, tetapi tampilan terbaru belum dapat dimuat.',
         );
       }
     } catch (error) {
       this.errorMessage.set(
-        this.errorText(error, 'Versi geofence tidak dapat dibuat.'),
+        this.errorText(error, 'Geofence tidak dapat disimpan.'),
       );
     } finally {
       this.actionInProgress.set(null);
@@ -398,44 +338,18 @@ export class SettingsPage implements OnInit {
     }
   }
 
-  async savePayroll(): Promise<void> {
-    if (this.actionInProgress() !== null) return;
-    if (this.payrollForm.invalid) {
-      this.payrollForm.markAllAsTouched();
-      focusFirstInvalidControl(this.host.nativeElement);
-      return;
-    }
-    const input = CreatePayrollVersionRequestSchema.parse(this.payrollForm.getRawValue());
-    this.actionInProgress.set('payroll');
-    this.clearFeedback();
-    try {
-      await this.service.createPayroll(input);
-      this.inspectionDate.setValue(input.effectiveFrom);
-      this.payrollForm.controls.effectiveFrom.reset('');
-      if (await this.loadForDate(input.effectiveFrom)) {
-        this.successMessage.set('Versi upah baru berhasil dibuat.');
-      }
-    } catch (error) {
-      this.errorMessage.set(this.errorText(error, 'Versi upah tidak dapat dibuat.'));
-    } finally {
-      this.actionInProgress.set(null);
-    }
-  }
-
   private async loadForDate(effectiveOn: string): Promise<boolean> {
     this.loading.set(true);
     this.clearFeedback();
     try {
-      const [schedules, geofence, calendar, payroll] = await Promise.all([
+      const [schedules, geofence, calendar] = await Promise.all([
         this.service.getSchedules(effectiveOn),
         this.service.getGeofence(effectiveOn),
         this.service.getCalendarExceptions(),
-        this.service.getPayroll(effectiveOn),
       ]);
       this.schedules.set(schedules);
       this.geofence.set(geofence);
       this.calendar.set(calendar);
-      this.payroll.set(payroll);
       if (schedules.weekday) {
         this.scheduleForm.controls.weekday.patchValue(
           this.scheduleInput(schedules.weekday),
@@ -452,16 +366,6 @@ export class SettingsPage implements OnInit {
           longitude: geofence.geofence.longitude,
           radiusMeters: geofence.geofence.radiusMeters,
           maxAccuracyMeters: geofence.geofence.maxAccuracyMeters,
-        });
-      }
-      if (payroll.payrollRule) {
-        this.payrollForm.patchValue({
-          basePerformancePay: payroll.payrollRule.basePerformancePay,
-          minimumPerformancePay: payroll.payrollRule.minimumPerformancePay,
-          lateDeductionAmount: payroll.payrollRule.lateDeductionAmount,
-          absentDeductionAmount: payroll.payrollRule.absentDeductionAmount,
-          rejectedEarlyDepartureRatePerHour:
-            payroll.payrollRule.rejectedEarlyDepartureRatePerHour,
         });
       }
       return true;

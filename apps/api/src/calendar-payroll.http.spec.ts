@@ -3,8 +3,6 @@ import type {
   CalendarException,
   CalendarExceptionsResponse,
   CalendarExceptionInput,
-  CreatePayrollVersionRequest,
-  PayrollSettingsResponse,
 } from '@absensi/contracts';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
@@ -32,25 +30,6 @@ const exception: CalendarException = {
   id: '40000000-0000-4000-8000-000000000001',
   ...exceptionInput,
 };
-const payrollInput: CreatePayrollVersionRequest = {
-  effectiveFrom: '2026-09-01',
-  basePerformancePay: 600_000,
-  minimumPerformancePay: 300_000,
-  lateDeductionAmount: 10_000,
-  absentDeductionAmount: 20_000,
-  rejectedEarlyDepartureRatePerHour: 10_000,
-};
-const payroll: PayrollSettingsResponse = {
-  effectiveOn: payrollInput.effectiveFrom,
-  payrollRule: {
-    id: '30000000-0000-4000-8000-000000000001',
-    calculationMode: 'MONTHLY_POLICY',
-    deductionRatePerMinute: 0,
-    ...payrollInput,
-    effectiveTo: null,
-  },
-};
-
 class FakeAuthService implements AuthService {
   authenticatedUser = admin;
 
@@ -74,19 +53,17 @@ class FakeSettingsService implements SettingsService {
   calendarCreate?: { actorId: string; input: CalendarExceptionInput };
   calendarUpdate?: { actorId: string; id: string; input: CalendarExceptionInput };
   calendarDelete?: { actorId: string; id: string };
-  payrollDate?: string;
-  payrollCreate?: { actorId: string; input: CreatePayrollVersionRequest };
 
   async getSchedules() {
     return { effectiveOn: '2026-08-25', weekday: null, saturday: null };
   }
-  async createScheduleVersion() {
+  async saveSchedules() {
     return { effectiveOn: '2026-08-25', weekday: null, saturday: null };
   }
   async getGeofence() {
     return { effectiveOn: '2026-08-25', geofence: null };
   }
-  async createGeofenceVersion() {
+  async saveGeofence() {
     return { effectiveOn: '2026-08-25', geofence: null };
   }
   async listCalendarExceptions(): Promise<CalendarExceptionsResponse> {
@@ -107,14 +84,6 @@ class FakeSettingsService implements SettingsService {
   async deleteCalendarException(actorId: string, id: string) {
     this.calendarDelete = { actorId, id };
   }
-  async getPayroll(effectiveOn: string): Promise<PayrollSettingsResponse> {
-    this.payrollDate = effectiveOn;
-    return { ...payroll, effectiveOn };
-  }
-  async createPayrollVersion(actorId: string, input: CreatePayrollVersionRequest) {
-    this.payrollCreate = { actorId, input };
-    return payroll;
-  }
 }
 
 function testApp(authService = new FakeAuthService()) {
@@ -122,13 +91,13 @@ function testApp(authService = new FakeAuthService()) {
   return { app: createApp({ authService, settingsService }), settingsService };
 }
 
-describe('calendar-payroll HTTP API', () => {
-  it('requires SUPER_ADMIN access for calendar and payroll settings', async () => {
+describe('calendar HTTP API', () => {
+  it('requires SUPER_ADMIN access for calendar settings', async () => {
     const anonymous = await request(testApp().app).get('/api/admin/settings/calendar');
     const userAuth = new FakeAuthService();
     userAuth.authenticatedUser = { ...admin, role: 'USER' };
     const forbidden = await request(testApp(userAuth).app)
-      .get('/api/admin/settings/payroll?effectiveOn=2026-09-01')
+      .get('/api/admin/settings/calendar')
       .set('Cookie', 'absensi_access=access-token');
 
     expect(anonymous.status).toBe(401);
@@ -166,24 +135,17 @@ describe('calendar-payroll HTTP API', () => {
     expect(settingsService.calendarDelete).toEqual({ actorId: admin.id, id: exception.id });
   });
 
-  it('resolves and creates a single payroll rule, rejecting non-month starts', async () => {
-    const { app, settingsService } = testApp();
+  it('does not expose the removed payroll endpoints', async () => {
+    const { app } = testApp();
     const loaded = await request(app)
       .get('/api/admin/settings/payroll?effectiveOn=2026-08-01')
       .set('Cookie', 'absensi_access=access-token');
-    const invalid = await request(app)
-      .post('/api/admin/settings/payroll')
-      .set('Cookie', 'absensi_access=access-token')
-      .send({ ...payrollInput, effectiveFrom: '2026-09-02' });
     const created = await request(app)
       .post('/api/admin/settings/payroll')
       .set('Cookie', 'absensi_access=access-token')
-      .send(payrollInput);
+      .send({});
 
-    expect(loaded.status).toBe(200);
-    expect(settingsService.payrollDate).toBe('2026-08-01');
-    expect(invalid.status).toBe(400);
-    expect(created.status).toBe(201);
-    expect(settingsService.payrollCreate).toEqual({ actorId: admin.id, input: payrollInput });
+    expect(loaded.status).toBe(404);
+    expect(created.status).toBe(404);
   });
 });

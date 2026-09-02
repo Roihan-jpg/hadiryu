@@ -276,18 +276,15 @@ function writeTeacher(
 
   const totals = [
     ['TOTAL MENIT KEKURANGAN', teacher.totalWorkDeficitMinutes],
-    ['TOTAL UPAH KINERJA', teacher.basePerformancePay],
-    ['ADMINISTRASI', teacher.deductionAmount],
-    ['UPAH KINERJA', teacher.finalPerformancePay],
+    ['TOTAL UPAH KINERJA', null],
+    ['ADMINISTRASI', null],
+    ['UPAH KINERJA', null],
   ] as const;
   totals.forEach(([label, value], index) => {
     const row = layout.totalStartRow + index;
     sheet.getCell(row, teacherColumn).value = label;
     sheet.getCell(row, teacherColumn + 4).value = value;
-    setNumberFormat(
-      sheet.getCell(row, teacherColumn + 4),
-      index === 0 ? '0' : '[$Rp-421] #,##0',
-    );
+    setNumberFormat(sheet.getCell(row, teacherColumn + 4), index === 0 ? '0' : '[$Rp-421] #,##0');
   });
 }
 

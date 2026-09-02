@@ -69,13 +69,17 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
       request.status === 'PENDING',
   );
   const checkIn = page.getByRole('button', { name: 'Check-in sekarang' });
-  if (await checkIn.isVisible()) {
-    await checkIn.click();
-    await expect(page.getByRole('heading', { name: 'Sudah check-in' })).toBeVisible();
-  }
-  const today = TodayAttendanceResponseSchema.parse(
+  let today = TodayAttendanceResponseSchema.parse(
     await expectSuccessfulGet(page, '/api/attendance/today'),
   );
+  if (today.state === 'READY_TO_CHECK_IN') {
+    await expect(checkIn).toBeVisible();
+    await checkIn.click();
+    await expect(page.getByRole('heading', { name: 'Sudah check-in' })).toBeVisible();
+    today = TodayAttendanceResponseSchema.parse(
+      await expectSuccessfulGet(page, '/api/attendance/today'),
+    );
+  }
   if (today.state === 'CHECKED_IN' && today.schedule) {
     const serverMinute = jakartaDateTime(new Date(today.serverNow)).time;
     if (serverMinute < today.schedule.workEnd) {
@@ -172,6 +176,7 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
   const previewBody = await preview.text();
   expect(preview.ok(), previewBody).toBe(true);
   const parsedPreview = MonthlyReportPreviewSchema.parse(JSON.parse(previewBody));
+  expect(parsedPreview.teachers[0]).not.toHaveProperty('finalPerformancePay');
   expect(parsedPreview.teachers).toEqual(
     expect.arrayContaining([expect.objectContaining({ teacherNip })]),
   );

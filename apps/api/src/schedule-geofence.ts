@@ -1,23 +1,19 @@
 import {
   CalendarExceptionInputSchema,
-  CreatePayrollVersionRequestSchema,
-  CreateGeofenceVersionRequestSchema,
-  CreateScheduleVersionRequestSchema,
   GeofenceSettingsResponseSchema,
   GeofenceSettingsQuerySchema,
-  PayrollSettingsQuerySchema,
+  SaveGeofenceSettingsRequestSchema,
+  SaveScheduleSettingsRequestSchema,
   ScheduleSettingsResponseSchema,
   ScheduleSettingsQuerySchema,
   type AuthUser,
   type CalendarException,
   type CalendarExceptionInput,
   type CalendarExceptionsResponse,
-  type CreatePayrollVersionRequest,
-  type CreateGeofenceVersionRequest,
-  type CreateScheduleVersionRequest,
   type GeofenceRule,
   type GeofenceSettingsResponse,
-  type PayrollSettingsResponse,
+  type SaveGeofenceSettingsRequest,
+  type SaveScheduleSettingsRequest,
   type ScheduleRule,
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
@@ -81,14 +77,14 @@ export function resolveGeofenceSettings(
 
 export interface SettingsService {
   getSchedules(effectiveOn: string): Promise<ScheduleSettingsResponse>;
-  createScheduleVersion(
+  saveSchedules(
     actorId: string,
-    input: CreateScheduleVersionRequest,
+    input: SaveScheduleSettingsRequest,
   ): Promise<ScheduleSettingsResponse>;
   getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse>;
-  createGeofenceVersion(
+  saveGeofence(
     actorId: string,
-    input: CreateGeofenceVersionRequest,
+    input: SaveGeofenceSettingsRequest,
   ): Promise<GeofenceSettingsResponse>;
   listCalendarExceptions(): Promise<CalendarExceptionsResponse>;
   createCalendarException(
@@ -101,11 +97,6 @@ export interface SettingsService {
     input: CalendarExceptionInput,
   ): Promise<CalendarException>;
   deleteCalendarException(actorId: string, id: string): Promise<void>;
-  getPayroll(effectiveOn: string): Promise<PayrollSettingsResponse>;
-  createPayrollVersion(
-    actorId: string,
-    input: CreatePayrollVersionRequest,
-  ): Promise<PayrollSettingsResponse>;
 }
 
 function actorId(request: Request): string {
@@ -153,12 +144,12 @@ export function registerSettingsRoutes(
     ...adminGuards,
     async (request, response, next) => {
       try {
-        const parsed = CreateScheduleVersionRequestSchema.safeParse(request.body);
+        const parsed = SaveScheduleSettingsRequestSchema.safeParse(request.body);
         if (!parsed.success) {
           throw validationError('Aturan jadwal tidak valid', parsed.error.flatten());
         }
         response.status(201).json(
-          await settingsService.createScheduleVersion(
+          await settingsService.saveSchedules(
             actorId(request),
             parsed.data,
           ),
@@ -195,12 +186,12 @@ export function registerSettingsRoutes(
     ...adminGuards,
     async (request, response, next) => {
       try {
-        const parsed = CreateGeofenceVersionRequestSchema.safeParse(request.body);
+        const parsed = SaveGeofenceSettingsRequestSchema.safeParse(request.body);
         if (!parsed.success) {
           throw validationError('Aturan geofence tidak valid', parsed.error.flatten());
         }
         response.status(201).json(
-          await settingsService.createGeofenceVersion(
+          await settingsService.saveGeofence(
             actorId(request),
             parsed.data,
           ),
@@ -284,37 +275,4 @@ export function registerSettingsRoutes(
     },
   );
 
-  app.get(
-    '/api/admin/settings/payroll',
-    ...adminGuards,
-    async (request, response, next) => {
-      try {
-        const parsed = PayrollSettingsQuerySchema.safeParse(request.query);
-        if (!parsed.success) {
-          throw validationError('Tanggal aturan upah tidak valid', parsed.error.flatten());
-        }
-        response.status(200).json(await settingsService.getPayroll(parsed.data.effectiveOn));
-      } catch (error) {
-        next(error);
-      }
-    },
-  );
-
-  app.post(
-    '/api/admin/settings/payroll',
-    ...adminGuards,
-    async (request, response, next) => {
-      try {
-        const parsed = CreatePayrollVersionRequestSchema.safeParse(request.body);
-        if (!parsed.success) {
-          throw validationError('Aturan upah tidak valid', parsed.error.flatten());
-        }
-        response.status(201).json(
-          await settingsService.createPayrollVersion(actorId(request), parsed.data),
-        );
-      } catch (error) {
-        next(error);
-      }
-    },
-  );
 }

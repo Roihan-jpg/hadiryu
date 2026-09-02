@@ -134,18 +134,6 @@ function teacher(
     lateDayCount: 0,
     absentDayCount: 0,
     rejectedEarlyDepartureMinutes: 0,
-    calculationMode: 'LEGACY_PER_MINUTE',
-    basePerformancePay: 1_000_000,
-    minimumPerformancePay: 0,
-    deductionRatePerMinute: 3000,
-    lateDeductionAmount: 0,
-    absentDeductionAmount: 0,
-    rejectedEarlyDepartureRatePerHour: 0,
-    lateDeductionTotal: 0,
-    absentDeductionTotal: 0,
-    rejectedEarlyDepartureDeductionTotal: 0,
-    deductionAmount: 1_740_000,
-    finalPerformancePay: -740_000,
     ...input,
   };
 }
@@ -309,9 +297,9 @@ describe('Excel monthly report exporter', () => {
     expect(excelMinutes(sheet.getCell('D7').value)).toBe(455);
     expect(sheet.getCell('F7').value).toBe(60);
     expect(sheet.getCell('F34').value).toBe(580);
-    expect(sheet.getCell('F35').value).toBe(1_000_000);
-    expect(sheet.getCell('F36').value).toBe(1_740_000);
-    expect(sheet.getCell('F37').value).toBe(-740_000);
+    expect(sheet.getCell('F35').value).toBeNull();
+    expect(sheet.getCell('F36').value).toBeNull();
+    expect(sheet.getCell('F37').value).toBeNull();
     expect(sheet.getCell('B3').numFmt).toBe('hh:mm');
     expect(sheet.getCell('D3').numFmt).toBe('[h]:mm');
     expect(sheet.getCell('F35').numFmt).toContain('Rp');
@@ -357,7 +345,7 @@ describe('Excel monthly report exporter', () => {
     expect(sheet.getCell(40, 86).style).toEqual(sheet.getCell(40, 2).style);
     expect(sheet.getCell(42, 86).border).toEqual(sheet.getCell(42, 2).border);
     expect(sheet.getCell(42, 86).fill).toEqual(sheet.getCell(42, 2).fill);
-    expect(sheet.getCell(76, 90).value).toBe(-740_000);
+    expect(sheet.getCell(76, 90).value).toBeNull();
     expect(workbookProblems(workbook)).toEqual([]);
   });
 

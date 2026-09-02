@@ -6,7 +6,6 @@ import {
   type MonthlyReportDay,
   type MonthlyReportParams,
   type MonthlyReportPreview,
-  type PayrollRule,
   type ScheduleRule,
 } from '@absensi/contracts';
 import type { Express } from 'express';
@@ -17,11 +16,7 @@ import {
   requireRole,
   type AuthService,
 } from './auth.js';
-import {
-  calculatePerformancePay,
-  resolveCalendarDay,
-  resolvePayrollRule,
-} from './calendar-payroll.js';
+import { resolveCalendarDay } from './calendar-payroll.js';
 
 export interface MonthlyReportSourceTeacher {
   teacherId: string;
@@ -73,7 +68,6 @@ export interface MonthlyReportSourceEarlyDeparture {
 export interface MonthlyReportSource {
   teachers: MonthlyReportSourceTeacher[];
   schedules: ScheduleRule[];
-  payrollRules: PayrollRule[];
   calendarExceptions: CalendarException[];
   attendances: MonthlyReportSourceAttendance[];
   leaves: MonthlyReportSourceLeave[];
@@ -338,13 +332,6 @@ export function createMonthlyReportService(
         );
       }
 
-      const payrollRule = resolvePayrollRule(source.payrollRules, startDate);
-      if (!payrollRule) {
-        throw configurationMissing(
-          'Aturan upah belum tersedia untuk periode laporan',
-          startDate,
-        );
-      }
       const resolvedDays = resolveReportDays(dates, source);
       const attendanceByTeacherDate = new Map(
         source.attendances.map((attendance) => [
@@ -390,30 +377,34 @@ export function createMonthlyReportService(
             (total, day) => total + day.workDeficitMinutes,
             0,
           );
+          const lateDayCount = days.filter(
+            (day) => day.arrivalLateMinutes > 0,
+          ).length;
+          const absentDayCount = days.filter(
+            (day) => day.status === 'ABSENT',
+          ).length;
+          const rejectedEarlyDepartureMinutesTotal = days.reduce(
+            (total, day) => {
+              if (!day.attendanceId || day.workEnd === null) return total;
+              const request = earlyDepartureByAttendanceId.get(day.attendanceId);
+              return request?.status === 'REJECTED'
+                ? total +
+                    rejectedEarlyDepartureMinutes(
+                      request.requestedAt,
+                      day.workEnd,
+                      day.targetMinutes,
+                    )
+                : total;
+            },
+            0,
+          );
           return {
             ...teacher,
             days,
-            ...calculatePerformancePay({
-              totalWorkDeficitMinutes,
-              days: days.map((day) => {
-                const earlyDeparture = day.attendanceId
-                  ? earlyDepartureByAttendanceId.get(day.attendanceId)
-                  : undefined;
-                return {
-                  status: day.status,
-                  arrivalLateMinutes: day.arrivalLateMinutes,
-                  rejectedEarlyDepartureMinutes:
-                    earlyDeparture?.status === 'REJECTED'
-                      ? rejectedEarlyDepartureMinutes(
-                          earlyDeparture.requestedAt,
-                          day.workEnd!,
-                          day.targetMinutes,
-                        )
-                      : 0,
-                };
-              }),
-              payrollRule,
-            }),
+            totalWorkDeficitMinutes,
+            lateDayCount,
+            absentDayCount,
+            rejectedEarlyDepartureMinutes: rejectedEarlyDepartureMinutesTotal,
           };
         });
 

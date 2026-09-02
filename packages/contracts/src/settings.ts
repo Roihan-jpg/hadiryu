@@ -62,13 +62,12 @@ export const ScheduleRuleSchema = z.strictObject({
 });
 export type ScheduleRule = z.infer<typeof ScheduleRuleSchema>;
 
-export const CreateScheduleVersionRequestSchema = z.strictObject({
-  effectiveFrom: LocalDateSchema,
+export const SaveScheduleSettingsRequestSchema = z.strictObject({
   weekday: ScheduleRuleInputSchema,
   saturday: ScheduleRuleInputSchema,
 });
-export type CreateScheduleVersionRequest = z.infer<
-  typeof CreateScheduleVersionRequestSchema
+export type SaveScheduleSettingsRequest = z.infer<
+  typeof SaveScheduleSettingsRequestSchema
 >;
 
 export const ScheduleSettingsQuerySchema = z.strictObject({
@@ -101,12 +100,9 @@ export const GeofenceRuleSchema = z.strictObject({
 });
 export type GeofenceRule = z.infer<typeof GeofenceRuleSchema>;
 
-export const CreateGeofenceVersionRequestSchema = z.strictObject({
-  effectiveFrom: LocalDateSchema,
-  ...GeofenceRuleInputSchema.shape,
-});
-export type CreateGeofenceVersionRequest = z.infer<
-  typeof CreateGeofenceVersionRequestSchema
+export const SaveGeofenceSettingsRequestSchema = GeofenceRuleInputSchema;
+export type SaveGeofenceSettingsRequest = z.infer<
+  typeof SaveGeofenceSettingsRequestSchema
 >;
 
 export const GeofenceSettingsQuerySchema = ScheduleSettingsQuerySchema;
@@ -160,122 +156,3 @@ export const CalendarDayResolutionSchema = z.strictObject({
   exception: CalendarExceptionSchema.nullable(),
 });
 export type CalendarDayResolution = z.infer<typeof CalendarDayResolutionSchema>;
-
-const MoneySchema = z
-  .number()
-  .finite()
-  .min(0)
-  .max(999_999_999_999.99)
-  .refine((value) => Math.round(value * 100) === value * 100, {
-    message: 'Nilai uang maksimal memiliki dua angka desimal',
-  });
-
-export const PayrollCalculationModeSchema = z.enum([
-  'LEGACY_PER_MINUTE',
-  'MONTHLY_POLICY',
-]);
-export type PayrollCalculationMode = z.infer<
-  typeof PayrollCalculationModeSchema
->;
-
-export const PayrollRuleInputSchema = z
-  .strictObject({
-    basePerformancePay: MoneySchema,
-    minimumPerformancePay: MoneySchema,
-    lateDeductionAmount: MoneySchema,
-    absentDeductionAmount: MoneySchema,
-    rejectedEarlyDepartureRatePerHour: MoneySchema,
-  })
-  .refine((value) => value.minimumPerformancePay <= value.basePerformancePay, {
-    message: 'Upah minimum tidak boleh melebihi upah dasar',
-    path: ['minimumPerformancePay'],
-  });
-export type PayrollRuleInput = z.infer<typeof PayrollRuleInputSchema>;
-
-export const PayrollRuleSchema = z
-  .strictObject({
-    id: z.uuid(),
-    calculationMode: PayrollCalculationModeSchema,
-    basePerformancePay: MoneySchema,
-    minimumPerformancePay: MoneySchema,
-    deductionRatePerMinute: MoneySchema,
-    lateDeductionAmount: MoneySchema,
-    absentDeductionAmount: MoneySchema,
-    rejectedEarlyDepartureRatePerHour: MoneySchema,
-    effectiveFrom: LocalDateSchema,
-    effectiveTo: LocalDateSchema.nullable(),
-  })
-  .refine((value) => value.minimumPerformancePay <= value.basePerformancePay, {
-    message: 'Upah minimum tidak boleh melebihi upah dasar',
-    path: ['minimumPerformancePay'],
-  })
-  .superRefine((value, context) => {
-    if (
-      value.calculationMode === 'MONTHLY_POLICY' &&
-      value.deductionRatePerMinute !== 0
-    ) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Mode upah bulanan tidak memakai tarif potongan per menit legacy',
-        path: ['deductionRatePerMinute'],
-      });
-    }
-    if (
-      value.calculationMode === 'LEGACY_PER_MINUTE' &&
-      (value.minimumPerformancePay !== 0 ||
-        value.lateDeductionAmount !== 0 ||
-        value.absentDeductionAmount !== 0 ||
-        value.rejectedEarlyDepartureRatePerHour !== 0)
-    ) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Mode legacy tidak memakai field kebijakan upah bulanan',
-        path: ['calculationMode'],
-      });
-    }
-  });
-export type PayrollRule = z.infer<typeof PayrollRuleSchema>;
-
-export const CreatePayrollVersionRequestSchema = z
-  .strictObject({
-    effectiveFrom: LocalDateSchema,
-    ...PayrollRuleInputSchema.shape,
-  })
-  .refine((value) => value.effectiveFrom.endsWith('-01'), {
-    message: 'Tanggal mulai upah harus tanggal 1',
-    path: ['effectiveFrom'],
-  });
-export type CreatePayrollVersionRequest = z.infer<
-  typeof CreatePayrollVersionRequestSchema
->;
-
-export const PayrollSettingsQuerySchema = ScheduleSettingsQuerySchema;
-export type PayrollSettingsQuery = ScheduleSettingsQuery;
-
-export const PayrollSettingsResponseSchema = z.strictObject({
-  effectiveOn: LocalDateSchema,
-  payrollRule: PayrollRuleSchema.nullable(),
-});
-export type PayrollSettingsResponse = z.infer<typeof PayrollSettingsResponseSchema>;
-
-export const PerformancePayCalculationSchema = z.strictObject({
-  totalWorkDeficitMinutes: z.number().int().nonnegative(),
-  lateDayCount: z.number().int().nonnegative(),
-  absentDayCount: z.number().int().nonnegative(),
-  rejectedEarlyDepartureMinutes: z.number().int().nonnegative(),
-  calculationMode: PayrollCalculationModeSchema,
-  basePerformancePay: MoneySchema,
-  minimumPerformancePay: MoneySchema,
-  deductionRatePerMinute: MoneySchema,
-  lateDeductionAmount: MoneySchema,
-  absentDeductionAmount: MoneySchema,
-  rejectedEarlyDepartureRatePerHour: MoneySchema,
-  lateDeductionTotal: MoneySchema,
-  absentDeductionTotal: MoneySchema,
-  rejectedEarlyDepartureDeductionTotal: MoneySchema,
-  deductionAmount: MoneySchema,
-  finalPerformancePay: z.number().finite(),
-});
-export type PerformancePayCalculation = z.infer<
-  typeof PerformancePayCalculationSchema
->;

@@ -14,6 +14,7 @@ import {
   GEOLOCATION,
   GEOLOCATION_PERMISSIONS,
 } from '../attendance/geolocation';
+import { TeacherLocationMap } from './teacher-location-map';
 
 type PermissionState =
   | 'IDLE'
@@ -31,7 +32,12 @@ class LocationRequestError extends Error {
 }
 
 @Component({
-  imports: [MatButtonModule, MatProgressSpinnerModule, RouterLink],
+  imports: [
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    RouterLink,
+    TeacherLocationMap,
+  ],
   selector: 'app-home-page',
   styleUrl: './home-page.scss',
   templateUrl: './home-page.html',
@@ -50,8 +56,14 @@ export class HomePage implements OnInit {
   readonly today = signal<TodayAttendanceResponse | null>(null);
   readonly loadingToday = signal(false);
   readonly actionInProgress = signal(false);
+  readonly locationPreviewInProgress = signal(false);
+  readonly locationRequestInProgress = computed(
+    () => this.actionInProgress() || this.locationPreviewInProgress(),
+  );
+  readonly locationPreview = signal<LocationInput | null>(null);
   readonly permissionState = signal<PermissionState>('IDLE');
   readonly errorMessage = signal<string | null>(null);
+  readonly locationPreviewError = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
   readonly workDateLabel = computed(() => {
     const workDate = this.today()?.workDate;
@@ -82,14 +94,17 @@ export class HomePage implements OnInit {
   }
 
   async checkIn(): Promise<void> {
-    if (this.actionInProgress()) return;
+    if (this.locationRequestInProgress()) return;
     this.actionInProgress.set(true);
     this.permissionState.set('REQUESTING');
     this.errorMessage.set(null);
+    this.locationPreview.set(null);
+    this.locationPreviewError.set(null);
     this.successMessage.set(null);
     try {
       const location = await this.currentLocation();
       this.permissionState.set('GRANTED');
+      this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkIn(location);
       this.today.set({
         serverNow: attendance.checkInAt,
@@ -114,14 +129,17 @@ export class HomePage implements OnInit {
   }
 
   async checkout(): Promise<void> {
-    if (this.actionInProgress()) return;
+    if (this.locationRequestInProgress()) return;
     this.actionInProgress.set(true);
     this.permissionState.set('REQUESTING');
     this.errorMessage.set(null);
+    this.locationPreview.set(null);
+    this.locationPreviewError.set(null);
     this.successMessage.set(null);
     try {
       const location = await this.currentLocation();
       this.permissionState.set('GRANTED');
+      this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkout(location);
       this.today.set({
         serverNow: attendance.checkOutAt,
@@ -152,6 +170,41 @@ export class HomePage implements OnInit {
       minute: '2-digit',
       hourCycle: 'h23',
     }).format(new Date(timestamp));
+  }
+
+  async showLocationPreview(): Promise<void> {
+    if (this.locationRequestInProgress()) return;
+
+    this.locationPreviewInProgress.set(true);
+    this.locationPreview.set(null);
+    this.locationPreviewError.set(null);
+    this.permissionState.set('REQUESTING');
+    try {
+      const location = await this.currentLocation();
+      this.permissionState.set('GRANTED');
+      this.locationPreview.set(location);
+    } catch (error) {
+      if (error instanceof LocationRequestError) {
+        this.permissionState.set(error.permissionState);
+        this.locationPreviewError.set(
+          this.locationErrorText(error.permissionState),
+        );
+      } else {
+        this.locationPreviewError.set(
+          'Lokasi belum dapat ditampilkan. Periksa perangkat lalu coba lagi.',
+        );
+      }
+    } finally {
+      this.locationPreviewInProgress.set(false);
+    }
+  }
+
+  coordinateText(value: number): string {
+    return value.toFixed(6);
+  }
+
+  accuracyText(value: number): string {
+    return `${Math.round(value)} meter`;
   }
 
   async logout(): Promise<void> {

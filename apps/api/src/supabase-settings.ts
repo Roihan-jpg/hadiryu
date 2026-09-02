@@ -2,18 +2,14 @@ import {
   CalendarExceptionSchema,
   CalendarExceptionsResponseSchema,
   GeofenceRuleSchema,
-  PayrollRuleSchema,
   ScheduleRuleSchema,
   type CalendarException,
   type CalendarExceptionInput,
   type CalendarExceptionsResponse,
-  type CreatePayrollVersionRequest,
-  type CreateGeofenceVersionRequest,
-  type CreateScheduleVersionRequest,
   type GeofenceRule,
   type GeofenceSettingsResponse,
-  type PayrollRule,
-  type PayrollSettingsResponse,
+  type SaveGeofenceSettingsRequest,
+  type SaveScheduleSettingsRequest,
   type ScheduleRule,
   type ScheduleSettingsResponse,
 } from '@absensi/contracts';
@@ -26,7 +22,6 @@ import {
   resolveScheduleSettings,
   type SettingsService,
 } from './schedule-geofence.js';
-import { resolvePayrollSettings } from './calendar-payroll.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
 const ScheduleRowSchema = z.strictObject({
@@ -42,6 +37,11 @@ const ScheduleRowSchema = z.strictObject({
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
+const ScheduleRpcRowSchema = ScheduleRowSchema.extend({
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+const ScheduleResultRowSchema = z.union([ScheduleRowSchema, ScheduleRpcRowSchema]);
 
 const NumericDatabaseValueSchema = z.union([z.number(), z.string()]);
 const GeofenceRowSchema = z.strictObject({
@@ -53,14 +53,17 @@ const GeofenceRowSchema = z.strictObject({
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
+const GeofenceRpcRowSchema = GeofenceRowSchema.extend({
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+const GeofenceResultRowSchema = z.union([GeofenceRowSchema, GeofenceRpcRowSchema]);
 
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
   'id,latitude,longitude,radius_meters,max_accuracy_meters,effective_from,effective_to';
 const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
-const PAYROLL_FIELDS =
-  'id,calculation_mode,base_performance_pay,minimum_performance_pay,deduction_rate_per_minute,late_deduction_amount,absent_deduction_amount,rejected_early_departure_rate_per_hour,effective_from,effective_to';
 
 const CalendarExceptionRowSchema = z.strictObject({
   id: z.uuid(),
@@ -77,18 +80,6 @@ const CalendarExceptionResultRowSchema = z.union([
   CalendarExceptionRowSchema,
   CalendarExceptionRpcRowSchema,
 ]);
-const PayrollRuleRowSchema = z.strictObject({
-  id: z.uuid(),
-  calculation_mode: z.enum(['LEGACY_PER_MINUTE', 'MONTHLY_POLICY']),
-  base_performance_pay: NumericDatabaseValueSchema,
-  minimum_performance_pay: NumericDatabaseValueSchema,
-  deduction_rate_per_minute: NumericDatabaseValueSchema,
-  late_deduction_amount: NumericDatabaseValueSchema,
-  absent_deduction_amount: NumericDatabaseValueSchema,
-  rejected_early_departure_rate_per_hour: NumericDatabaseValueSchema,
-  effective_from: z.string(),
-  effective_to: z.string().nullable(),
-});
 
 function clientOptions() {
   return {
@@ -105,7 +96,7 @@ function time(value: string): string {
 }
 
 function toScheduleRule(value: unknown): ScheduleRule {
-  const row = ScheduleRowSchema.parse(value);
+  const row = ScheduleResultRowSchema.parse(value);
   return ScheduleRuleSchema.parse({
     id: row.id,
     scheduleType: row.schedule_type,
@@ -122,7 +113,7 @@ function toScheduleRule(value: unknown): ScheduleRule {
 }
 
 function toGeofenceRule(value: unknown): GeofenceRule {
-  const row = GeofenceRowSchema.parse(value);
+  const row = GeofenceResultRowSchema.parse(value);
   return GeofenceRuleSchema.parse({
     id: row.id,
     latitude: Number(row.latitude),
@@ -145,42 +136,12 @@ function toCalendarException(value: unknown): CalendarException {
   });
 }
 
-function toPayrollRule(value: unknown): PayrollRule {
-  const row = PayrollRuleRowSchema.parse(value);
-  return PayrollRuleSchema.parse({
-    id: row.id,
-    calculationMode: row.calculation_mode,
-    basePerformancePay: Number(row.base_performance_pay),
-    minimumPerformancePay: Number(row.minimum_performance_pay),
-    deductionRatePerMinute: Number(row.deduction_rate_per_minute),
-    lateDeductionAmount: Number(row.late_deduction_amount),
-    absentDeductionAmount: Number(row.absent_deduction_amount),
-    rejectedEarlyDepartureRatePerHour: Number(
-      row.rejected_early_departure_rate_per_hour,
-    ),
-    effectiveFrom: row.effective_from,
-    effectiveTo: row.effective_to,
-  });
-}
-
 function mutationError(error: { code?: string; message?: string } | null): AppError {
-  const inPast = error?.message?.includes('EFFECTIVE_DATE_IN_PAST');
-  const conflict =
-    error?.code === 'P0001' ||
-    error?.code === '23P01' ||
-    error?.message?.includes('EFFECTIVE_DATE_CONFLICT');
+  const invalid = error?.code === 'P0001' || error?.code?.startsWith('23');
   return new AppError(
-    inPast ? 422 : conflict ? 409 : 500,
-    inPast
-      ? 'EFFECTIVE_DATE_IN_PAST'
-      : conflict
-        ? 'EFFECTIVE_DATE_CONFLICT'
-        : 'SETTINGS_UPDATE_FAILED',
-    inPast
-      ? 'Tanggal mulai tidak boleh berada di masa lalu'
-      : conflict
-      ? 'Tanggal mulai harus setelah versi terbaru'
-      : 'Versi pengaturan tidak dapat dibuat',
+    invalid ? 422 : 500,
+    invalid ? 'SETTINGS_VALIDATION_FAILED' : 'SETTINGS_UPDATE_FAILED',
+    invalid ? 'Nilai pengaturan tidak valid' : 'Pengaturan tidak dapat disimpan',
   );
 }
 
@@ -228,18 +189,22 @@ export class SupabaseSettingsService implements SettingsService {
     return resolveScheduleSettings((data ?? []).map(toScheduleRule), effectiveOn);
   }
 
-  async createScheduleVersion(
+  async saveSchedules(
     actorId: string,
-    input: CreateScheduleVersionRequest,
+    input: SaveScheduleSettingsRequest,
   ): Promise<ScheduleSettingsResponse> {
-    const { error } = await this.client.rpc('create_schedule_rule_versions', {
+    const { data, error } = await this.client.rpc('save_schedule_settings', {
       p_actor_id: actorId,
-      p_effective_from: input.effectiveFrom,
       p_weekday: input.weekday,
       p_saturday: input.saturday,
     });
     if (error) throw mutationError(error);
-    return this.getSchedules(input.effectiveFrom);
+    const rules = (data ?? []).map(toScheduleRule);
+    const effectiveOn = rules[0]?.effectiveFrom;
+    if (!effectiveOn) {
+      throw new AppError(500, 'SETTINGS_UPDATE_FAILED', 'Pengaturan jadwal tidak dapat disimpan');
+    }
+    return resolveScheduleSettings(rules, effectiveOn);
   }
 
   async getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse> {
@@ -255,13 +220,12 @@ export class SupabaseSettingsService implements SettingsService {
     return resolveGeofenceSettings((data ?? []).map(toGeofenceRule), effectiveOn);
   }
 
-  async createGeofenceVersion(
+  async saveGeofence(
     actorId: string,
-    input: CreateGeofenceVersionRequest,
+    input: SaveGeofenceSettingsRequest,
   ): Promise<GeofenceSettingsResponse> {
-    const { error } = await this.client.rpc('create_geofence_rule_version', {
+    const { data, error } = await this.client.rpc('save_geofence_settings', {
       p_actor_id: actorId,
-      p_effective_from: input.effectiveFrom,
       p_geofence: {
         latitude: input.latitude,
         longitude: input.longitude,
@@ -270,7 +234,8 @@ export class SupabaseSettingsService implements SettingsService {
       },
     });
     if (error) throw mutationError(error);
-    return this.getGeofence(input.effectiveFrom);
+    const geofence = toGeofenceRule(data);
+    return resolveGeofenceSettings([geofence], geofence.effectiveFrom);
   }
 
   async listCalendarExceptions(): Promise<CalendarExceptionsResponse> {
@@ -326,34 +291,4 @@ export class SupabaseSettingsService implements SettingsService {
     if (error) throw calendarMutationError(error);
   }
 
-  async getPayroll(effectiveOn: string): Promise<PayrollSettingsResponse> {
-    const { data, error } = await this.client
-      .from('payroll_rules')
-      .select(PAYROLL_FIELDS)
-      .lte('effective_from', effectiveOn)
-      .or(`effective_to.is.null,effective_to.gte.${effectiveOn}`)
-      .order('effective_from', { ascending: false });
-    if (error) {
-      throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Aturan upah tidak dapat dimuat');
-    }
-    return resolvePayrollSettings((data ?? []).map(toPayrollRule), effectiveOn);
-  }
-
-  async createPayrollVersion(
-    actorId: string,
-    input: CreatePayrollVersionRequest,
-  ): Promise<PayrollSettingsResponse> {
-    const { error } = await this.client.rpc('create_payroll_rule_version', {
-      p_actor_id: actorId,
-      p_effective_from: input.effectiveFrom,
-      p_base_performance_pay: input.basePerformancePay,
-      p_minimum_performance_pay: input.minimumPerformancePay,
-      p_late_deduction_amount: input.lateDeductionAmount,
-      p_absent_deduction_amount: input.absentDeductionAmount,
-      p_rejected_early_departure_rate_per_hour:
-        input.rejectedEarlyDepartureRatePerHour,
-    });
-    if (error) throw mutationError(error);
-    return this.getPayroll(input.effectiveFrom);
-  }
 }

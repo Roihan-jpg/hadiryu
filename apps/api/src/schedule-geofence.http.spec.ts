@@ -1,8 +1,8 @@
 import type {
   AuthUser,
-  CreateGeofenceVersionRequest,
-  CreateScheduleVersionRequest,
   GeofenceSettingsResponse,
+  SaveGeofenceSettingsRequest,
+  SaveScheduleSettingsRequest,
   ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import request from 'supertest';
@@ -21,8 +21,9 @@ const admin: AuthUser = {
   mustChangePassword: false,
 };
 
-const scheduleInput: CreateScheduleVersionRequest = {
-  effectiveFrom: '2026-09-01',
+const effectiveOn = '2026-09-01';
+
+const scheduleInput: SaveScheduleSettingsRequest = {
   weekday: {
     checkInOpen: '05:30',
     workStart: '07:00',
@@ -44,25 +45,24 @@ const scheduleInput: CreateScheduleVersionRequest = {
 };
 
 const schedules: ScheduleSettingsResponse = {
-  effectiveOn: scheduleInput.effectiveFrom,
+  effectiveOn,
   weekday: {
     id: '10000000-0000-4000-8000-000000000021',
     scheduleType: 'WEEKDAY',
     ...scheduleInput.weekday,
-    effectiveFrom: scheduleInput.effectiveFrom,
+    effectiveFrom: effectiveOn,
     effectiveTo: null,
   },
   saturday: {
     id: '10000000-0000-4000-8000-000000000022',
     scheduleType: 'SATURDAY',
     ...scheduleInput.saturday,
-    effectiveFrom: scheduleInput.effectiveFrom,
+    effectiveFrom: effectiveOn,
     effectiveTo: null,
   },
 };
 
-const geofenceInput: CreateGeofenceVersionRequest = {
-  effectiveFrom: '2026-09-01',
+const geofenceInput: SaveGeofenceSettingsRequest = {
   latitude: -6.2,
   longitude: 106.816666,
   radiusMeters: 100,
@@ -70,11 +70,11 @@ const geofenceInput: CreateGeofenceVersionRequest = {
 };
 
 const geofence: GeofenceSettingsResponse = {
-  effectiveOn: geofenceInput.effectiveFrom,
+  effectiveOn,
   geofence: {
     id: '20000000-0000-4000-8000-000000000021',
     ...geofenceInput,
-    effectiveFrom: geofenceInput.effectiveFrom,
+    effectiveFrom: effectiveOn,
     effectiveTo: null,
   },
 };
@@ -103,20 +103,20 @@ class FakeAuthService implements AuthService {
 
 class FakeSettingsService implements SettingsService {
   scheduleDate?: string;
-  scheduleCreate?: { actorId: string; input: CreateScheduleVersionRequest };
+  scheduleSave?: { actorId: string; input: SaveScheduleSettingsRequest };
   geofenceDate?: string;
-  geofenceCreate?: { actorId: string; input: CreateGeofenceVersionRequest };
+  geofenceSave?: { actorId: string; input: SaveGeofenceSettingsRequest };
 
   async getSchedules(effectiveOn: string): Promise<ScheduleSettingsResponse> {
     this.scheduleDate = effectiveOn;
     return { ...schedules, effectiveOn };
   }
 
-  async createScheduleVersion(
+  async saveSchedules(
     actorId: string,
-    input: CreateScheduleVersionRequest,
+    input: SaveScheduleSettingsRequest,
   ): Promise<ScheduleSettingsResponse> {
-    this.scheduleCreate = { actorId, input };
+    this.scheduleSave = { actorId, input };
     return schedules;
   }
 
@@ -125,11 +125,11 @@ class FakeSettingsService implements SettingsService {
     return { ...geofence, effectiveOn };
   }
 
-  async createGeofenceVersion(
+  async saveGeofence(
     actorId: string,
-    input: CreateGeofenceVersionRequest,
+    input: SaveGeofenceSettingsRequest,
   ): Promise<GeofenceSettingsResponse> {
-    this.geofenceCreate = { actorId, input };
+    this.geofenceSave = { actorId, input };
     return geofence;
   }
 
@@ -149,13 +149,6 @@ class FakeSettingsService implements SettingsService {
     throw new Error('not used');
   }
 
-  async getPayroll(): Promise<never> {
-    throw new Error('not used');
-  }
-
-  async createPayrollVersion(): Promise<never> {
-    throw new Error('not used');
-  }
 }
 
 function testApp(authService = new FakeAuthService()) {
@@ -194,7 +187,7 @@ describe('schedule-geofence HTTP API', () => {
     expect(response.body.saturday.scheduleType).toBe('SATURDAY');
   });
 
-  it('creates both schedule types as one effective version', async () => {
+  it('saves both schedule types for the server date without accepting a client date', async () => {
     const { app, settingsService } = testApp();
     const invalid = await request(app)
       .post('/api/admin/settings/schedules')
@@ -207,16 +200,21 @@ describe('schedule-geofence HTTP API', () => {
       .post('/api/admin/settings/schedules')
       .set('Cookie', 'absensi_access=access-token')
       .send(scheduleInput);
+    const clientDated = await request(app)
+      .post('/api/admin/settings/schedules')
+      .set('Cookie', 'absensi_access=access-token')
+      .send({ ...scheduleInput, effectiveFrom: effectiveOn });
 
     expect(invalid.status).toBe(400);
     expect(response.status).toBe(201);
-    expect(settingsService.scheduleCreate).toEqual({
+    expect(clientDated.status).toBe(400);
+    expect(settingsService.scheduleSave).toEqual({
       actorId: admin.id,
       input: scheduleInput,
     });
   });
 
-  it('resolves and creates the one global geofence version', async () => {
+  it('resolves history and saves the global geofence for the server date', async () => {
     const { app, settingsService } = testApp();
     const loaded = await request(app)
       .get('/api/admin/settings/geofence?effectiveOn=2026-08-31')
@@ -225,11 +223,16 @@ describe('schedule-geofence HTTP API', () => {
       .post('/api/admin/settings/geofence')
       .set('Cookie', 'absensi_access=access-token')
       .send(geofenceInput);
+    const clientDated = await request(app)
+      .post('/api/admin/settings/geofence')
+      .set('Cookie', 'absensi_access=access-token')
+      .send({ ...geofenceInput, effectiveFrom: effectiveOn });
 
     expect(loaded.status).toBe(200);
     expect(settingsService.geofenceDate).toBe('2026-08-31');
     expect(created.status).toBe(201);
-    expect(settingsService.geofenceCreate).toEqual({
+    expect(clientDated.status).toBe(400);
+    expect(settingsService.geofenceSave).toEqual({
       actorId: admin.id,
       input: geofenceInput,
     });

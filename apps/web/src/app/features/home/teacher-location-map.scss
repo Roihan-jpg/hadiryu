@@ -1,0 +1,12 @@
+:host {
+  display: block;
+}
+
+.location-map {
+  width: 100%;
+  height: clamp(15rem, 45vw, 19rem);
+  overflow: hidden;
+  border: 1px solid #b8c6d8;
+  border-radius: 0.65rem;
+  background: #e9eef5;
+}

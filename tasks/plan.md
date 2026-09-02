@@ -40,8 +40,8 @@ Menambahkan harness Playwright yang menjalankan smoke test MVP melalui API dan U
 ### Phase 4: Release Gate
 
 - [x] Jalankan seluruh command verifikasi lokal.
-- [ ] Jalankan command hosted yang dapat dijalankan dengan akses tersedia; catat blocker credential/akses secara eksplisit tanpa menandai hasil palsu.
-- [ ] Review correctness, simplicity, architecture, security, dan performance; lalu perbarui `TASKS.md`/`MEMORY.md` hanya bila semua acceptance gate benar-benar lulus.
+- [x] Jalankan command hosted yang dapat dijalankan dengan akses tersedia; migration list dan dry-run up to date, smoke hosted lulus, serta satu warning Auth Free Plan dicatat sebagai pengecualian yang disetujui.
+- [x] Review correctness, simplicity, architecture, security, dan performance; perbaikan form filter diuji dengan regression test dan seluruh gate lokal/hosted yang relevan lulus.
 
 ## Risks and Mitigations
 
@@ -55,7 +55,7 @@ Menambahkan harness Playwright yang menjalankan smoke test MVP melalui API dan U
 
 ## Open Questions
 
-- Akses CLI aktif menampilkan project target `jlqzeytwwdnooepagknb`, tetapi environment belum menyediakan database password/key/credential smoke. Gate hosted tetap terbuka sampai credential environment yang sesuai tersedia.
+- Tidak ada blocker teknis tersisa. Warning `auth_leaked_password_protection` tetap memerlukan keputusan paket Pro; pemilik project memilih mempertahankan Free Plan dan menerima warning non-kritis tersebut.
 
 ---
 

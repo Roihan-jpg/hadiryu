@@ -56,12 +56,10 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     targetMinutes: 1,
   };
   await expectSuccessfulJsonMutation(page, '/api/admin/settings/schedules', {
-    effectiveFrom: attendanceWindow.workDate,
     weekday: schedule,
     saturday: schedule,
   });
   await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence', {
-    effectiveFrom: attendanceWindow.workDate,
     latitude,
     longitude,
     radiusMeters: 100,
@@ -88,6 +86,14 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await login(page, teacherNip, teacherInitialPassword);
   await changeInitialPassword(page, teacherInitialPassword, teacherPassword);
   await expect(page.getByRole('heading', { name: /Hari ini, Guru Smoke E2E/ })).toBeVisible();
+  await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
+  await expect(page.locator('app-teacher-location-map')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
+  await expect(page.locator('app-teacher-location-map')).toBeVisible();
+  await expect(page.getByText(latitude.toFixed(6), { exact: true })).toBeVisible();
+  await expect(page.getByText(longitude.toFixed(6), { exact: true })).toBeVisible();
+  await expect(page.getByText('10 meter', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Perbarui lokasi' })).toBeVisible();
 
   const earlyContext = await browser.newContext({
     baseURL: APP_BASE_URL,
@@ -179,11 +185,12 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     expect.arrayContaining([
       expect.objectContaining({
         teacherNip: earlyTeacherNip,
-        calculationMode: 'MONTHLY_POLICY',
-        minimumPerformancePay: 300_000,
         rejectedEarlyDepartureMinutes: 0,
       }),
     ]),
+  );
+  expect(parsedAttendancePreview.teachers[0]).not.toHaveProperty(
+    'finalPerformancePay',
   );
 
   const [year, month] = leaveDate.split('-').map(Number);

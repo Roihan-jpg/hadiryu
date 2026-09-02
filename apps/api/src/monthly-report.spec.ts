@@ -1,8 +1,4 @@
-import type {
-  CalendarException,
-  PayrollRule,
-  ScheduleRule,
-} from '@absensi/contracts';
+import type { CalendarException, ScheduleRule } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -33,31 +29,6 @@ const saturday: ScheduleRule = {
   checkoutClose: '12:00',
   targetMinutes: 215,
 };
-const payrollRule: PayrollRule = {
-  id: '30000000-0000-4000-8000-000000000001',
-  calculationMode: 'LEGACY_PER_MINUTE',
-  basePerformancePay: 1_000_000,
-  minimumPerformancePay: 0,
-  deductionRatePerMinute: 3000,
-  lateDeductionAmount: 0,
-  absentDeductionAmount: 0,
-  rejectedEarlyDepartureRatePerHour: 0,
-  effectiveFrom: '2020-01-01',
-  effectiveTo: null,
-};
-const monthlyPolicy: PayrollRule = {
-  id: '30000000-0000-4000-8000-000000000002',
-  calculationMode: 'MONTHLY_POLICY',
-  basePerformancePay: 600_000,
-  minimumPerformancePay: 300_000,
-  deductionRatePerMinute: 0,
-  lateDeductionAmount: 10_000,
-  absentDeductionAmount: 20_000,
-  rejectedEarlyDepartureRatePerHour: 10_000,
-  effectiveFrom: '2020-01-01',
-  effectiveTo: null,
-};
-
 function source(input: Partial<MonthlyReportSource> = {}): MonthlyReportSource {
   return {
     teachers: [
@@ -68,7 +39,6 @@ function source(input: Partial<MonthlyReportSource> = {}): MonthlyReportSource {
       },
     ],
     schedules: [weekday, saturday],
-    payrollRules: [payrollRule],
     calendarExceptions: [],
     attendances: [],
     leaves: [],
@@ -213,7 +183,7 @@ describe('monthly report calculator', () => {
         0,
       ),
     );
-    expect(result.teachers[0]?.finalPerformancePay).toBeLessThan(0);
+    expect(result.teachers[0]?.absentDayCount).toBeGreaterThan(0);
   });
 
   it('uses a working-day override and sorts teachers by name then NIP', async () => {
@@ -305,7 +275,6 @@ describe('monthly report calculator', () => {
     };
     const rejectedRepository = new FakeMonthlyReportRepository(
       source({
-        payrollRules: [monthlyPolicy],
         attendances: [completed],
         earlyDepartures: [
           {
@@ -327,14 +296,10 @@ describe('monthly report calculator', () => {
     expect(rejected.teachers[0]).toMatchObject({
       lateDayCount: 1,
       rejectedEarlyDepartureMinutes: 90,
-      lateDeductionTotal: 10_000,
-      rejectedEarlyDepartureDeductionTotal: 10_000,
-      finalPerformancePay: 300_000,
     });
 
     const approvedRepository = new FakeMonthlyReportRepository(
       source({
-        payrollRules: [monthlyPolicy],
         attendances: [{ ...completed, arrivalLateMinutes: 0 }],
         earlyDepartures: [
           {
@@ -372,7 +337,6 @@ describe('monthly report calculator', () => {
     };
     const repository = new FakeMonthlyReportRepository(
       source({
-        payrollRules: [monthlyPolicy],
         attendances: [attendance],
         earlyDepartures: [
           {
@@ -420,9 +384,9 @@ describe('monthly report calculator', () => {
     });
   });
 
-  it('fails explicitly when historical schedule or payroll configuration is missing', async () => {
+  it('fails explicitly when historical schedule configuration is missing', async () => {
     const repository = new FakeMonthlyReportRepository(
-      source({ schedules: [], payrollRules: [] }),
+      source({ schedules: [] }),
     );
 
     await expect(

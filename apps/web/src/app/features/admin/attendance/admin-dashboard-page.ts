@@ -6,7 +6,7 @@ import type {
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -93,6 +93,7 @@ export class AttendanceNoteDialog {
     MatPaginatorModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    FormsModule,
     ReactiveFormsModule,
   ],
   selector: 'app-admin-dashboard-page',

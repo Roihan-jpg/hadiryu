@@ -23,7 +23,7 @@ Sebelum command CLI dikunci, referensi resmi dan help versi terpasang telah dipe
 - [Playwright browser installation](https://playwright.dev/docs/browsers)
 - [Playwright web server](https://playwright.dev/docs/test-webserver)
 
-Per 27 Agustus 2026, perubahan relevan adalah default PostgreSQL 17 dan tabel baru yang tidak lagi otomatis diekspos ke Data API. Migration repository karena itu tetap mengaktifkan RLS serta memberi `GRANT` secara eksplisit. Workflow declarative `pg-delta` masih alpha dan tidak dipakai untuk release ini.
+Per 1 September 2026, tidak ada perubahan changelog yang memengaruhi RPC `security invoker`, RLS, atau workflow migration yang dipakai repository. Tabel baru tetap tidak diasumsikan otomatis terekspos ke Data API; migration mengaktifkan RLS serta memberi `GRANT` secara eksplisit. Workflow declarative `pg-delta` yang belum stabil tidak dipakai untuk release ini.
 
 ## Environment
 
@@ -53,8 +53,9 @@ isi `.env` lokal yang di-ignore Git lalu jalankan setup idempotent berikut satu 
 npm run setup:hosted
 ```
 
-Setup hanya membuat versi ketika konfigurasi belum ada. Bila aturan hosted sudah ada tetapi
-nilainya berbeda, proses berhenti dan tidak menimpanya.
+Setup hanya menyimpan jadwal/geofence ketika konfigurasi belum ada. Payload tidak membawa tanggal;
+database memakai tanggal server di `Asia/Jakarta`. Bila aturan hosted sudah ada tetapi nilainya
+berbeda, proses berhenti dan tidak menimpanya. Setup tidak membuat atau memeriksa payroll.
 
 ## Verifikasi Lokal
 
@@ -63,6 +64,8 @@ Install browser satu kali, lalu jalankan gate lokal dari database bersih:
 ```bash
 npm run e2e:install
 npm run db:reset
+npx supabase test db
+npm run db:advisors
 npm run lint
 npm run typecheck
 npm test
@@ -77,20 +80,13 @@ npm run build
 3. Guru pertama login, mengganti password awal, check-in, checkout, dan mengajukan izin;
 4. Guru kedua check-in lalu mengajukan pulang awal sehingga waktu/lokasi server menjadi checkout aktual;
 5. SuperAdmin menyetujui izin dan pulang awal;
-6. preview memverifikasi mode upah bulanan serta batas minimum, lalu file XLSX diekspor.
+6. preview memverifikasi data dan metrik absensi tanpa field nominal, lalu file XLSX diekspor dengan cell nominal kosong.
 
-## Konfigurasi Upah dan Pulang Awal
+## Laporan Manual dan Pulang Awal
 
-Aturan upah dibuat sebagai versi efektif baru melalui **Pengaturan → Upah kinerja**; versi lama tidak diubah agar laporan historis tetap dapat direproduksi. Nilai awal operasional adalah:
+Aplikasi tidak memiliki konfigurasi atau perhitungan nominal upah. Preview hanya berisi data dan metrik absensi. Pada salinan XLSX, label/style bagian upah dipertahankan tetapi cell nominal dan seluruh formula terkait kosong agar staf kantor dapat mengisinya manual. `report-template.xlsx` tidak pernah diubah.
 
-- upah dasar bulanan Rp600.000;
-- upah minimum Rp300.000;
-- potongan terlambat Rp10.000 per hari;
-- potongan alpa Rp20.000 per hari;
-- waktu kosong pulang awal yang ditolak Rp10.000 per 60 menit;
-- total potongan dibatasi Rp20.000 per hari.
-
-Permohonan pulang awal tersedia di navigasi Guru setelah check-in. Pengiriman permohonan meminta lokasi saat tombol ditekan, mencatat timestamp server sebagai checkout, dan membuat status `PENDING`. SuperAdmin wajib menyelesaikannya melalui **Approval pulang awal** sebelum laporan bulan terkait diekspor. Approval memberi kredit target penuh untuk kekurangan akibat pulang awal; penolakan menghitung interval pengajuan sampai `workEnd` sebagai waktu kosong. Potongan terlambat tetap berlaku pada kedua keputusan.
+Permohonan pulang awal tersedia di navigasi Guru setelah check-in. Pengiriman permohonan meminta lokasi saat tombol ditekan, mencatat timestamp server sebagai checkout, dan membuat status `PENDING`. SuperAdmin wajib menyelesaikannya melalui **Approval pulang awal** sebelum laporan bulan terkait diekspor. Approval memberi kredit target penuh untuk kekurangan akibat pulang awal; penolakan menghitung interval pengajuan sampai `workEnd` sebagai waktu kosong yang dilaporkan.
 
 ## Link dan Migration Hosted
 
@@ -119,7 +115,7 @@ Siapkan satu akun Guru khusus smoke melalui GUI SuperAdmin. Akun harus aktif, pa
 - `E2E_ADMIN_PASSWORD`: password SuperAdmin setelah pergantian password awal;
 - `E2E_TEACHER_NIP` dan `E2E_TEACHER_PASSWORD`: akun Guru smoke khusus;
 - `E2E_LATITUDE` dan `E2E_LONGITUDE`: titik valid di dalam geofence sekolah;
-- `E2E_LEAVE_DATE`: tanggal hari ini/masa depan yang disetujui untuk data smoke.
+- `E2E_LEAVE_DATE`: tanggal setelah hari ini yang disetujui untuk data smoke.
 
 Jalankan smoke saat window check-in hosted aktif, atau setelah akun smoke memiliki absensi hari itu. Bila absensi masih aktif sebelum `workEnd`, test mengajukan pulang awal dan kemudian menyetujuinya sebagai SuperAdmin; setelah `workEnd`, test memakai checkout normal bila window checkout masih terbuka. Test tidak membuat Guru, tidak mengubah konfigurasi, tidak mereset password, serta tidak menghapus data. Test dapat membuat absensi, permohonan pulang awal, dan izin untuk akun smoke, menyelesaikan approval, lalu melakukan preview/export:
 
@@ -129,10 +125,26 @@ npm run test:e2e:hosted
 
 Jika tanggal izin sudah memiliki izin Pending atau Approved untuk akun smoke, test memakai record itu sehingga rerun tidak membuat duplikat. Permohonan pulang awal Pending milik akun smoke pada hari yang sama juga diselesaikan saat rerun. Preview/export sengaja gagal bila masih ada izin atau pulang awal Pending lain pada bulan tersebut; itu adalah release blocker yang harus diselesaikan, bukan di-skip.
 
-Advisors Auth dapat melaporkan `auth_leaked_password_protection` pada project Free.
-Supabase menyediakan proteksi HaveIBeenPwned tersebut hanya pada paket Pro atau lebih tinggi;
-jangan melemahkan command advisor atau membeli paket tanpa keputusan pemilik project.
+Advisors Auth melaporkan `auth_leaked_password_protection` pada project Free karena proteksi
+HaveIBeenPwned hanya tersedia pada paket Pro atau lebih tinggi. Pada 2026-09-02 pemilik project
+memutuskan tetap memakai Free Plan dan menerima warning eksternal non-kritis ini sebagai
+pengecualian release T15. Command advisor tetap memakai `--fail-on warn` agar warning tidak
+tersembunyi; hasilnya perlu dibaca sebagai lulus dengan pengecualian hanya bila satu-satunya
+temuan persis `auth_leaked_password_protection`. Warning lain tetap menjadi release blocker.
 
 ## Batas Deployment Aplikasi
 
 Provider Web/API belum dipilih. Repository hanya menyiapkan build dan environment contract; tidak ada deployment aplikasi yang dijalankan sampai provider, domain HTTPS, reverse proxy, dan secret manager diputuskan secara tertulis.
+
+## Peta OpenStreetMap
+
+Dashboard Guru memuat raster tile langsung dari `https://tile.openstreetmap.org/{z}/{x}/{y}.png` setelah Guru meminta preview lokasi atau melakukan aksi absensi. Layanan tersebut best-effort dan tidak memiliki SLA; gunakan provider tile lain atau self-hosting bila volume atau kebutuhan availability production melampaui kebijakan OpenStreetMap Foundation.
+
+Konfigurasi edge untuk dokumen Angular wajib:
+
+- mengizinkan `https://tile.openstreetmap.org` pada directive CSP `img-src`;
+- mempertahankan atribusi OpenStreetMap yang terlihat pada peta;
+- mengirim HTTP `Referer` yang valid dan tidak memakai `Referrer-Policy: no-referrer` pada dokumen Angular;
+- menghormati cache header tile serta tidak menambahkan prefetch, bulk download, atau mode offline.
+
+Header `Referrer-Policy: no-referrer` pada response API Express boleh tetap digunakan karena response JSON API bukan dokumen yang memuat tile. Detail kebijakan operasional tersedia di https://operations.osmfoundation.org/policies/tiles/.

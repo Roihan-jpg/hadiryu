@@ -1,7 +1,7 @@
 import {
-  CreateGeofenceVersionRequestSchema,
-  CreateScheduleVersionRequestSchema,
   GeofenceSettingsQuerySchema,
+  SaveGeofenceSettingsRequestSchema,
+  SaveScheduleSettingsRequestSchema,
   ScheduleSettingsQuerySchema,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
@@ -17,38 +17,40 @@ const weekday = {
 };
 
 describe('schedule-geofence contracts', () => {
-  it('accepts one WEEKDAY and one SATURDAY rule for a new effective version', () => {
+  it('accepts schedule settings without a client-controlled effective date', () => {
     expect(
-      CreateScheduleVersionRequestSchema.parse({
-        effectiveFrom: '2026-09-01',
+      SaveScheduleSettingsRequestSchema.parse({
         weekday,
         saturday: { ...weekday, workEnd: '12:00', targetMinutes: 215 },
       }),
     ).toEqual({
-      effectiveFrom: '2026-09-01',
       weekday,
       saturday: { ...weekday, workEnd: '12:00', targetMinutes: 215 },
     });
+    expect(
+      SaveScheduleSettingsRequestSchema.safeParse({
+        effectiveFrom: '2026-09-01',
+        weekday,
+        saturday: weekday,
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects invalid time order, non-positive targets, and unsupported fields', () => {
     expect(
-      CreateScheduleVersionRequestSchema.safeParse({
-        effectiveFrom: '2026-09-01',
+      SaveScheduleSettingsRequestSchema.safeParse({
         weekday: { ...weekday, workStart: '05:00' },
         saturday: weekday,
       }).success,
     ).toBe(false);
     expect(
-      CreateScheduleVersionRequestSchema.safeParse({
-        effectiveFrom: '2026-09-01',
+      SaveScheduleSettingsRequestSchema.safeParse({
         weekday: { ...weekday, targetMinutes: 0 },
         saturday: weekday,
       }).success,
     ).toBe(false);
     expect(
-      CreateScheduleVersionRequestSchema.safeParse({
-        effectiveFrom: '2026-09-01',
+      SaveScheduleSettingsRequestSchema.safeParse({
         weekday,
         saturday: weekday,
         teacherId: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
@@ -58,23 +60,20 @@ describe('schedule-geofence contracts', () => {
 
   it('accepts one bounded school geofence and rejects multiple locations', () => {
     expect(
-      CreateGeofenceVersionRequestSchema.parse({
-        effectiveFrom: '2026-09-01',
+      SaveGeofenceSettingsRequestSchema.parse({
         latitude: -6.2,
         longitude: 106.816666,
         radiusMeters: 100,
         maxAccuracyMeters: 50,
       }),
     ).toEqual({
-      effectiveFrom: '2026-09-01',
       latitude: -6.2,
       longitude: 106.816666,
       radiusMeters: 100,
       maxAccuracyMeters: 50,
     });
     expect(
-      CreateGeofenceVersionRequestSchema.safeParse({
-        effectiveFrom: '2026-09-01',
+      SaveGeofenceSettingsRequestSchema.safeParse({
         latitude: 91,
         longitude: 106.816666,
         radiusMeters: 24,
@@ -82,9 +81,12 @@ describe('schedule-geofence contracts', () => {
       }).success,
     ).toBe(false);
     expect(
-      CreateGeofenceVersionRequestSchema.safeParse({
+      SaveGeofenceSettingsRequestSchema.safeParse({
         effectiveFrom: '2026-09-01',
-        locations: [],
+        latitude: -6.2,
+        longitude: 106.816666,
+        radiusMeters: 100,
+        maxAccuracyMeters: 50,
       }).success,
     ).toBe(false);
   });

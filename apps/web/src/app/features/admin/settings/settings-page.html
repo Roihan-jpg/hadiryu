@@ -5,8 +5,8 @@
       <p class="eyebrow">Aturan operasional</p>
       <h1 id="settings-title">Pengaturan operasional</h1>
       <p class="intro">
-        Buat versi baru dengan tanggal mulai berlaku. Versi yang sudah dipakai
-        tetap tersimpan untuk laporan historis.
+        Perubahan jadwal dan geofence berlaku hari ini menurut waktu server.
+        Riwayat sebelum hari ini tetap tersimpan untuk laporan historis.
       </p>
     </div>
   </header>
@@ -46,7 +46,7 @@
           <p class="section-kicker">Hasil resolver</p>
           <h2 id="resolved-title">Berlaku pada {{ dateLabel(schedules()?.effectiveOn) }}</h2>
         </div>
-        <p>Versi ini hanya dibaca; perubahan dibuat sebagai versi baru di bawah.</p>
+        <p>Gunakan tanggal ini untuk memeriksa aturan yang pernah berlaku.</p>
       </div>
 
       <div class="resolved-grid">
@@ -101,53 +101,18 @@
           }
         </article>
 
-        <article class="payroll-summary">
-          <div class="summary-title">
-            <h3>Upah kinerja</h3>
-            @if (payroll()?.payrollRule; as rule) {
-              <strong>{{ currencyLabel(rule.basePerformancePay) }}</strong>
-            }
-          </div>
-          @if (payroll()?.payrollRule; as rule) {
-            <dl>
-              <div><dt>Upah minimum</dt><dd>{{ currencyLabel(rule.minimumPerformancePay) }}</dd></div>
-              <div><dt>Potongan terlambat</dt><dd>{{ currencyLabel(rule.lateDeductionAmount) }} / hari</dd></div>
-              <div><dt>Potongan alpa</dt><dd>{{ currencyLabel(rule.absentDeductionAmount) }} / hari</dd></div>
-              <div><dt>Waktu kosong ditolak</dt><dd>{{ currencyLabel(rule.rejectedEarlyDepartureRatePerHour) }} / 60 menit</dd></div>
-              <div><dt>Mulai berlaku</dt><dd>{{ dateLabel(rule.effectiveFrom) }}</dd></div>
-              <div><dt>Status</dt><dd>{{ rule.effectiveTo ? 'Versi tertutup' : 'Versi terbuka' }}</dd></div>
-            </dl>
-          } @else {
-            <p class="empty-inline">Belum ada aturan upah untuk tanggal ini.</p>
-          }
-        </article>
       </div>
     </section>
   <section class="setting-section" aria-labelledby="schedule-form-title">
     <div class="section-heading">
       <div>
-        <p class="section-kicker">Versi berikutnya</p>
+        <p class="section-kicker">Berlaku hari ini</p>
         <h2 id="schedule-form-title">Jadwal global</h2>
       </div>
-      <p>Senin–Jumat dan Sabtu selalu diterbitkan bersama pada satu tanggal.</p>
+      <p>Senin–Jumat dan Sabtu selalu disimpan bersama memakai tanggal server.</p>
     </div>
 
     <form [formGroup]="scheduleForm" (ngSubmit)="saveSchedules()" novalidate>
-      <mat-form-field appearance="outline">
-        <mat-label>Mulai berlaku</mat-label>
-        <input
-          matInput
-          type="date"
-          name="scheduleEffectiveFrom"
-          autocomplete="off"
-          [min]="minimumEffectiveDate"
-          formControlName="effectiveFrom"
-        />
-        @if (scheduleForm.controls.effectiveFrom.invalid) {
-          <mat-error>Tanggal mulai berlaku wajib diisi.</mat-error>
-        }
-      </mat-form-field>
-
       @for (
         schedule of [
           { key: 'weekday', label: 'Senin–Jumat' },
@@ -178,13 +143,13 @@
       }
 
       <div class="form-actions">
-        <span>Versi lama akan ditutup sehari sebelum tanggal ini.</span>
+        <span>Riwayat sebelum hari ini tidak akan berubah.</span>
         <button
           mat-flat-button
           type="submit"
           [disabled]="actionInProgress() !== null"
         >
-          {{ actionInProgress() === 'schedule' ? 'Menyimpan…' : 'Buat versi jadwal' }}
+          {{ actionInProgress() === 'schedule' ? 'Menyimpan…' : 'Simpan jadwal' }}
         </button>
       </div>
     </form>
@@ -201,18 +166,6 @@
 
     <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofence()" novalidate>
       <div class="geofence-form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Mulai berlaku</mat-label>
-          <input
-            matInput
-            type="date"
-            name="geofenceEffectiveFrom"
-            autocomplete="off"
-            [min]="minimumEffectiveDate"
-            formControlName="effectiveFrom"
-          />
-          <mat-error>Tanggal mulai berlaku wajib diisi.</mat-error>
-        </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Latitude</mat-label>
           <input matInput type="number" step="0.000001" name="latitude" inputmode="decimal" autocomplete="off" formControlName="latitude" />
@@ -241,7 +194,7 @@
           type="submit"
           [disabled]="actionInProgress() !== null"
         >
-          {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : 'Buat versi geofence' }}
+          {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : 'Simpan geofence' }}
         </button>
       </div>
     </form>
@@ -325,64 +278,5 @@
     }
   </section>
 
-  <section class="setting-section" aria-labelledby="payroll-form-title">
-    <div class="section-heading">
-      <div>
-        <p class="section-kicker">Versi bulanan global</p>
-        <h2 id="payroll-form-title">Upah kinerja</h2>
-      </div>
-      <p>Aturan baru selalu berlaku pada tanggal 1. Total potongan dibatasi Rp20.000 per hari dan upah akhir tidak turun di bawah upah minimum.</p>
-    </div>
-
-    <form [formGroup]="payrollForm" (ngSubmit)="savePayroll()" novalidate>
-      <div class="payroll-form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Mulai berlaku</mat-label>
-          <input matInput type="date" name="payrollEffectiveFrom" autocomplete="off" [min]="minimumEffectiveDate" formControlName="effectiveFrom" />
-          @if (payrollForm.controls.effectiveFrom.hasError('monthStart')) {
-            <mat-error>Tanggal mulai harus tanggal 1.</mat-error>
-          } @else {
-            <mat-error>Tanggal mulai berlaku wajib diisi.</mat-error>
-          }
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Upah dasar bulanan</mat-label>
-          <input matInput type="number" min="0" step="0.01" name="basePerformancePay" inputmode="decimal" autocomplete="off" formControlName="basePerformancePay" />
-          <span matTextPrefix>Rp&nbsp;</span>
-          <mat-error>Nilai wajib nol atau lebih.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Upah minimum</mat-label>
-          <input matInput type="number" min="0" step="0.01" name="minimumPerformancePay" inputmode="decimal" autocomplete="off" formControlName="minimumPerformancePay" />
-          <span matTextPrefix>Rp&nbsp;</span>
-          <mat-error>Nilai wajib nol atau lebih dan tidak melebihi upah dasar.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Potongan terlambat per hari</mat-label>
-          <input matInput type="number" min="0" step="0.01" name="lateDeductionAmount" inputmode="decimal" autocomplete="off" formControlName="lateDeductionAmount" />
-          <span matTextPrefix>Rp&nbsp;</span>
-          <mat-error>Nilai wajib nol atau lebih.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Potongan alpa per hari</mat-label>
-          <input matInput type="number" min="0" step="0.01" name="absentDeductionAmount" inputmode="decimal" autocomplete="off" formControlName="absentDeductionAmount" />
-          <span matTextPrefix>Rp&nbsp;</span>
-          <mat-error>Nilai wajib nol atau lebih.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Nilai 60 menit kosong</mat-label>
-          <input matInput type="number" min="0" step="0.01" name="rejectedEarlyDepartureRatePerHour" inputmode="decimal" autocomplete="off" formControlName="rejectedEarlyDepartureRatePerHour" />
-          <span matTextPrefix>Rp&nbsp;</span>
-          <mat-error>Nilai wajib nol atau lebih.</mat-error>
-        </mat-form-field>
-      </div>
-      <div class="form-actions">
-        <span>Default: Rp600.000; minimum Rp300.000; telat Rp10.000; alpa Rp20.000; waktu kosong Rp10.000/60 menit.</span>
-        <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">
-          {{ actionInProgress() === 'payroll' ? 'Menyimpan…' : 'Buat versi upah' }}
-        </button>
-      </div>
-    </form>
-  </section>
   }
 </section>

@@ -2,11 +2,9 @@ import type {
   CalendarException,
   CalendarExceptionInput,
   CalendarExceptionsResponse,
-  CreatePayrollVersionRequest,
-  CreateGeofenceVersionRequest,
-  CreateScheduleVersionRequest,
   GeofenceSettingsResponse,
-  PayrollSettingsResponse,
+  SaveGeofenceSettingsRequest,
+  SaveScheduleSettingsRequest,
   ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { HttpClient, HttpParams } from '@angular/common/http';
@@ -28,8 +26,8 @@ export class SettingsService {
     return ScheduleSettingsResponseSchema.parse(value);
   }
 
-  async createSchedules(
-    input: CreateScheduleVersionRequest,
+  async saveSchedules(
+    input: SaveScheduleSettingsRequest,
   ): Promise<ScheduleSettingsResponse> {
     const value = await firstValueFrom(
       this.http.post<unknown>('/api/admin/settings/schedules', input, {
@@ -51,8 +49,8 @@ export class SettingsService {
     return GeofenceSettingsResponseSchema.parse(value);
   }
 
-  async createGeofence(
-    input: CreateGeofenceVersionRequest,
+  async saveGeofence(
+    input: SaveGeofenceSettingsRequest,
   ): Promise<GeofenceSettingsResponse> {
     const value = await firstValueFrom(
       this.http.post<unknown>('/api/admin/settings/geofence', input, {
@@ -102,26 +100,4 @@ export class SettingsService {
     );
   }
 
-  async getPayroll(effectiveOn: string): Promise<PayrollSettingsResponse> {
-    const value = await firstValueFrom(
-      this.http.get<unknown>('/api/admin/settings/payroll', {
-        params: new HttpParams().set('effectiveOn', effectiveOn),
-        withCredentials: true,
-      }),
-    );
-    const { PayrollSettingsResponseSchema } = await import('@absensi/contracts');
-    return PayrollSettingsResponseSchema.parse(value);
-  }
-
-  async createPayroll(
-    input: CreatePayrollVersionRequest,
-  ): Promise<PayrollSettingsResponse> {
-    const value = await firstValueFrom(
-      this.http.post<unknown>('/api/admin/settings/payroll', input, {
-        withCredentials: true,
-      }),
-    );
-    const { PayrollSettingsResponseSchema } = await import('@absensi/contracts');
-    return PayrollSettingsResponseSchema.parse(value);
-  }
 }

@@ -9,6 +9,7 @@ import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import {
   FormControl,
   FormGroup,
+  FormsModule,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
@@ -213,6 +214,7 @@ export class ConfirmTeacherDialog {
     MatPaginatorModule,
     MatProgressSpinnerModule,
     MatTableModule,
+    FormsModule,
     ReactiveFormsModule,
   ],
   selector: 'app-teachers-page',

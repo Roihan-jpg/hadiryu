@@ -168,20 +168,17 @@
           mat-flat-button
           data-action="check-in"
           type="button"
-          [disabled]="actionInProgress()"
+          [disabled]="locationRequestInProgress()"
           (click)="checkIn()"
         >
           {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Check-in sekarang' }}
         </button>
-        <p class="permission-note">
-          Lokasi presisi baru diminta setelah tombol ditekan.
-        </p>
       } @else if (today()?.state === 'CHECKED_IN') {
         <button
           mat-flat-button
           data-action="checkout"
           type="button"
-          [disabled]="actionInProgress()"
+          [disabled]="locationRequestInProgress()"
           (click)="checkout()"
         >
           {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Checkout sekarang' }}
@@ -190,6 +187,60 @@
           Lokasi presisi baru diminta setelah tombol ditekan.
         </p>
       }
+    </section>
+
+    <section class="attendance-board location-panel" aria-labelledby="location-title">
+      <div class="board-heading">
+        <div>
+          <h2 id="location-title">Lokasi saya</h2>
+        </div>
+      </div>
+      <br>
+
+      @if (locationPreview(); as location) {
+        <app-teacher-location-map [location]="location" />
+        <dl class="attendance-result location-details" aria-label="Koordinat lokasi saat ini">
+          <div>
+            <dt>Latitude</dt>
+            <dd>{{ coordinateText(location.latitude) }}</dd>
+          </div>
+          <div>
+            <dt>Longitude</dt>
+            <dd>{{ coordinateText(location.longitude) }}</dd>
+          </div>
+          <div>
+            <dt>Akurasi</dt>
+            <dd>{{ accuracyText(location.accuracyMeters) }}</dd>
+          </div>
+        </dl>
+      } @else {
+        <p class="state-copy location-empty">
+          Peta akan tampil setelah lokasi berhasil dibaca.
+        </p>
+      }
+
+      @if (locationPreviewError()) {
+        <p class="feedback feedback--error" role="alert">
+          {{ locationPreviewError() }}
+        </p>
+      }
+      <br>
+
+      <button
+        mat-stroked-button
+        data-action="location-preview"
+        type="button"
+        [disabled]="locationRequestInProgress()"
+        (click)="showLocationPreview()"
+      >
+        @if (locationPreviewInProgress()) {
+          Memeriksa lokasi…
+        } @else if (locationPreview()) {
+          Perbarui lokasi
+        } @else {
+          Tampilkan lokasi saya
+        }
+      </button>
     </section>
 
     <footer class="teacher-footer">

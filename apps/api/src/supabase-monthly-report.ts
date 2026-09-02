@@ -1,9 +1,7 @@
 import {
   CalendarExceptionSchema,
-  PayrollRuleSchema,
   ScheduleRuleSchema,
   type CalendarException,
-  type PayrollRule,
   type ScheduleRule,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -21,7 +19,6 @@ import type {
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
 const PAGE_SIZE = 1000;
-const NumericValueSchema = z.union([z.number(), z.string()]);
 const ProfileRowSchema = z.strictObject({
   id: z.uuid(),
   nip: z.string(),
@@ -37,18 +34,6 @@ const ScheduleRowSchema = z.strictObject({
   work_end: z.string(),
   checkout_close: z.string(),
   target_minutes: z.number().int(),
-  effective_from: z.string(),
-  effective_to: z.string().nullable(),
-});
-const PayrollRowSchema = z.strictObject({
-  id: z.uuid(),
-  calculation_mode: z.enum(['LEGACY_PER_MINUTE', 'MONTHLY_POLICY']),
-  base_performance_pay: NumericValueSchema,
-  minimum_performance_pay: NumericValueSchema,
-  deduction_rate_per_minute: NumericValueSchema,
-  late_deduction_amount: NumericValueSchema,
-  absent_deduction_amount: NumericValueSchema,
-  rejected_early_departure_rate_per_hour: NumericValueSchema,
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
@@ -100,8 +85,6 @@ const EarlyDepartureRowSchema = z.strictObject({
 
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
-const PAYROLL_FIELDS =
-  'id,calculation_mode,base_performance_pay,minimum_performance_pay,deduction_rate_per_minute,late_deduction_amount,absent_deduction_amount,rejected_early_departure_rate_per_hour,effective_from,effective_to';
 const ATTENDANCE_FIELDS =
   'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
 
@@ -161,24 +144,6 @@ function toSchedule(value: unknown): ScheduleRule {
     workEnd: time(row.work_end),
     checkoutClose: time(row.checkout_close),
     targetMinutes: row.target_minutes,
-    effectiveFrom: row.effective_from,
-    effectiveTo: row.effective_to,
-  });
-}
-
-function toPayroll(value: unknown): PayrollRule {
-  const row = PayrollRowSchema.parse(value);
-  return PayrollRuleSchema.parse({
-    id: row.id,
-    calculationMode: row.calculation_mode,
-    basePerformancePay: Number(row.base_performance_pay),
-    minimumPerformancePay: Number(row.minimum_performance_pay),
-    deductionRatePerMinute: Number(row.deduction_rate_per_minute),
-    lateDeductionAmount: Number(row.late_deduction_amount),
-    absentDeductionAmount: Number(row.absent_deduction_amount),
-    rejectedEarlyDepartureRatePerHour: Number(
-      row.rejected_early_departure_rate_per_hour,
-    ),
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
   });
@@ -266,7 +231,6 @@ export class SupabaseMonthlyReportRepository
     const [
       teacherRows,
       scheduleRows,
-      payrollRows,
       calendarRows,
       attendanceRows,
       leaveRows,
@@ -292,15 +256,6 @@ export class SupabaseMonthlyReportRepository
           .or(`effective_to.is.null,effective_to.gte.${startDate}`)
           .order('effective_from', { ascending: true })
           .order('schedule_type', { ascending: true })
-          .range(from, to),
-      ),
-      loadAllPages(async (from, to) =>
-        this.client
-          .from('payroll_rules')
-          .select(PAYROLL_FIELDS)
-          .lte('effective_from', startDate)
-          .or(`effective_to.is.null,effective_to.gte.${startDate}`)
-          .order('effective_from', { ascending: true })
           .range(from, to),
       ),
       loadAllPages(async (from, to) =>
@@ -351,7 +306,6 @@ export class SupabaseMonthlyReportRepository
     return {
       teachers,
       schedules: scheduleRows.map(toSchedule),
-      payrollRules: payrollRows.map(toPayroll),
       calendarExceptions: calendarRows.map(toCalendarException),
       attendances: attendanceRows
         .map(toAttendance)

@@ -1,6 +1,6 @@
 import type { AttendanceRecord } from '@absensi/contracts';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -25,6 +25,7 @@ function currentJakartaMonth(): string {
     MatButtonModule,
     MatPaginatorModule,
     MatProgressSpinnerModule,
+    FormsModule,
     ReactiveFormsModule,
     RouterLink,
   ],

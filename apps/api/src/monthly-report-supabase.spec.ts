@@ -153,6 +153,10 @@ describe('Supabase monthly report integration', () => {
       },
     ]);
     if (profileError) throw profileError;
+    runSql(`set session_replication_role = replica;
+      update public.profiles
+      set created_at = '2026-08-01T00:00:00Z'
+      where id in ('${teacherId}', '${inactiveTeacherId}');`);
 
     const { error: attendanceError } = await client
       .from('attendance_records')

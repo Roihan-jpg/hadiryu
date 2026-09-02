@@ -26,7 +26,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: 'npm run dev --workspace @absensi/web -- --host 127.0.0.1',
+      command: 'npm run dev --workspace @absensi/web',
       url: baseURL,
       reuseExistingServer: false,
       timeout: 120_000,
