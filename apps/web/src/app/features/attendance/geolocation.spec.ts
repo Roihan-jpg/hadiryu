@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { acquirePreciseLocation, PreciseLocationError } from './geolocation';
+import {
+  acquireLocationPreview,
+  acquirePreciseLocation,
+  PreciseLocationError,
+} from './geolocation';
 
 class FakeGeolocation {
   success?: PositionCallback;
@@ -76,5 +80,32 @@ describe('acquirePreciseLocation', () => {
     } as GeolocationPosition);
 
     await expect(result).resolves.toMatchObject({ accuracyMeters: 11 });
+  });
+});
+
+describe('acquireLocationPreview', () => {
+  it('returns the first location fix without applying the attendance accuracy limit', async () => {
+    let success: PositionCallback | undefined;
+    const geolocation = {
+      getCurrentPosition: vi.fn((callback: PositionCallback) => {
+        success = callback;
+      }),
+    } as unknown as Geolocation;
+
+    const result = acquireLocationPreview(geolocation);
+    success?.({
+      coords: { latitude: -8.132722, longitude: 113.221889, accuracy: 83 },
+    } as GeolocationPosition);
+
+    await expect(result).resolves.toEqual({
+      latitude: -8.132722,
+      longitude: 113.221889,
+      accuracyMeters: 83,
+    });
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 },
+    );
   });
 });

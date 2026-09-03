@@ -22,6 +22,7 @@ export interface LocationAccuracyProgress {
 }
 
 const LOCATION_SEARCH_TIMEOUT_MS = 30_000;
+const LOCATION_PREVIEW_TIMEOUT_MS = 10_000;
 
 function locationInput(position: GeolocationPosition): LocationInput {
   return {
@@ -35,6 +36,23 @@ function providerError(error: GeolocationPositionError): PreciseLocationError {
   return new PreciseLocationError(
     error.code === 1 ? 'DENIED' : error.code === 3 ? 'TIMEOUT' : 'UNAVAILABLE',
   );
+}
+
+export function acquireLocationPreview(
+  geolocation: Geolocation,
+  enableHighAccuracy = true,
+): Promise<LocationInput> {
+  return new Promise((resolve, reject) => {
+    geolocation.getCurrentPosition(
+      (position) => resolve(locationInput(position)),
+      (error) => reject(providerError(error)),
+      {
+        enableHighAccuracy,
+        maximumAge: 0,
+        timeout: LOCATION_PREVIEW_TIMEOUT_MS,
+      },
+    );
+  });
 }
 
 export function acquirePreciseLocation(

@@ -11,6 +11,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import {
+  acquireLocationPreview,
   acquirePreciseLocation,
   GEOLOCATION,
   GEOLOCATION_PERMISSIONS,
@@ -111,7 +112,7 @@ export class HomePage implements OnInit {
     this.successMessage.set(null);
     this.locationAccuracyProgress.set(null);
     try {
-      const location = await this.currentLocation();
+      const location = await this.currentLocation('ATTENDANCE');
       this.permissionState.set('GRANTED');
       this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkIn(location);
@@ -151,7 +152,7 @@ export class HomePage implements OnInit {
     this.successMessage.set(null);
     this.locationAccuracyProgress.set(null);
     try {
-      const location = await this.currentLocation();
+      const location = await this.currentLocation('ATTENDANCE');
       this.permissionState.set('GRANTED');
       this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkout(location);
@@ -199,7 +200,7 @@ export class HomePage implements OnInit {
     this.permissionState.set('REQUESTING');
     this.locationAccuracyProgress.set(null);
     try {
-      const location = await this.currentLocation();
+      const location = await this.currentLocation('PREVIEW');
       this.permissionState.set('GRANTED');
       this.locationPreview.set(location);
     } catch (error) {
@@ -231,13 +232,13 @@ export class HomePage implements OnInit {
     await this.router.navigateByUrl('/login');
   }
 
-  private async currentLocation(): Promise<LocationInput> {
+  private async currentLocation(mode: 'ATTENDANCE' | 'PREVIEW'): Promise<LocationInput> {
     if (!this.geolocation) {
       throw new LocationRequestError('UNAVAILABLE');
     }
 
     try {
-      return await this.requestCurrentLocation(true);
+      return await this.requestCurrentLocation(mode, true);
     } catch (error) {
       if (
         !(error instanceof LocationRequestError) ||
@@ -248,7 +249,7 @@ export class HomePage implements OnInit {
       }
 
       try {
-        return await this.requestCurrentLocation(false);
+        return await this.requestCurrentLocation(mode, false);
       } catch (fallbackError) {
         if (
           fallbackError instanceof LocationRequestError &&
@@ -261,7 +262,22 @@ export class HomePage implements OnInit {
     }
   }
 
-  private requestCurrentLocation(enableHighAccuracy: boolean): Promise<LocationInput> {
+  private requestCurrentLocation(
+    mode: 'ATTENDANCE' | 'PREVIEW',
+    enableHighAccuracy: boolean,
+  ): Promise<LocationInput> {
+    const request = mode === 'PREVIEW'
+      ? acquireLocationPreview(this.geolocation!, enableHighAccuracy)
+      : this.acquireAttendanceLocation(enableHighAccuracy);
+    return request.catch((error: unknown) => {
+      if (error instanceof PreciseLocationError) {
+        throw new LocationRequestError(error.state, error.bestAccuracyMeters);
+      }
+      throw error;
+    });
+  }
+
+  private acquireAttendanceLocation(enableHighAccuracy: boolean): Promise<LocationInput> {
     const maxAccuracyMeters =
       this.today()?.locationRequirement?.maxAccuracyMeters ?? 15;
     return acquirePreciseLocation(
@@ -269,12 +285,7 @@ export class HomePage implements OnInit {
       maxAccuracyMeters,
       (progress) => this.locationAccuracyProgress.set(progress),
       enableHighAccuracy,
-    ).catch((error: unknown) => {
-      if (error instanceof PreciseLocationError) {
-        throw new LocationRequestError(error.state, error.bestAccuracyMeters);
-      }
-      throw error;
-    });
+    );
   }
 
   private async isLocationPermissionGranted(): Promise<boolean> {

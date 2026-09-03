@@ -167,6 +167,27 @@ describe('HomePage check-in', () => {
     expect(fixture.nativeElement.textContent).toContain('15 meter');
   });
 
+  it('shows a preview from the first location fix even when it is not accurate enough for attendance', async () => {
+    await setup({
+      ...ready,
+      locationRequirement: { maxAccuracyMeters: 10 },
+    });
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    geolocation.successes[0]?.({
+      coords: { latitude: -8.132722, longitude: 113.221889, accuracy: 83 },
+    } as GeolocationPosition);
+    await preview;
+    fixture.detectChanges();
+
+    expect(checkIn).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('-8.132722');
+    expect(fixture.nativeElement.textContent).toContain('113.221889');
+    expect(fixture.nativeElement.textContent).toContain('83 meter');
+    expect(fixture.nativeElement.querySelector('app-teacher-location-map')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('syarat maksimal 10 meter');
+  });
+
   it('blocks attendance while a location preview request is active', async () => {
     await setup();
 
