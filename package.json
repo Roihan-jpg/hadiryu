@@ -18,14 +18,16 @@
     "e2e:install": "playwright install chromium",
     "lint": "eslint playwright.config.ts e2e scripts && npm run lint --workspaces --if-present",
     "typecheck": "tsc -p tsconfig.e2e.json --noEmit && npm run typecheck --workspaces --if-present",
-    "test": "npm run test:release-config && npm run test:workspaces",
+    "test": "npm run test:release-config && npm run test:worker && npm run test:workspaces",
     "test:release-config": "node --test scripts/release-config.test.mjs",
+    "test:worker": "vitest run worker/index.spec.ts",
     "test:workspaces": "npm run test --workspaces --if-present",
     "test:e2e": "node scripts/run-e2e.mjs local",
     "setup:hosted": "node --env-file-if-exists=.env scripts/run-e2e.mjs hosted-setup",
     "test:e2e:hosted": "node --env-file-if-exists=.env scripts/run-e2e.mjs hosted",
     "test:web": "npm run test --workspace @absensi/web",
     "test:api": "npm run test --workspace @absensi/api",
+    "build:worker": "npm run build --workspace @absensi/contracts && npm run build --workspace @absensi/web",
     "build": "npm run build --workspaces --if-present"
   },
   "engines": {

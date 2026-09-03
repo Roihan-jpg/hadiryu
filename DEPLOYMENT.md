@@ -136,7 +136,11 @@ temuan persis `auth_leaked_password_protection`. Warning lain tetap menjadi rele
 
 ## Batas Deployment Aplikasi
 
-Provider Web/API belum dipilih. Repository hanya menyiapkan build dan environment contract; tidak ada deployment aplikasi yang dijalankan sampai provider, domain HTTPS, reverse proxy, dan secret manager diputuskan secara tertulis.
+Frontend sementara diterbitkan melalui Cloudflare Worker `absensi-guru` di `https://absensi-guru.roihanboizz2006.workers.dev`. Worker melayani asset Angular dan meneruskan hanya `/api/*` ke origin Express yang ditentukan oleh secret Worker `API_ORIGIN`. Konfigurasi Workers Builds memakai build command `npm run build:worker` dan deploy command `npx wrangler deploy --keep-vars`.
+
+Untuk backend lokal sementara, jalankan Express pada port 3000 dan buka Cloudflare Tunnel menuju `http://127.0.0.1:3000`. Simpan URL HTTPS tunnel sebagai secret `API_ORIGIN` pada Worker; jangan commit URL maupun credential tunnel. Deploy Worker memakai `npx wrangler deploy --keep-vars` agar secret dashboard tetap ada. Konfigurasi backend lokal wajib memakai `NODE_ENV=production`, `SESSION_COOKIE_SECURE=true`, `CORS_ALLOWED_ORIGINS=https://absensi-guru.roihanboizz2006.workers.dev`, dan `TRUST_PROXY_HOPS=1`.
+
+Tunnel lokal adalah solusi pengujian sementara. Backend akan tidak tersedia saat komputer atau proses tunnel berhenti, dan origin tunnel tidak boleh dianggap sebagai hosting produksi.
 
 ## Peta OpenStreetMap
 
