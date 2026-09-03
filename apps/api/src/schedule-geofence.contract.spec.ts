@@ -58,37 +58,81 @@ describe('schedule-geofence contracts', () => {
     ).toBe(false);
   });
 
-  it('accepts one bounded school geofence and rejects multiple locations', () => {
+  it('accepts a bounded polygon attendance zone without a client date', () => {
+    const vertices = [
+      { latitude: -8.1327, longitude: 113.2218 },
+      { latitude: -8.1327, longitude: 113.2221 },
+      { latitude: -8.1330, longitude: 113.2221 },
+      { latitude: -8.1330, longitude: 113.2218 },
+    ];
     expect(
       SaveGeofenceSettingsRequestSchema.parse({
-        latitude: -6.2,
-        longitude: 106.816666,
-        radiusMeters: 100,
-        maxAccuracyMeters: 50,
+        shape: 'POLYGON',
+        vertices,
+        maxAccuracyMeters: 15,
       }),
     ).toEqual({
-      latitude: -6.2,
-      longitude: 106.816666,
-      radiusMeters: 100,
-      maxAccuracyMeters: 50,
+      shape: 'POLYGON',
+      vertices,
+      maxAccuracyMeters: 15,
     });
     expect(
       SaveGeofenceSettingsRequestSchema.safeParse({
-        latitude: 91,
-        longitude: 106.816666,
-        radiusMeters: 24,
-        maxAccuracyMeters: 201,
+        shape: 'POLYGON',
+        vertices: vertices.slice(0, 2),
+        maxAccuracyMeters: 31,
       }).success,
     ).toBe(false);
     expect(
       SaveGeofenceSettingsRequestSchema.safeParse({
         effectiveFrom: '2026-09-01',
-        latitude: -6.2,
-        longitude: 106.816666,
-        radiusMeters: 100,
-        maxAccuracyMeters: 50,
+        shape: 'POLYGON',
+        vertices,
+        maxAccuracyMeters: 15,
       }).success,
     ).toBe(false);
+  });
+
+  it('rejects self-intersecting and repeated polygon vertices', () => {
+    const base = { shape: 'POLYGON', maxAccuracyMeters: 15 } as const;
+    expect(SaveGeofenceSettingsRequestSchema.safeParse({
+      ...base,
+      vertices: [
+        { latitude: -8.1330, longitude: 113.2218 },
+        { latitude: -8.1327, longitude: 113.2221 },
+        { latitude: -8.1330, longitude: 113.2221 },
+        { latitude: -8.1327, longitude: 113.2218 },
+      ],
+    }).success).toBe(false);
+    expect(SaveGeofenceSettingsRequestSchema.safeParse({
+      ...base,
+      vertices: [
+        { latitude: -8.1327, longitude: 113.2218 },
+        { latitude: -8.1327, longitude: 113.2218 },
+        { latitude: -8.1330, longitude: 113.2221 },
+      ],
+    }).success).toBe(false);
+    expect(SaveGeofenceSettingsRequestSchema.safeParse({
+      ...base,
+      vertices: [
+        { latitude: -8.1327, longitude: 113.2218 },
+        { latitude: -8.1328, longitude: 113.2219 },
+        { latitude: -8.1329, longitude: 113.2220 },
+      ],
+    }).success).toBe(false);
+    expect(SaveGeofenceSettingsRequestSchema.safeParse({
+      ...base,
+      vertices: [
+        { latitude: 0, longitude: 0 },
+        { latitude: 0, longitude: 3 },
+        { latitude: 3, longitude: 3 },
+        { latitude: 3, longitude: 2 },
+        { latitude: 0, longitude: 2 },
+        { latitude: 0, longitude: 1 },
+        { latitude: 3, longitude: 1 },
+        { latitude: 3, longitude: 0 },
+      ],
+    }).success).toBe(false);
   });
 
   it('requires a real local date when resolving historical settings', () => {

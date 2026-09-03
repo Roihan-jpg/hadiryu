@@ -29,6 +29,7 @@ const EarlyDepartureRequestBaseSchema = z.strictObject({
   longitude: z.number().finite().min(-180).max(180),
   accuracyMeters: z.number().finite().nonnegative(),
   distanceMeters: z.number().finite().nonnegative(),
+  boundaryClearanceMeters: z.number().finite().nonnegative().nullable().optional(),
   status: EarlyDepartureStatusSchema,
   decisionNote: z.string().nullable(),
   decidedBy: z.uuid().nullable(),

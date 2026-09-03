@@ -23,7 +23,7 @@ import { z } from 'zod';
 import {
   jakartaDateTime,
   timeMinutes,
-  validatedDistance,
+  validatedLocation,
   type PersistedAttendanceRecord,
 } from './attendance.js';
 import {
@@ -38,6 +38,7 @@ const RequestIdSchema = z.uuid();
 export interface SaveEarlyDepartureRequestInput
   extends CreateEarlyDepartureRequest {
   distanceMeters: number;
+  boundaryClearanceMeters: number | null;
 }
 
 export interface EarlyDepartureRequestRepository {
@@ -190,9 +191,13 @@ export function createEarlyDepartureRequestService(
           'Lokasi sekolah untuk hari ini belum dikonfigurasi',
         );
       }
-      const distanceMeters = validatedDistance(input, geofence);
+      const { distanceMeters, boundaryClearanceMeters } = validatedLocation(input, geofence);
       return EarlyDepartureRequestSchema.parse(
-        await repository.create(teacherId, { ...input, distanceMeters }),
+        await repository.create(teacherId, {
+          ...input,
+          distanceMeters,
+          boundaryClearanceMeters,
+        }),
       );
     },
 

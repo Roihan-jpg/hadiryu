@@ -84,23 +84,115 @@ export type ScheduleSettingsResponse = z.infer<
   typeof ScheduleSettingsResponseSchema
 >;
 
-export const GeofenceRuleInputSchema = z.strictObject({
+export const GeofenceCoordinateSchema = z.strictObject({
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),
+});
+export type GeofenceCoordinate = z.infer<typeof GeofenceCoordinateSchema>;
+
+export const CircleGeofenceRuleInputSchema = z.strictObject({
+  shape: z.literal('CIRCLE'),
+  ...GeofenceCoordinateSchema.shape,
   radiusMeters: z.number().int().min(25).max(1000),
   maxAccuracyMeters: z.number().int().min(5).max(200),
 });
+
+function orientation(
+  a: GeofenceCoordinate,
+  b: GeofenceCoordinate,
+  c: GeofenceCoordinate,
+): number {
+  return (b.longitude - a.longitude) * (c.latitude - a.latitude) -
+    (b.latitude - a.latitude) * (c.longitude - a.longitude);
+}
+
+function segmentsIntersect(
+  a: GeofenceCoordinate,
+  b: GeofenceCoordinate,
+  c: GeofenceCoordinate,
+  d: GeofenceCoordinate,
+): boolean {
+  const first = orientation(a, b, c);
+  const second = orientation(a, b, d);
+  const third = orientation(c, d, a);
+  const fourth = orientation(c, d, b);
+  const epsilon = 1e-12;
+  const onSegment = (
+    start: GeofenceCoordinate,
+    end: GeofenceCoordinate,
+    point: GeofenceCoordinate,
+  ) => point.longitude >= Math.min(start.longitude, end.longitude) - epsilon &&
+    point.longitude <= Math.max(start.longitude, end.longitude) + epsilon &&
+    point.latitude >= Math.min(start.latitude, end.latitude) - epsilon &&
+    point.latitude <= Math.max(start.latitude, end.latitude) + epsilon;
+  if (first * second < 0 && third * fourth < 0) return true;
+  return (Math.abs(first) <= epsilon && onSegment(a, b, c)) ||
+    (Math.abs(second) <= epsilon && onSegment(a, b, d)) ||
+    (Math.abs(third) <= epsilon && onSegment(c, d, a)) ||
+    (Math.abs(fourth) <= epsilon && onSegment(c, d, b));
+}
+
+function polygonIsSimple(vertices: readonly GeofenceCoordinate[]): boolean {
+  const seen = new Set(vertices.map((vertex) => `${vertex.latitude},${vertex.longitude}`));
+  if (seen.size !== vertices.length) return false;
+  const origin = vertices[0]!;
+  const twiceArea = vertices.reduce((area, vertex, index) => {
+    const next = vertices[(index + 1) % vertices.length]!;
+    return area +
+      (vertex.longitude - origin.longitude) * (next.latitude - origin.latitude) -
+      (next.longitude - origin.longitude) * (vertex.latitude - origin.latitude);
+  }, 0);
+  if (Math.abs(twiceArea) < 1e-12) return false;
+  for (let first = 0; first < vertices.length; first += 1) {
+    const firstNext = (first + 1) % vertices.length;
+    for (let second = first + 1; second < vertices.length; second += 1) {
+      const secondNext = (second + 1) % vertices.length;
+      if (
+        first === second || firstNext === second || secondNext === first ||
+        (first === 0 && secondNext === 0)
+      ) continue;
+      if (segmentsIntersect(
+        vertices[first]!, vertices[firstNext]!,
+        vertices[second]!, vertices[secondNext]!,
+      )) return false;
+    }
+  }
+  return true;
+}
+
+export const PolygonGeofenceRuleInputSchema = z.strictObject({
+  shape: z.literal('POLYGON'),
+  vertices: z.array(GeofenceCoordinateSchema).min(3).max(32),
+  maxAccuracyMeters: z.number().int().min(5).max(30),
+}).superRefine((value, context) => {
+  if (!polygonIsSimple(value.vertices)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Titik zona tidak boleh berulang atau membentuk garis yang berpotongan',
+      path: ['vertices'],
+    });
+  }
+});
+
+export const GeofenceRuleInputSchema = z.union([
+  CircleGeofenceRuleInputSchema,
+  PolygonGeofenceRuleInputSchema,
+]);
 export type GeofenceRuleInput = z.infer<typeof GeofenceRuleInputSchema>;
 
-export const GeofenceRuleSchema = z.strictObject({
+const GeofenceVersionSchema = z.strictObject({
   id: z.uuid(),
-  ...GeofenceRuleInputSchema.shape,
   effectiveFrom: LocalDateSchema,
   effectiveTo: LocalDateSchema.nullable(),
 });
+
+export const GeofenceRuleSchema = z.union([
+  CircleGeofenceRuleInputSchema.extend(GeofenceVersionSchema.shape),
+  PolygonGeofenceRuleInputSchema.safeExtend(GeofenceVersionSchema.shape),
+]);
 export type GeofenceRule = z.infer<typeof GeofenceRuleSchema>;
 
-export const SaveGeofenceSettingsRequestSchema = GeofenceRuleInputSchema;
+export const SaveGeofenceSettingsRequestSchema = PolygonGeofenceRuleInputSchema;
 export type SaveGeofenceSettingsRequest = z.infer<
   typeof SaveGeofenceSettingsRequestSchema
 >;

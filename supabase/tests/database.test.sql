@@ -1,6 +1,6 @@
 begin;
 
-select plan(55);
+select plan(59);
 
 select has_type('public', 'user_role', 'user_role enum exists');
 select has_type('public', 'schedule_type', 'schedule_type enum exists');
@@ -34,6 +34,10 @@ select has_column('public', 'payroll_rules', 'late_deduction_amount', 'late dedu
 select has_column('public', 'payroll_rules', 'absent_deduction_amount', 'absence deduction is versioned');
 select has_column('public', 'payroll_rules', 'rejected_early_departure_rate_per_hour', 'rejected early departure rate is versioned');
 select has_column('public', 'payroll_rules', 'calculation_mode', 'payroll calculation mode is versioned');
+select has_column('public', 'geofence_rules', 'polygon_vertices', 'polygon geofence vertices are versioned');
+select has_column('public', 'attendance_records', 'check_in_boundary_clearance_meters', 'check-in snapshots polygon clearance');
+select has_column('public', 'attendance_records', 'check_out_boundary_clearance_meters', 'checkout snapshots polygon clearance');
+select has_column('public', 'early_departure_requests', 'boundary_clearance_meters', 'early departure snapshots polygon clearance');
 
 select is(
   (

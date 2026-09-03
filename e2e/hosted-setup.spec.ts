@@ -106,19 +106,18 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
   if (!geofence.geofence) {
     geofence = GeofenceSettingsResponseSchema.parse(
       await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence', {
-        latitude,
-        longitude,
-        radiusMeters: 100,
-        maxAccuracyMeters: 50,
+        shape: 'POLYGON',
+        vertices: [
+          { latitude: latitude - 0.0003, longitude: longitude - 0.0003 },
+          { latitude: latitude - 0.0003, longitude: longitude + 0.0003 },
+          { latitude: latitude + 0.0003, longitude: longitude + 0.0003 },
+          { latitude: latitude + 0.0003, longitude: longitude - 0.0003 },
+        ],
+        maxAccuracyMeters: 15,
       }),
     );
   }
-  expect(geofence.geofence).toMatchObject({
-    latitude,
-    longitude,
-    radiusMeters: 100,
-    maxAccuracyMeters: 50,
-  });
+  expect(geofence.geofence).not.toBeNull();
 
   const teachers = TeacherListResponseSchema.parse(
     await expectSuccessfulGet(

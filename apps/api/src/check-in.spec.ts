@@ -40,11 +40,26 @@ const saturdaySchedule: ScheduleRule = {
 };
 
 const geofence: GeofenceRule = {
+  shape: 'CIRCLE',
   id: '20000000-0000-4000-8000-000000000001',
   latitude: -6.2,
   longitude: 106.816666,
   radiusMeters: 100,
   maxAccuracyMeters: 50,
+  effectiveFrom: '2026-01-01',
+  effectiveTo: null,
+};
+
+const polygonGeofence: GeofenceRule = {
+  id: '20000000-0000-4000-8000-000000000002',
+  shape: 'POLYGON',
+  vertices: [
+    { latitude: -8.1331, longitude: 113.2217 },
+    { latitude: -8.1331, longitude: 113.2223 },
+    { latitude: -8.1325, longitude: 113.2223 },
+    { latitude: -8.1325, longitude: 113.2217 },
+  ],
+  maxAccuracyMeters: 15,
   effectiveFrom: '2026-01-01',
   effectiveTo: null,
 };
@@ -87,6 +102,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
       longitude: input.location.longitude,
       accuracyMeters: input.location.accuracyMeters,
       distanceMeters: input.distanceMeters,
+      boundaryClearanceMeters: input.boundaryClearanceMeters,
       workStart: input.schedule.workStart,
       workEnd: input.schedule.workEnd,
       checkoutClose: input.schedule.checkoutClose,
@@ -114,6 +130,46 @@ describe('Haversine', () => {
   it('returns zero for the same point and a stable real-world distance', () => {
     expect(haversineDistanceMeters(-6.2, 106.816666, -6.2, 106.816666)).toBe(0);
     expect(haversineDistanceMeters(0, 0, 0, 1)).toBeCloseTo(111_195.08, 0);
+  });
+});
+
+describe('polygon geofence', () => {
+  it('accepts a precise point whose uncertainty circle remains inside', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.geofence = polygonGeofence;
+
+    const result = await serviceAt(repository, '2026-08-25T00:00:00.000Z').checkIn(
+      teacherId,
+      { latitude: -8.1328, longitude: 113.2220, accuracyMeters: 10 },
+    );
+
+    expect(result.boundaryClearanceMeters).toBeGreaterThan(20);
+  });
+
+  it('rejects points outside and uncertainty circles crossing the boundary', async () => {
+    const outside = new FakeAttendanceRepository();
+    outside.geofence = polygonGeofence;
+    await expect(serviceAt(outside, '2026-08-25T00:00:00.000Z').checkIn(
+      teacherId,
+      { latitude: -8.1328, longitude: 113.2225, accuracyMeters: 5 },
+    )).rejects.toMatchObject({ code: 'OUTSIDE_GEOFENCE' });
+
+    const uncertain = new FakeAttendanceRepository();
+    uncertain.geofence = polygonGeofence;
+    await expect(serviceAt(uncertain, '2026-08-25T00:00:00.000Z').checkIn(
+      teacherId,
+      { latitude: -8.1328, longitude: 113.22225, accuracyMeters: 10 },
+    )).rejects.toMatchObject({ code: 'LOCATION_UNCERTAIN_NEAR_BOUNDARY' });
+  });
+
+  it('rejects an exact-boundary reading even when the device reports zero uncertainty', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.geofence = polygonGeofence;
+
+    await expect(serviceAt(repository, '2026-08-25T00:00:00.000Z').checkIn(
+      teacherId,
+      { latitude: -8.1328, longitude: 113.2222999999, accuracyMeters: 0 },
+    )).rejects.toMatchObject({ code: 'LOCATION_UNCERTAIN_NEAR_BOUNDARY' });
   });
 });
 
@@ -252,6 +308,7 @@ describe('check-in domain service', () => {
 
     expect(ready.state).toBe('READY_TO_CHECK_IN');
     expect(ready.schedule).toMatchObject({ scheduleType: 'WEEKDAY' });
+    expect(ready.locationRequirement).toEqual({ maxAccuracyMeters: 50 });
     expect(ready).not.toHaveProperty('geofence');
 
     readyRepository.calendarException = {

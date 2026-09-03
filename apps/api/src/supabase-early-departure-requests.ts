@@ -29,6 +29,7 @@ const EarlyDepartureRowSchema = z.strictObject({
   longitude: NumericValueSchema,
   accuracy_meters: NumericValueSchema,
   distance_meters: NumericValueSchema,
+  boundary_clearance_meters: NumericValueSchema.nullable(),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
   decision_note: z.string().nullable(),
   decided_by: z.uuid().nullable(),
@@ -41,7 +42,7 @@ const AdminEarlyDepartureRowSchema = EarlyDepartureRowSchema.extend({
 });
 
 const FIELDS =
-  'id,attendance_id,teacher_id,work_date,requested_at,reason,latitude,longitude,accuracy_meters,distance_meters,status,decision_note,decided_by,decided_at,created_at,updated_at';
+  'id,attendance_id,teacher_id,work_date,requested_at,reason,latitude,longitude,accuracy_meters,distance_meters,boundary_clearance_meters,status,decision_note,decided_by,decided_at,created_at,updated_at';
 
 function clientOptions() {
   return {
@@ -66,6 +67,9 @@ function toRequest(value: unknown): EarlyDepartureRequest {
     longitude: Number(row.longitude),
     accuracyMeters: Number(row.accuracy_meters),
     distanceMeters: Number(row.distance_meters),
+    boundaryClearanceMeters: row.boundary_clearance_meters === null
+      ? null
+      : Number(row.boundary_clearance_meters),
     status: row.status,
     decisionNote: row.decision_note,
     decidedBy: row.decided_by,
@@ -96,6 +100,7 @@ function toAdminRequest(value: unknown): AdminEarlyDepartureRequest {
       longitude: row.longitude,
       accuracy_meters: row.accuracy_meters,
       distance_meters: row.distance_meters,
+      boundary_clearance_meters: row.boundary_clearance_meters,
       status: row.status,
       decision_note: row.decision_note,
       decided_by: row.decided_by,
@@ -144,6 +149,7 @@ export class SupabaseEarlyDepartureRequestRepository
         p_longitude: input.longitude,
         p_accuracy_meters: input.accuracyMeters,
         p_distance_meters: input.distanceMeters,
+        p_boundary_clearance_meters: input.boundaryClearanceMeters,
       },
     );
     if (!error && data) return toRequest(data);

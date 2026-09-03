@@ -53,7 +53,7 @@ isi `.env` lokal yang di-ignore Git lalu jalankan setup idempotent berikut satu 
 npm run setup:hosted
 ```
 
-Setup hanya menyimpan jadwal/geofence ketika konfigurasi belum ada. Payload tidak membawa tanggal;
+Setup hanya menyimpan jadwal/geofence ketika konfigurasi belum ada. Geofence baru memakai poligon persegi aman untuk akun smoke; payload tidak membawa tanggal;
 database memakai tanggal server di `Asia/Jakarta`. Bila aturan hosted sudah ada tetapi nilainya
 berbeda, proses berhenti dan tidak menimpanya. Setup tidak membuat atau memeriksa payroll.
 
@@ -115,6 +115,8 @@ Siapkan satu akun Guru khusus smoke melalui GUI SuperAdmin. Akun harus aktif, pa
 - `E2E_ADMIN_PASSWORD`: password SuperAdmin setelah pergantian password awal;
 - `E2E_TEACHER_NIP` dan `E2E_TEACHER_PASSWORD`: akun Guru smoke khusus;
 - `E2E_LATITUDE` dan `E2E_LONGITUDE`: titik valid di dalam geofence sekolah;
+
+Sebelum mengaktifkan poligon production, lakukan survei lapangan pada halaman terbuka, gambar batas melalui halaman pengaturan SuperAdmin, lalu uji titik tengah halaman dan area tepat di luar gerbang memakai beberapa browser ponsel. Jangan mengganti aturan lingkaran aktif hanya berdasarkan satu pembacaan GPS. Bila tidak tersedia area yang memiliki clearance memadai untuk batas akurasi 15 meter, hentikan aktivasi dan evaluasi faktor bukti onsite tambahan; jangan memperlonggar batas secara diam-diam.
 - `E2E_LEAVE_DATE`: tanggal setelah hari ini yang disetujui untuk data smoke.
 
 Jalankan smoke saat window check-in hosted aktif, atau setelah akun smoke memiliki absensi hari itu. Bila absensi masih aktif sebelum `workEnd`, test mengajukan pulang awal dan kemudian menyetujuinya sebagai SuperAdmin; setelah `workEnd`, test memakai checkout normal bila window checkout masih terbuka. Test tidak membuat Guru, tidak mengubah konfigurasi, tidak mereset password, serta tidak menghapus data. Test dapat membuat absensi, permohonan pulang awal, dan izin untuk akun smoke, menyelesaikan approval, lalu melakukan preview/export:

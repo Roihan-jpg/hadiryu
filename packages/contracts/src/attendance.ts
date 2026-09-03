@@ -20,6 +20,7 @@ const AttendanceBaseSchema = z.strictObject({
   longitude: z.number().finite().min(-180).max(180),
   accuracyMeters: z.number().finite().nonnegative(),
   distanceMeters: z.number().finite().nonnegative(),
+  boundaryClearanceMeters: z.number().finite().nonnegative().nullable().optional(),
   workStart: TimeSchema,
   workEnd: TimeSchema,
   checkoutClose: TimeSchema,
@@ -38,6 +39,7 @@ export const CompletedAttendanceRecordSchema = AttendanceBaseSchema.extend({
   checkOutLongitude: z.number().finite().min(-180).max(180),
   checkOutAccuracyMeters: z.number().finite().nonnegative(),
   checkOutDistanceMeters: z.number().finite().nonnegative(),
+  checkOutBoundaryClearanceMeters: z.number().finite().nonnegative().nullable().optional(),
   workedMinutes: z.number().int().nonnegative(),
   workDeficitMinutes: z.number().int().nonnegative(),
   status: z.literal('COMPLETED'),
@@ -78,6 +80,9 @@ export type TodaySchedule = z.infer<typeof TodayScheduleSchema>;
 const TodayResponseBaseSchema = z.strictObject({
   serverNow: z.iso.datetime({ offset: true }),
   workDate: LocalDateSchema,
+  locationRequirement: z.strictObject({
+    maxAccuracyMeters: z.number().int().min(5).max(200),
+  }).nullable().optional(),
 });
 
 export const TodayAttendanceResponseSchema = z.discriminatedUnion('state', [

@@ -80,6 +80,7 @@ describe('schedule-geofence effective resolver', () => {
   it('resolves the single geofence historically and on its new effective date', () => {
     const historical: GeofenceRule = {
       id: '20000000-0000-4000-8000-000000000011',
+      shape: 'CIRCLE',
       latitude: -6.2,
       longitude: 106.816666,
       radiusMeters: 100,

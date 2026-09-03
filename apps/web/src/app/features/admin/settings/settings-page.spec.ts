@@ -10,6 +10,7 @@ import { vi } from 'vitest';
 
 import { SettingsPage } from './settings-page';
 import { SettingsService } from './settings.service';
+import { ADMIN_GEOFENCE_LEAFLET } from './admin-geofence-map';
 
 const schedules: ScheduleSettingsResponse = {
   effectiveOn: '2026-08-25',
@@ -45,6 +46,7 @@ const geofence: GeofenceSettingsResponse = {
   effectiveOn: '2026-08-25',
   geofence: {
     id: '20000000-0000-4000-8000-000000000031',
+    shape: 'CIRCLE',
     latitude: -6.2,
     longitude: 106.816666,
     radiusMeters: 100,
@@ -105,6 +107,17 @@ describe('SettingsPage', () => {
             deleteCalendarException,
           },
         },
+        {
+          provide: ADMIN_GEOFENCE_LEAFLET,
+          useValue: {
+            map: vi.fn(() => ({
+              fitBounds: vi.fn(), off: vi.fn(), on: vi.fn(), remove: vi.fn(), setView: vi.fn(),
+            })),
+            tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
+            circleMarker: vi.fn(() => ({ addTo: vi.fn(), remove: vi.fn() })),
+            polygon: vi.fn(() => ({ addTo: vi.fn(), getBounds: vi.fn(), remove: vi.fn() })),
+          },
+        },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(SettingsPage);
@@ -119,7 +132,7 @@ describe('SettingsPage', () => {
     expect(text).toContain('Senin–Jumat');
     expect(text).toContain('Sabtu');
     expect(text).toContain('515 menit');
-    expect(text).toContain('Radius 100 meter');
+    expect(text).toContain('Lingkaran lama');
     expect(text).not.toContain('Upah kinerja');
     expect(fixture.nativeElement.querySelector('[name="scheduleEffectiveFrom"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[name="geofenceEffectiveFrom"]')).toBeNull();
@@ -158,12 +171,15 @@ describe('SettingsPage', () => {
       }),
     );
 
-    fixture.componentInstance.geofenceForm.patchValue({
-      radiusMeters: 125,
-    });
+    fixture.componentInstance.updateGeofenceVertices([
+      { latitude: -8.1330, longitude: 113.2218 },
+      { latitude: -8.1330, longitude: 113.2221 },
+      { latitude: -8.1327, longitude: 113.2221 },
+      { latitude: -8.1327, longitude: 113.2218 },
+    ]);
     await fixture.componentInstance.saveGeofence();
     expect(saveGeofence).toHaveBeenCalledWith(
-      expect.objectContaining({ radiusMeters: 125 }),
+      expect.objectContaining({ shape: 'POLYGON', maxAccuracyMeters: 15 }),
     );
     expect(fixture.componentInstance.inspectionDate.value).toBe('2026-09-01');
   });

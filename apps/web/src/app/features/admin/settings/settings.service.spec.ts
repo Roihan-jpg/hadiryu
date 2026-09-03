@@ -83,10 +83,13 @@ describe('SettingsService', () => {
       },
     };
     const geofenceInput: SaveGeofenceSettingsRequest = {
-      latitude: -6.2,
-      longitude: 106.816666,
-      radiusMeters: 100,
-      maxAccuracyMeters: 50,
+      shape: 'POLYGON',
+      vertices: [
+        { latitude: -8.1330, longitude: 113.2218 },
+        { latitude: -8.1330, longitude: 113.2221 },
+        { latitude: -8.1327, longitude: 113.2221 },
+      ],
+      maxAccuracyMeters: 15,
     };
 
     const schedulePromise = service.saveSchedules(scheduleInput);

@@ -13,6 +13,7 @@ import {
   type CheckInRecord,
   type CompletedAttendanceRecord,
   type GeofenceRule,
+  type GeofenceCoordinate,
   type ListAttendanceHistoryQuery,
   type LocationInput,
   type ScheduleRule,
@@ -39,6 +40,7 @@ export interface SaveCheckInInput {
   checkInAt: string;
   location: LocationInput;
   distanceMeters: number;
+  boundaryClearanceMeters: number | null;
   schedule: ScheduleRule;
   arrivalLateMinutes: number;
 }
@@ -50,6 +52,7 @@ export interface SaveCheckoutInput {
   checkOutAt: string;
   location: LocationInput;
   distanceMeters: number;
+  boundaryClearanceMeters: number | null;
   workedMinutes: number;
   workDeficitMinutes: number;
 }
@@ -176,17 +179,132 @@ function roundedMeters(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-export function validatedDistance(
+interface ProjectedPoint {
+  x: number;
+  y: number;
+}
+
+function projectPoint(
+  point: GeofenceCoordinate,
+  reference: GeofenceCoordinate,
+): ProjectedPoint {
+  return {
+    x: EARTH_RADIUS_METERS * radians(point.longitude - reference.longitude) *
+      Math.cos(radians(reference.latitude)),
+    y: EARTH_RADIUS_METERS * radians(point.latitude - reference.latitude),
+  };
+}
+
+function polygonReference(vertices: readonly GeofenceCoordinate[]): GeofenceCoordinate {
+  return {
+    latitude: vertices.reduce((sum, vertex) => sum + vertex.latitude, 0) / vertices.length,
+    longitude: vertices.reduce((sum, vertex) => sum + vertex.longitude, 0) / vertices.length,
+  };
+}
+
+function pointInsidePolygon(
+  point: ProjectedPoint,
+  vertices: readonly ProjectedPoint[],
+): boolean {
+  let inside = false;
+  for (let current = 0, previous = vertices.length - 1; current < vertices.length; previous = current++) {
+    const a = vertices[current]!;
+    const b = vertices[previous]!;
+    if (
+      (a.y > point.y) !== (b.y > point.y) &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x
+    ) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceToSegment(
+  point: ProjectedPoint,
+  start: ProjectedPoint,
+  end: ProjectedPoint,
+): number {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const lengthSquared = deltaX ** 2 + deltaY ** 2;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const position = Math.max(0, Math.min(1,
+    ((point.x - start.x) * deltaX + (point.y - start.y) * deltaY) / lengthSquared,
+  ));
+  return Math.hypot(
+    point.x - (start.x + position * deltaX),
+    point.y - (start.y + position * deltaY),
+  );
+}
+
+function polygonBoundaryClearance(
+  location: LocationInput,
+  vertices: readonly GeofenceCoordinate[],
+): { inside: boolean; clearanceMeters: number; distanceToReferenceMeters: number } {
+  const reference = polygonReference(vertices);
+  const point = projectPoint(location, reference);
+  const projectedVertices = vertices.map((vertex) => projectPoint(vertex, reference));
+  let clearanceMeters = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < projectedVertices.length; index += 1) {
+    clearanceMeters = Math.min(clearanceMeters, distanceToSegment(
+      point,
+      projectedVertices[index]!,
+      projectedVertices[(index + 1) % projectedVertices.length]!,
+    ));
+  }
+  return {
+    inside: pointInsidePolygon(point, projectedVertices),
+    clearanceMeters,
+    distanceToReferenceMeters: haversineDistanceMeters(
+      reference.latitude,
+      reference.longitude,
+      location.latitude,
+      location.longitude,
+    ),
+  };
+}
+
+export interface ValidatedGeofenceLocation {
+  distanceMeters: number;
+  boundaryClearanceMeters: number | null;
+}
+
+export function validatedLocation(
   location: LocationInput,
   geofence: GeofenceRule,
-): number {
+): ValidatedGeofenceLocation {
   if (location.accuracyMeters > geofence.maxAccuracyMeters) {
     throw new AppError(
       422,
       'LOCATION_INACCURATE',
-      'Akurasi lokasi belum memadai. Aktifkan lokasi presisi lalu coba lagi',
-      { maxAccuracyMeters: geofence.maxAccuracyMeters },
+      `Akurasi lokasi ${Math.round(location.accuracyMeters)} meter belum memenuhi batas ${geofence.maxAccuracyMeters} meter. Berpindah ke halaman terbuka lalu coba lagi`,
+      {
+        accuracyMeters: roundedMeters(location.accuracyMeters),
+        maxAccuracyMeters: geofence.maxAccuracyMeters,
+      },
     );
+  }
+  if (geofence.shape === 'POLYGON') {
+    const result = polygonBoundaryClearance(location, geofence.vertices);
+    if (!result.inside) {
+      throw new AppError(422, 'OUTSIDE_GEOFENCE', 'Anda berada di luar zona absensi sekolah', {
+        distanceToBoundaryMeters: roundedMeters(result.clearanceMeters),
+      });
+    }
+    if (result.clearanceMeters <= 0.01 || result.clearanceMeters < location.accuracyMeters) {
+      throw new AppError(
+        422,
+        'LOCATION_UNCERTAIN_NEAR_BOUNDARY',
+        'Lokasi terdeteksi terlalu dekat batas zona. Bergerak ke tengah halaman lalu coba lagi',
+        {
+          accuracyMeters: roundedMeters(location.accuracyMeters),
+          boundaryClearanceMeters: roundedMeters(result.clearanceMeters),
+        },
+      );
+    }
+    return {
+      distanceMeters: roundedMeters(result.distanceToReferenceMeters),
+      boundaryClearanceMeters: roundedMeters(result.clearanceMeters),
+    };
   }
   const distanceMeters = haversineDistanceMeters(
     geofence.latitude,
@@ -200,7 +318,14 @@ export function validatedDistance(
       radiusMeters: geofence.radiusMeters,
     });
   }
-  return roundedMeters(distanceMeters);
+  return { distanceMeters: roundedMeters(distanceMeters), boundaryClearanceMeters: null };
+}
+
+export function validatedDistance(
+  location: LocationInput,
+  geofence: GeofenceRule,
+): number {
+  return validatedLocation(location, geofence).distanceMeters;
 }
 
 function derivedAttendance(
@@ -235,12 +360,16 @@ export function createAttendanceService(
       if (existing) {
         const attendance = derivedAttendance(existing, serverNow);
         const day = await resolveDay(repository, workDate);
+        const geofence = await repository.findGeofence(workDate);
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
           workDate,
           state: attendance.status,
           schedule: day.schedule ? todaySchedule(day.schedule) : null,
           attendance,
+          locationRequirement: geofence
+            ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
+            : null,
         });
       }
 
@@ -264,6 +393,9 @@ export function createAttendanceService(
             : 'CONFIGURATION_ERROR',
         schedule: day.schedule ? todaySchedule(day.schedule) : null,
         attendance: null,
+        locationRequirement: geofence
+          ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
+          : null,
       });
     },
 
@@ -313,7 +445,7 @@ export function createAttendanceService(
           'Check-in tidak dapat dilakukan karena izin sudah disetujui',
         );
       }
-      const distanceMeters = validatedDistance(location, geofence);
+      const { distanceMeters, boundaryClearanceMeters } = validatedLocation(location, geofence);
 
       return AttendanceRecordSchema.parse(
         await repository.saveCheckIn({
@@ -322,6 +454,7 @@ export function createAttendanceService(
           checkInAt: serverNow.toISOString(),
           location,
           distanceMeters,
+          boundaryClearanceMeters,
           schedule: day.schedule,
           arrivalLateMinutes: Math.max(
             0,
@@ -374,7 +507,7 @@ export function createAttendanceService(
           'Lokasi sekolah untuk hari ini belum dikonfigurasi',
         );
       }
-      const distanceMeters = validatedDistance(location, geofence);
+      const { distanceMeters, boundaryClearanceMeters } = validatedLocation(location, geofence);
       const workedMinutes = Math.max(
         0,
         Math.floor(
@@ -389,6 +522,7 @@ export function createAttendanceService(
           checkOutAt: serverNow.toISOString(),
           location,
           distanceMeters,
+          boundaryClearanceMeters,
           workedMinutes,
           workDeficitMinutes: Math.max(
             0,

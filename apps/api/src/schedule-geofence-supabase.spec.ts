@@ -140,17 +140,33 @@ describe('SupabaseSettingsService schedule-geofence integration', () => {
   });
 
   it('updates todays geofence, preserves history, and cancels future versions', async () => {
-    const first = await service.saveGeofence(adminId, { latitude: -6.201, longitude: 106.817, radiusMeters: 125, maxAccuracyMeters: 40 });
+    const firstVertices = [
+      { latitude: -6.2013, longitude: 106.8167 },
+      { latitude: -6.2013, longitude: 106.8173 },
+      { latitude: -6.2007, longitude: 106.8173 },
+      { latitude: -6.2007, longitude: 106.8167 },
+    ];
+    const secondVertices = firstVertices.map((vertex) => ({
+      latitude: vertex.latitude - 0.001,
+      longitude: vertex.longitude + 0.001,
+    }));
+    const first = await service.saveGeofence(adminId, {
+      shape: 'POLYGON', vertices: firstVertices, maxAccuracyMeters: 15,
+    });
     const historical = await service.getGeofence(yesterday);
-    const second = await service.saveGeofence(adminId, { latitude: -6.202, longitude: 106.818, radiusMeters: 150, maxAccuracyMeters: 35 });
+    const second = await service.saveGeofence(adminId, {
+      shape: 'POLYGON', vertices: secondVertices, maxAccuracyMeters: 15,
+    });
     expect(second.geofence?.id).toBe(first.geofence?.id);
     expect(second.effectiveOn).toBe(today);
-    expect(historical.geofence?.radiusMeters).toBe(100);
+    expect(historical.geofence).toMatchObject({ shape: 'CIRCLE', radiusMeters: 100 });
     runSql(`set session_replication_role = replica;
       update public.geofence_rules set effective_to = '${futureDate}'::date - 1 where effective_from = '${today}';
       insert into public.geofence_rules (latitude,longitude,radius_meters,max_accuracy_meters,effective_from)
       values (-6.3,106.9,200,50,'${futureDate}');`);
-    const saved = await service.saveGeofence(adminId, { latitude: -6.203, longitude: 106.819, radiusMeters: 175, maxAccuracyMeters: 30 });
+    const saved = await service.saveGeofence(adminId, {
+      shape: 'POLYGON', vertices: firstVertices, maxAccuracyMeters: 15,
+    });
     const { count } = await client.from('geofence_rules').select('*', { count: 'exact', head: true }).eq('effective_from', futureDate);
     const { count: auditCount } = await client.from('audit_logs').select('*', { count: 'exact', head: true }).eq('actor_id', adminId).eq('action', 'GEOFENCE_FUTURE_VERSION_CANCELLED');
     expect(saved.geofence?.effectiveTo).toBeNull();
@@ -162,7 +178,15 @@ describe('SupabaseSettingsService schedule-geofence integration', () => {
     const { error: scheduleError } = await publicClient.rpc('save_schedule_settings', { p_actor_id: adminId, p_weekday: weekday, p_saturday: saturday });
     const { error: geofenceError } = await publicClient.rpc('save_geofence_settings', {
       p_actor_id: adminId,
-      p_geofence: { latitude: -6.2, longitude: 106.816666, radiusMeters: 100, maxAccuracyMeters: 50 },
+      p_geofence: {
+        shape: 'POLYGON',
+        vertices: [
+          { latitude: -6.2003, longitude: 106.8163 },
+          { latitude: -6.2003, longitude: 106.8170 },
+          { latitude: -6.1997, longitude: 106.8170 },
+        ],
+        maxAccuracyMeters: 15,
+      },
     });
     expect(scheduleError).toBeTruthy();
     expect(geofenceError).toBeTruthy();

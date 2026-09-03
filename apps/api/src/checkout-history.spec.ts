@@ -37,6 +37,7 @@ const schedule: ScheduleRule = {
   effectiveTo: null,
 };
 const geofence: GeofenceRule = {
+  shape: 'CIRCLE',
   id: '20000000-0000-4000-8000-000000000001',
   latitude: location.latitude,
   longitude: location.longitude,

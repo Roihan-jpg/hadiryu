@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 
+import { AttendanceService } from '../attendance/attendance.service';
 import { GEOLOCATION } from '../attendance/geolocation';
 import { EarlyDepartureRequestsPage } from './early-departure-requests-page';
 import { EarlyDepartureRequestsService } from './early-departure-requests.service';
@@ -37,6 +38,14 @@ describe('EarlyDepartureRequestsPage', () => {
   let fixture: ComponentFixture<EarlyDepartureRequestsPage>;
   const geolocation = new FakeGeolocation();
   const create = vi.fn(async () => pending);
+  const getToday = vi.fn(async () => ({
+    serverNow: '2026-08-31T06:00:00.000Z',
+    workDate: '2026-08-31',
+    state: 'CHECKED_IN' as const,
+    schedule: null,
+    attendance: null,
+    locationRequirement: { maxAccuracyMeters: 20 },
+  }));
   const listOwn = vi.fn(async () => ({
     data: [],
     pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
@@ -50,6 +59,7 @@ describe('EarlyDepartureRequestsPage', () => {
       imports: [EarlyDepartureRequestsPage],
       providers: [
         provideRouter([]),
+        { provide: AttendanceService, useValue: { getToday } },
         { provide: EarlyDepartureRequestsService, useValue: { create, listOwn } },
         { provide: GEOLOCATION, useValue: geolocation },
       ],
@@ -65,12 +75,13 @@ describe('EarlyDepartureRequestsPage', () => {
 
     const first = fixture.componentInstance.submit();
     const second = fixture.componentInstance.submit();
+    await Promise.resolve();
     expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
     geolocation.success?.({
       coords: {
         latitude: -8.1328,
         longitude: 113.2219,
-        accuracy: 10,
+        accuracy: 18,
         altitude: null,
         altitudeAccuracy: null,
         heading: null,
@@ -87,7 +98,7 @@ describe('EarlyDepartureRequestsPage', () => {
       reason: 'Keperluan keluarga',
       latitude: -8.1328,
       longitude: 113.2219,
-      accuracyMeters: 10,
+      accuracyMeters: 18,
     });
   });
 });

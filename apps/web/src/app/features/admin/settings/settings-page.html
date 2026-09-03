@@ -87,12 +87,17 @@
           <div class="summary-title">
             <h3>Lokasi sekolah</h3>
             @if (geofence()?.geofence; as rule) {
-              <strong>Radius {{ rule.radiusMeters }} meter</strong>
+              <strong>{{ rule.shape === 'POLYGON' ? 'Zona poligon' : 'Lingkaran lama' }}</strong>
             }
           </div>
           @if (geofence()?.geofence; as rule) {
             <dl>
-              <div><dt>Koordinat</dt><dd>{{ rule.latitude }}, {{ rule.longitude }}</dd></div>
+              @if (rule.shape === 'POLYGON') {
+                <div><dt>Titik batas</dt><dd>{{ rule.vertices.length }} titik</dd></div>
+              } @else {
+                <div><dt>Koordinat pusat</dt><dd>{{ rule.latitude }}, {{ rule.longitude }}</dd></div>
+                <div><dt>Radius lama</dt><dd>{{ rule.radiusMeters }} meter</dd></div>
+              }
               <div><dt>Akurasi maksimum</dt><dd>{{ rule.maxAccuracyMeters }} meter</dd></div>
               <div><dt>Mulai berlaku</dt><dd>{{ dateLabel(rule.effectiveFrom) }}</dd></div>
             </dl>
@@ -161,34 +166,40 @@
         <p class="section-kicker">Satu lokasi sekolah</p>
         <h2 id="geofence-form-title">Geofence global</h2>
       </div>
-      <p>Koordinat, radius, dan batas akurasi selalu divalidasi kembali oleh backend.</p>
+      <p>Gambar zona aman di halaman terbuka. Guru di dekat batas akan diminta bergerak ke tengah.</p>
     </div>
 
     <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofence()" novalidate>
-      <div class="geofence-form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Latitude</mat-label>
-          <input matInput type="number" step="0.000001" name="latitude" inputmode="decimal" autocomplete="off" formControlName="latitude" />
-          <mat-error>Latitude harus antara -90 dan 90.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Longitude</mat-label>
-          <input matInput type="number" step="0.000001" name="longitude" inputmode="decimal" autocomplete="off" formControlName="longitude" />
-          <mat-error>Longitude harus antara -180 dan 180.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Radius (meter)</mat-label>
-          <input matInput type="number" min="25" max="1000" name="radiusMeters" inputmode="numeric" autocomplete="off" formControlName="radiusMeters" />
-          <mat-error>Radius harus 25–1000 meter.</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Akurasi maksimum (meter)</mat-label>
-          <input matInput type="number" min="5" max="200" name="maxAccuracyMeters" inputmode="numeric" autocomplete="off" formControlName="maxAccuracyMeters" />
-          <mat-error>Akurasi harus 5–200 meter.</mat-error>
-        </mat-form-field>
+      <div class="geofence-editor">
+        <app-admin-geofence-map
+          [vertices]="geofenceVertices()"
+          [initialCenter]="geofenceMapCenter()"
+          (verticesChange)="updateGeofenceVertices($event)"
+        />
+        <aside class="geofence-controls">
+          <p><strong>{{ geofenceVertices().length }} titik batas</strong></p>
+          <p>Ketuk peta mengikuti urutan tepi halaman. Jangan menyilangkan garis.</p>
+          <div class="button-pair">
+            <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="undoGeofenceVertex()">Urungkan titik</button>
+            <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="clearGeofenceVertices()">Hapus semua</button>
+          </div>
+          <mat-form-field appearance="outline">
+            <mat-label>Akurasi maksimum (meter)</mat-label>
+            <input matInput type="number" min="5" max="30" name="maxAccuracyMeters" inputmode="numeric" autocomplete="off" formControlName="maxAccuracyMeters" />
+            <mat-error>Akurasi harus 5–30 meter.</mat-error>
+          </mat-form-field>
+          <ol class="vertex-list" aria-label="Daftar titik batas">
+            @for (vertex of geofenceVertices(); track $index) {
+              <li>
+                <span>{{ vertex.latitude.toFixed(6) }}, {{ vertex.longitude.toFixed(6) }}</span>
+                <button mat-button type="button" (click)="removeGeofenceVertex($index)">Hapus</button>
+              </li>
+            }
+          </ol>
+        </aside>
       </div>
       <div class="form-actions">
-        <span>Aplikasi hanya mendukung satu lokasi sekolah.</span>
+        <span>Gunakan hasil survei lapangan; versi lama tetap tersimpan sebagai histori.</span>
         <button
           mat-flat-button
           type="submit"

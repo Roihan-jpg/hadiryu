@@ -63,10 +63,14 @@ const schedules: ScheduleSettingsResponse = {
 };
 
 const geofenceInput: SaveGeofenceSettingsRequest = {
-  latitude: -6.2,
-  longitude: 106.816666,
-  radiusMeters: 100,
-  maxAccuracyMeters: 50,
+  shape: 'POLYGON',
+  vertices: [
+    { latitude: -6.2003, longitude: 106.8163 },
+    { latitude: -6.2003, longitude: 106.8170 },
+    { latitude: -6.1997, longitude: 106.8170 },
+    { latitude: -6.1997, longitude: 106.8163 },
+  ],
+  maxAccuracyMeters: 15,
 };
 
 const geofence: GeofenceSettingsResponse = {

@@ -49,6 +49,7 @@ const GeofenceRowSchema = z.strictObject({
   latitude: NumericDatabaseValueSchema,
   longitude: NumericDatabaseValueSchema,
   radius_meters: z.number().int(),
+  polygon_vertices: z.unknown().nullable(),
   max_accuracy_meters: z.number().int(),
   effective_from: z.string(),
   effective_to: z.string().nullable(),
@@ -62,7 +63,7 @@ const GeofenceResultRowSchema = z.union([GeofenceRowSchema, GeofenceRpcRowSchema
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
-  'id,latitude,longitude,radius_meters,max_accuracy_meters,effective_from,effective_to';
+  'id,latitude,longitude,radius_meters,polygon_vertices,max_accuracy_meters,effective_from,effective_to';
 const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
 
 const CalendarExceptionRowSchema = z.strictObject({
@@ -114,15 +115,38 @@ function toScheduleRule(value: unknown): ScheduleRule {
 
 function toGeofenceRule(value: unknown): GeofenceRule {
   const row = GeofenceResultRowSchema.parse(value);
-  return GeofenceRuleSchema.parse({
+  const version = {
     id: row.id,
-    latitude: Number(row.latitude),
-    longitude: Number(row.longitude),
-    radiusMeters: row.radius_meters,
     maxAccuracyMeters: row.max_accuracy_meters,
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
-  });
+  };
+  return GeofenceRuleSchema.parse(row.polygon_vertices === null
+    ? {
+        ...version,
+        shape: 'CIRCLE',
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        radiusMeters: row.radius_meters,
+      }
+    : { ...version, shape: 'POLYGON', vertices: row.polygon_vertices });
+}
+
+function polygonStorageValues(input: SaveGeofenceSettingsRequest) {
+  const latitude = input.vertices.reduce((sum, vertex) => sum + vertex.latitude, 0) /
+    input.vertices.length;
+  const longitude = input.vertices.reduce((sum, vertex) => sum + vertex.longitude, 0) /
+    input.vertices.length;
+  const metersPerLatitudeDegree = 111_195.08;
+  const metersPerLongitudeDegree = metersPerLatitudeDegree *
+    Math.cos(latitude * Math.PI / 180);
+  const radiusMeters = Math.max(25, Math.ceil(Math.max(...input.vertices.map((vertex) =>
+    Math.hypot(
+      (vertex.latitude - latitude) * metersPerLatitudeDegree,
+      (vertex.longitude - longitude) * metersPerLongitudeDegree,
+    ),
+  ))));
+  return { latitude, longitude, radiusMeters };
 }
 
 function toCalendarException(value: unknown): CalendarException {
@@ -224,12 +248,13 @@ export class SupabaseSettingsService implements SettingsService {
     actorId: string,
     input: SaveGeofenceSettingsRequest,
   ): Promise<GeofenceSettingsResponse> {
+    const storage = polygonStorageValues(input);
     const { data, error } = await this.client.rpc('save_geofence_settings', {
       p_actor_id: actorId,
       p_geofence: {
-        latitude: input.latitude,
-        longitude: input.longitude,
-        radiusMeters: input.radiusMeters,
+        shape: input.shape,
+        vertices: input.vertices,
+        ...storage,
         maxAccuracyMeters: input.maxAccuracyMeters,
       },
     });

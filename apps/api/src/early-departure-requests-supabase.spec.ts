@@ -206,6 +206,7 @@ describe('Supabase early departure request integration', () => {
       longitude: 113.2219,
       accuracyMeters: 10,
       distanceMeters: 0,
+      boundaryClearanceMeters: null,
     });
     requestId = created.id;
 

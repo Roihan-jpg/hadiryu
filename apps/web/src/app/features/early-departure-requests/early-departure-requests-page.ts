@@ -13,7 +13,13 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
-import { GEOLOCATION } from '../attendance/geolocation';
+import { AttendanceService } from '../attendance/attendance.service';
+import {
+  acquirePreciseLocation,
+  GEOLOCATION,
+  PreciseLocationError,
+  type LocationAccuracyProgress,
+} from '../attendance/geolocation';
 import { EarlyDepartureRequestsService } from './early-departure-requests.service';
 
 @Component({
@@ -45,6 +51,9 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
         <button mat-flat-button type="submit" [disabled]="submitting()">
           {{ submitting() ? 'Mengirim…' : 'Kirim permohonan dan catat pulang' }}
         </button>
+        @if (submitting() && locationProgress(); as progress) {
+          <small aria-live="polite">Akurasi terbaik {{ rounded(progress.bestAccuracyMeters) }} meter · syarat maksimal {{ progress.maxAccuracyMeters }} meter</small>
+        }
       </form>
       <section aria-labelledby="history-title">
         <h2 id="history-title">Riwayat permohonan</h2>
@@ -80,6 +89,7 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
 })
 export class EarlyDepartureRequestsPage implements OnInit {
   private readonly service = inject(EarlyDepartureRequestsService);
+  private readonly attendanceService = inject(AttendanceService);
   private readonly geolocation = inject(GEOLOCATION);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly form = new FormGroup({
@@ -93,6 +103,8 @@ export class EarlyDepartureRequestsPage implements OnInit {
   readonly submitting = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+  readonly locationProgress = signal<LocationAccuracyProgress | null>(null);
+  readonly locationMaxAccuracyMeters = signal(15);
 
   ngOnInit(): void { void this.load(); }
 
@@ -116,6 +128,7 @@ export class EarlyDepartureRequestsPage implements OnInit {
     this.submitting.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
+    this.locationProgress.set(null);
     try {
       const location = await this.currentLocation();
       await this.service.create({
@@ -140,22 +153,28 @@ export class EarlyDepartureRequestsPage implements OnInit {
     }).format(new Date(value));
   }
 
-  private currentLocation(): Promise<LocationInput> {
+  rounded(value: number): number { return Math.round(value); }
+
+  private async currentLocation(): Promise<LocationInput> {
     if (!this.geolocation) return Promise.reject(new Error('Lokasi tidak tersedia'));
-    return new Promise((resolve, reject) => {
-      this.geolocation!.getCurrentPosition(
-        (position) => resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracyMeters: position.coords.accuracy,
-        }),
-        reject,
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
-      );
-    });
+    const today = await this.attendanceService.getToday();
+    const maxAccuracyMeters = today.locationRequirement?.maxAccuracyMeters ?? 15;
+    this.locationMaxAccuracyMeters.set(maxAccuracyMeters);
+    return acquirePreciseLocation(
+      this.geolocation,
+      maxAccuracyMeters,
+      (progress) => this.locationProgress.set(progress),
+    );
   }
 
   private async errorText(error: unknown, fallback: string): Promise<string> {
+    if (error instanceof PreciseLocationError) {
+      if (error.state === 'INACCURATE' && error.bestAccuracyMeters !== undefined) {
+        return `Akurasi terbaik ${Math.round(error.bestAccuracyMeters)} meter belum memenuhi batas ${this.locationMaxAccuracyMeters()} meter. Bergerak ke tengah halaman lalu coba lagi.`;
+      }
+      if (error.state === 'DENIED') return 'Aktifkan izin lokasi untuk situs ini lalu coba lagi.';
+      return 'Lokasi presisi belum ditemukan. Bergerak ke halaman terbuka lalu coba lagi.';
+    }
     if (error instanceof HttpErrorResponse) {
       const { ApiErrorSchema } = await import('@absensi/contracts');
       const parsed = ApiErrorSchema.safeParse(error.error);

@@ -30,6 +30,7 @@ const attendance: PersistedAttendanceRecord = {
   status: 'CHECKED_IN',
 };
 const geofence: GeofenceRule = {
+  shape: 'CIRCLE',
   id: '30000000-0000-4000-8000-000000000001',
   latitude: -8.1328,
   longitude: 113.2219,

@@ -32,11 +32,13 @@ const AttendanceRowSchema = z.strictObject({
   check_in_longitude: NumericValueSchema,
   check_in_accuracy_meters: NumericValueSchema,
   check_in_distance_meters: NumericValueSchema,
+  check_in_boundary_clearance_meters: NumericValueSchema.nullable(),
   check_out_at: z.string().nullable(),
   check_out_latitude: NumericValueSchema.nullable(),
   check_out_longitude: NumericValueSchema.nullable(),
   check_out_accuracy_meters: NumericValueSchema.nullable(),
   check_out_distance_meters: NumericValueSchema.nullable(),
+  check_out_boundary_clearance_meters: NumericValueSchema.nullable(),
   work_start: z.string(),
   work_end: z.string(),
   checkout_close: z.string(),
@@ -71,17 +73,18 @@ const GeofenceRowSchema = z.strictObject({
   latitude: NumericValueSchema,
   longitude: NumericValueSchema,
   radius_meters: z.number().int(),
+  polygon_vertices: z.unknown().nullable(),
   max_accuracy_meters: z.number().int(),
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
 
 const ATTENDANCE_FIELDS =
-  'id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy_meters,check_in_distance_meters,check_out_at,check_out_latitude,check_out_longitude,check_out_accuracy_meters,check_out_distance_meters,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
+  'id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy_meters,check_in_distance_meters,check_in_boundary_clearance_meters,check_out_at,check_out_latitude,check_out_longitude,check_out_accuracy_meters,check_out_distance_meters,check_out_boundary_clearance_meters,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
-  'id,latitude,longitude,radius_meters,max_accuracy_meters,effective_from,effective_to';
+  'id,latitude,longitude,radius_meters,polygon_vertices,max_accuracy_meters,effective_from,effective_to';
 
 function time(value: string): string {
   return value.slice(0, 5);
@@ -97,6 +100,9 @@ function toAttendance(value: unknown): PersistedAttendanceRecord {
     longitude: Number(row.check_in_longitude),
     accuracyMeters: Number(row.check_in_accuracy_meters),
     distanceMeters: Number(row.check_in_distance_meters),
+    boundaryClearanceMeters: row.check_in_boundary_clearance_meters === null
+      ? null
+      : Number(row.check_in_boundary_clearance_meters),
     workStart: time(row.work_start),
     workEnd: time(row.work_end),
     checkoutClose: time(row.checkout_close),
@@ -121,6 +127,10 @@ function toAttendance(value: unknown): PersistedAttendanceRecord {
       row.check_out_distance_meters === null
         ? null
         : Number(row.check_out_distance_meters),
+    checkOutBoundaryClearanceMeters:
+      row.check_out_boundary_clearance_meters === null
+        ? null
+        : Number(row.check_out_boundary_clearance_meters),
     workedMinutes: row.worked_minutes,
     workDeficitMinutes: row.work_deficit_minutes,
     status: row.status,
@@ -157,15 +167,21 @@ function toSchedule(value: unknown): ScheduleRule {
 
 function toGeofence(value: unknown): GeofenceRule {
   const row = GeofenceRowSchema.parse(value);
-  return GeofenceRuleSchema.parse({
+  const version = {
     id: row.id,
-    latitude: Number(row.latitude),
-    longitude: Number(row.longitude),
-    radiusMeters: row.radius_meters,
     maxAccuracyMeters: row.max_accuracy_meters,
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
-  });
+  };
+  return GeofenceRuleSchema.parse(row.polygon_vertices === null
+    ? {
+        ...version,
+        shape: 'CIRCLE',
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        radiusMeters: row.radius_meters,
+      }
+    : { ...version, shape: 'POLYGON', vertices: row.polygon_vertices });
 }
 
 function lookupError(message: string): AppError {
@@ -263,6 +279,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         check_in_longitude: input.location.longitude,
         check_in_accuracy_meters: input.location.accuracyMeters,
         check_in_distance_meters: input.distanceMeters,
+        check_in_boundary_clearance_meters: input.boundaryClearanceMeters,
         work_start: input.schedule.workStart,
         work_end: input.schedule.workEnd,
         checkout_close: input.schedule.checkoutClose,
@@ -300,6 +317,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         check_out_longitude: input.location.longitude,
         check_out_accuracy_meters: input.location.accuracyMeters,
         check_out_distance_meters: input.distanceMeters,
+        check_out_boundary_clearance_meters: input.boundaryClearanceMeters,
         worked_minutes: input.workedMinutes,
         work_deficit_minutes: input.workDeficitMinutes,
         status: 'COMPLETED',

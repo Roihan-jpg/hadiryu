@@ -3,6 +3,7 @@ import {
   type CalendarException,
   type CalendarExceptionsResponse,
   type GeofenceSettingsResponse,
+  type GeofenceCoordinate,
   SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
   type ScheduleRuleInput,
@@ -27,6 +28,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 
 import { SettingsService } from './settings.service';
+import { AdminGeofenceMap } from './admin-geofence-map';
 import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
 
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -98,6 +100,7 @@ function scheduleRuleForm() {
     FormsModule,
     ReactiveFormsModule,
     RouterLink,
+    AdminGeofenceMap,
   ],
   selector: 'app-settings-page',
   styleUrl: './settings-page.scss',
@@ -128,23 +131,12 @@ export class SettingsPage implements OnInit {
     saturday: scheduleRuleForm(),
   });
   readonly geofenceForm = new FormGroup({
-    latitude: new FormControl(0, {
+    maxAccuracyMeters: new FormControl(15, {
       nonNullable: true,
-      validators: [Validators.required, Validators.min(-90), Validators.max(90)],
-    }),
-    longitude: new FormControl(0, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(-180), Validators.max(180)],
-    }),
-    radiusMeters: new FormControl(100, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(25), Validators.max(1000)],
-    }),
-    maxAccuracyMeters: new FormControl(50, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(5), Validators.max(200)],
+      validators: [Validators.required, Validators.min(5), Validators.max(30)],
     }),
   });
+  readonly geofenceVertices = signal<GeofenceCoordinate[]>([]);
   readonly calendarForm = new FormGroup({
     workDate: new FormControl('', {
       nonNullable: true,
@@ -243,9 +235,18 @@ export class SettingsPage implements OnInit {
       focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
-    const input = SaveGeofenceSettingsRequestSchema.parse(
-      this.geofenceForm.getRawValue(),
-    );
+    const parsed = SaveGeofenceSettingsRequestSchema.safeParse({
+      shape: 'POLYGON',
+      vertices: this.geofenceVertices(),
+      ...this.geofenceForm.getRawValue(),
+    });
+    if (!parsed.success) {
+      this.errorMessage.set(
+        'Zona absensi harus memiliki 3–32 titik unik tanpa garis berpotongan.',
+      );
+      return;
+    }
+    const input = parsed.data;
     this.actionInProgress.set('geofence');
     this.clearFeedback();
     try {
@@ -265,6 +266,33 @@ export class SettingsPage implements OnInit {
     } finally {
       this.actionInProgress.set(null);
     }
+  }
+
+  updateGeofenceVertices(vertices: GeofenceCoordinate[]): void {
+    this.geofenceVertices.set(vertices);
+    this.clearFeedback();
+  }
+
+  undoGeofenceVertex(): void {
+    this.geofenceVertices.update((vertices) => vertices.slice(0, -1));
+  }
+
+  clearGeofenceVertices(): void {
+    this.geofenceVertices.set([]);
+  }
+
+  removeGeofenceVertex(index: number): void {
+    this.geofenceVertices.update((vertices) =>
+      vertices.filter((_, vertexIndex) => vertexIndex !== index),
+    );
+  }
+
+  geofenceMapCenter(): GeofenceCoordinate {
+    const rule = this.geofence()?.geofence;
+    if (rule?.shape === 'CIRCLE') {
+      return { latitude: rule.latitude, longitude: rule.longitude };
+    }
+    return rule?.vertices[0] ?? { latitude: -8.1328, longitude: 113.2219 };
   }
 
   async saveCalendarException(): Promise<void> {
@@ -361,11 +389,12 @@ export class SettingsPage implements OnInit {
         );
       }
       if (geofence.geofence) {
+        const rule = geofence.geofence;
+        this.geofenceVertices.set(rule.shape === 'POLYGON' ? [...rule.vertices] : []);
         this.geofenceForm.patchValue({
-          latitude: geofence.geofence.latitude,
-          longitude: geofence.geofence.longitude,
-          radiusMeters: geofence.geofence.radiusMeters,
-          maxAccuracyMeters: geofence.geofence.maxAccuracyMeters,
+          maxAccuracyMeters: rule.shape === 'POLYGON'
+            ? rule.maxAccuracyMeters
+            : 15,
         });
       }
       return true;

@@ -116,8 +116,13 @@
               <dd>{{ attendance.arrivalLateMinutes }} menit</dd>
             </div>
             <div>
-              <dt>Jarak check-in</dt>
-              <dd>{{ attendance.distanceMeters }} meter</dd>
+              @if (attendance.boundaryClearanceMeters !== null && attendance.boundaryClearanceMeters !== undefined) {
+                <dt>Jarak aman dari batas</dt>
+                <dd>{{ attendance.boundaryClearanceMeters }} meter</dd>
+              } @else {
+                <dt>Jarak dari pusat</dt>
+                <dd>{{ attendance.distanceMeters }} meter</dd>
+              }
             </div>
           } @else {
             <div>
@@ -152,6 +157,11 @@
 
       @if (errorMessage()) {
         <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
+      }
+      @if (actionInProgress() && locationAccuracyProgress(); as progress) {
+        <p class="permission-note" aria-live="polite">
+          Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter
+        </p>
       }
       @if (successMessage()) {
         <p class="feedback feedback--success" role="status" aria-live="polite">{{ successMessage() }}</p>
@@ -222,6 +232,11 @@
       @if (locationPreviewError()) {
         <p class="feedback feedback--error" role="alert">
           {{ locationPreviewError() }}
+        </p>
+      }
+      @if (locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
+        <p class="permission-note" aria-live="polite">
+          Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter
         </p>
       }
       <br>

@@ -11,8 +11,11 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import {
+  acquirePreciseLocation,
   GEOLOCATION,
   GEOLOCATION_PERMISSIONS,
+  PreciseLocationError,
+  type LocationAccuracyProgress,
 } from '../attendance/geolocation';
 import { TeacherLocationMap } from './teacher-location-map';
 
@@ -23,10 +26,14 @@ type PermissionState =
   | 'DENIED'
   | 'SYSTEM_DENIED'
   | 'UNAVAILABLE'
-  | 'TIMEOUT';
+  | 'TIMEOUT'
+  | 'INACCURATE';
 
 class LocationRequestError extends Error {
-  constructor(readonly permissionState: Exclude<PermissionState, 'IDLE' | 'REQUESTING' | 'GRANTED'>) {
+  constructor(
+    readonly permissionState: Exclude<PermissionState, 'IDLE' | 'REQUESTING' | 'GRANTED'>,
+    readonly bestAccuracyMeters?: number,
+  ) {
     super(permissionState);
   }
 }
@@ -61,6 +68,7 @@ export class HomePage implements OnInit {
     () => this.actionInProgress() || this.locationPreviewInProgress(),
   );
   readonly locationPreview = signal<LocationInput | null>(null);
+  readonly locationAccuracyProgress = signal<LocationAccuracyProgress | null>(null);
   readonly permissionState = signal<PermissionState>('IDLE');
   readonly errorMessage = signal<string | null>(null);
   readonly locationPreviewError = signal<string | null>(null);
@@ -101,6 +109,7 @@ export class HomePage implements OnInit {
     this.locationPreview.set(null);
     this.locationPreviewError.set(null);
     this.successMessage.set(null);
+    this.locationAccuracyProgress.set(null);
     try {
       const location = await this.currentLocation();
       this.permissionState.set('GRANTED');
@@ -112,6 +121,7 @@ export class HomePage implements OnInit {
         state: 'CHECKED_IN',
         schedule: this.today()?.schedule ?? null,
         attendance,
+        locationRequirement: this.today()?.locationRequirement ?? null,
       });
       this.successMessage.set(
         `Check-in berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}.`,
@@ -119,7 +129,10 @@ export class HomePage implements OnInit {
     } catch (error) {
       if (error instanceof LocationRequestError) {
         this.permissionState.set(error.permissionState);
-        this.errorMessage.set(this.locationErrorText(error.permissionState));
+        this.errorMessage.set(this.locationErrorText(
+          error.permissionState,
+          error.bestAccuracyMeters,
+        ));
       } else {
         this.errorMessage.set(await this.apiErrorText(error, 'check-in'));
       }
@@ -136,6 +149,7 @@ export class HomePage implements OnInit {
     this.locationPreview.set(null);
     this.locationPreviewError.set(null);
     this.successMessage.set(null);
+    this.locationAccuracyProgress.set(null);
     try {
       const location = await this.currentLocation();
       this.permissionState.set('GRANTED');
@@ -147,6 +161,7 @@ export class HomePage implements OnInit {
         state: 'COMPLETED',
         schedule: this.today()?.schedule ?? null,
         attendance,
+        locationRequirement: this.today()?.locationRequirement ?? null,
       });
       this.successMessage.set(
         `Checkout berhasil dicatat pukul ${this.jakartaTime(attendance.checkOutAt)}.`,
@@ -154,7 +169,10 @@ export class HomePage implements OnInit {
     } catch (error) {
       if (error instanceof LocationRequestError) {
         this.permissionState.set(error.permissionState);
-        this.errorMessage.set(this.locationErrorText(error.permissionState));
+        this.errorMessage.set(this.locationErrorText(
+          error.permissionState,
+          error.bestAccuracyMeters,
+        ));
       } else {
         this.errorMessage.set(await this.apiErrorText(error, 'checkout'));
       }
@@ -179,6 +197,7 @@ export class HomePage implements OnInit {
     this.locationPreview.set(null);
     this.locationPreviewError.set(null);
     this.permissionState.set('REQUESTING');
+    this.locationAccuracyProgress.set(null);
     try {
       const location = await this.currentLocation();
       this.permissionState.set('GRANTED');
@@ -187,7 +206,7 @@ export class HomePage implements OnInit {
       if (error instanceof LocationRequestError) {
         this.permissionState.set(error.permissionState);
         this.locationPreviewError.set(
-          this.locationErrorText(error.permissionState),
+          this.locationErrorText(error.permissionState, error.bestAccuracyMeters),
         );
       } else {
         this.locationPreviewError.set(
@@ -243,28 +262,18 @@ export class HomePage implements OnInit {
   }
 
   private requestCurrentLocation(enableHighAccuracy: boolean): Promise<LocationInput> {
-    return new Promise((resolve, reject) => {
-      this.geolocation!.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracyMeters: position.coords.accuracy,
-          });
-        },
-        (error) => {
-          reject(
-            new LocationRequestError(
-              error.code === 1
-                ? 'DENIED'
-                : error.code === 3
-                  ? 'TIMEOUT'
-                  : 'UNAVAILABLE',
-            ),
-          );
-        },
-        { enableHighAccuracy, maximumAge: 0, timeout: 15_000 },
-      );
+    const maxAccuracyMeters =
+      this.today()?.locationRequirement?.maxAccuracyMeters ?? 15;
+    return acquirePreciseLocation(
+      this.geolocation!,
+      maxAccuracyMeters,
+      (progress) => this.locationAccuracyProgress.set(progress),
+      enableHighAccuracy,
+    ).catch((error: unknown) => {
+      if (error instanceof PreciseLocationError) {
+        throw new LocationRequestError(error.state, error.bestAccuracyMeters);
+      }
+      throw error;
     });
   }
 
@@ -280,7 +289,7 @@ export class HomePage implements OnInit {
     }
   }
 
-  private locationErrorText(state: PermissionState): string {
+  private locationErrorText(state: PermissionState, bestAccuracyMeters?: number): string {
     if (state === 'DENIED') {
       return 'Aktifkan izin lokasi untuk situs ini di pengaturan browser, lalu coba lagi.';
     }
@@ -289,6 +298,15 @@ export class HomePage implements OnInit {
     }
     if (state === 'TIMEOUT') {
       return 'Lokasi belum ditemukan. Berpindah ke area terbuka lalu coba lagi.';
+    }
+    if (state === 'INACCURATE') {
+      const progress = this.locationAccuracyProgress();
+      const best = progress?.bestAccuracyMeters ?? bestAccuracyMeters;
+      const maximum = progress?.maxAccuracyMeters ??
+        this.today()?.locationRequirement?.maxAccuracyMeters ?? 15;
+      return best !== undefined
+        ? `Akurasi terbaik ${Math.round(best)} meter, sedangkan syarat maksimal ${maximum} meter. Bergerak ke tengah halaman terbuka lalu coba lagi.`
+        : 'Akurasi lokasi belum memenuhi syarat. Bergerak ke tengah halaman terbuka lalu coba lagi.';
     }
     return 'Lokasi tidak tersedia. Pastikan layanan lokasi perangkat aktif lalu coba lagi.';
   }

@@ -211,10 +211,26 @@ legend {
   gap: 0 0.85rem;
 }
 
-.geofence-form-grid {
+.geofence-editor {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0 0.85rem;
+  grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.geofence-controls mat-form-field {
+  width: 100%;
+}
+
+.vertex-list {
+  max-height: 13rem;
+  padding-left: 1.5rem;
+  overflow: auto;
+}
+
+.vertex-list li {
+  display: flex;
+  justify-content: space-between;
 }
 
 .calendar-form-grid {
@@ -247,9 +263,12 @@ legend {
 }
 
 @media (max-width: 900px) {
-  .time-form-grid,
-  .geofence-form-grid {
+  .time-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .geofence-editor {
+    grid-template-columns: 1fr;
   }
 
   .calendar-form-grid {
@@ -302,8 +321,7 @@ legend {
 }
 
 @media (max-width: 440px) {
-  .time-form-grid,
-  .geofence-form-grid {
+  .time-form-grid {
     grid-template-columns: 1fr;
   }
 

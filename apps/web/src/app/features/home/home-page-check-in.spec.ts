@@ -43,6 +43,7 @@ const ready: TodayAttendanceResponse = {
     targetMinutes: 515,
   },
   attendance: null,
+  locationRequirement: { maxAccuracyMeters: 15 },
 };
 
 const checkedIn: CheckInRecord = {
@@ -156,14 +157,14 @@ describe('HomePage check-in', () => {
 
     const refresh = fixture.componentInstance.showLocationPreview();
     geolocation.successes[1]?.({
-      coords: { latitude: -6.21, longitude: 106.82, accuracy: 18.6 },
+      coords: { latitude: -6.21, longitude: 106.82, accuracy: 14.6 },
     } as GeolocationPosition);
     await refresh;
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('-6.210000');
     expect(fixture.nativeElement.textContent).toContain('106.820000');
-    expect(fixture.nativeElement.textContent).toContain('19 meter');
+    expect(fixture.nativeElement.textContent).toContain('15 meter');
   });
 
   it('blocks attendance while a location preview request is active', async () => {
@@ -227,7 +228,7 @@ describe('HomePage check-in', () => {
     expect(geolocation.getCurrentPosition).toHaveBeenCalledWith(
       expect.any(Function),
       expect.any(Function),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30_000 },
     );
     expect(fixture.componentInstance.permissionState()).toBe('REQUESTING');
     expect(
@@ -251,6 +252,9 @@ describe('HomePage check-in', () => {
       accuracyMeters: 10,
     });
     expect(fixture.componentInstance.permissionState()).toBe('GRANTED');
+    expect(fixture.componentInstance.today()?.locationRequirement).toEqual({
+      maxAccuracyMeters: 15,
+    });
     expect(fixture.nativeElement.textContent).toContain('Check-in berhasil');
     expect(fixture.nativeElement.textContent).toContain('Sudah check-in');
   });
@@ -281,18 +285,18 @@ describe('HomePage check-in', () => {
     expect(geolocation.getCurrentPosition.mock.calls[1]?.[2]).toEqual({
       enableHighAccuracy: false,
       maximumAge: 0,
-      timeout: 15_000,
+      timeout: 30_000,
     });
 
     geolocation.successes[1]?.({
-      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 25 },
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 12 },
     } as GeolocationPosition);
     await promise;
 
     expect(checkIn).toHaveBeenCalledWith({
       latitude: -6.2,
       longitude: 106.816666,
-      accuracyMeters: 25,
+      accuracyMeters: 12,
     });
   });
 

@@ -60,10 +60,14 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     saturday: schedule,
   });
   await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence', {
-    latitude,
-    longitude,
-    radiusMeters: 100,
-    maxAccuracyMeters: 50,
+    shape: 'POLYGON',
+    vertices: [
+      { latitude: latitude - 0.0003, longitude: longitude - 0.0003 },
+      { latitude: latitude - 0.0003, longitude: longitude + 0.0003 },
+      { latitude: latitude + 0.0003, longitude: longitude + 0.0003 },
+      { latitude: latitude + 0.0003, longitude: longitude - 0.0003 },
+    ],
+    maxAccuracyMeters: 15,
   });
   await expectSuccessfulJsonMutation(page, '/api/admin/settings/calendar', {
     workDate: attendanceWindow.workDate,
@@ -71,6 +75,17 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     name: 'Smoke test E2E lokal',
     scheduleType: 'WEEKDAY',
   });
+  await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
+  await page.goto(`${APP_BASE_URL}/admin/settings`);
+  await expect(page.getByRole('heading', { name: 'Geofence global' })).toBeVisible();
+  await expect(page.locator('app-admin-geofence-map')).toBeVisible();
+  await expect(page.getByText('4 titik batas', { exact: true })).toBeVisible();
+  await page.locator('app-admin-geofence-map .map-host').click({
+    position: { x: 120, y: 120 },
+  });
+  await expect(page.getByText('5 titik batas', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Urungkan titik' }).click();
+  await expect(page.getByText('4 titik batas', { exact: true })).toBeVisible();
   await expectSuccessfulJsonMutation(page, '/api/admin/teachers', {
     nip: teacherNip,
     fullName: 'Guru Smoke E2E',
@@ -86,7 +101,6 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await login(page, teacherNip, teacherInitialPassword);
   await changeInitialPassword(page, teacherInitialPassword, teacherPassword);
   await expect(page.getByRole('heading', { name: /Hari ini, Guru Smoke E2E/ })).toBeVisible();
-  await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
   await expect(page.locator('app-teacher-location-map')).toHaveCount(0);
   await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
   await expect(page.locator('app-teacher-location-map')).toBeVisible();
