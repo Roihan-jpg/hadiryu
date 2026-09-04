@@ -10,12 +10,12 @@ import {
   type UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { AppError } from './auth.js';
 import {
-  internalEmailForNip,
+  hashPassword,
   type SupabaseAuthConfig,
 } from './supabase-auth.js';
 import type { TeacherService } from './teachers.js';
@@ -27,14 +27,12 @@ const TeacherProfileRowSchema = z.strictObject({
   whatsapp_number: z.string().nullable(),
   role: z.literal('USER'),
   is_active: z.boolean(),
-  must_change_password: z.boolean(),
-  temporary_password_expires_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
 
 const PROFILE_FIELDS =
-  'id,nip,full_name,whatsapp_number,role,is_active,must_change_password,temporary_password_expires_at,created_at,updated_at';
+  'id,nip,full_name,whatsapp_number,role,is_active,created_at,updated_at';
 
 function clientOptions() {
   return {
@@ -54,10 +52,8 @@ function toTeacher(value: unknown): Teacher {
     fullName: row.full_name,
     whatsappNumber: row.whatsapp_number,
     isActive: row.is_active,
-    mustChangePassword: row.must_change_password,
-    temporaryPasswordExpiresAt: row.temporary_password_expires_at
-      ? new Date(row.temporary_password_expires_at).toISOString()
-      : null,
+    mustChangePassword: false,
+    temporaryPasswordExpiresAt: null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
@@ -70,17 +66,27 @@ function auditSnapshot(teacher: Teacher) {
     whatsappNumber: teacher.whatsappNumber,
     role: 'USER' as const,
     isActive: teacher.isActive,
-    mustChangePassword: teacher.mustChangePassword,
-    temporaryPasswordExpiresAt: teacher.temporaryPasswordExpiresAt,
   };
 }
 
-export function generateTemporaryPassword(): string {
-  return `AG-${randomBytes(12).toString('base64url')}-9aA`;
-}
-
-function isAuthIdentityConflict(code: string | undefined): boolean {
-  return code === 'email_exists' || code === 'user_already_exists';
+export function generatePassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const alphabet = `${upper}${lower}${digits}`;
+  const bytes = randomBytes(8);
+  const characters = [
+    upper[bytes[0]! % upper.length]!,
+    lower[bytes[1]! % lower.length]!,
+    digits[bytes[2]! % digits.length]!,
+    ...Array.from({ length: 5 }, (_, index) =>
+      alphabet[bytes[index + 3]! % alphabet.length]!),
+  ];
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = bytes[index]! % (index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex]!, characters[index]!];
+  }
+  return characters.join('');
 }
 
 export class SupabaseTeacherService implements TeacherService {
@@ -97,12 +103,8 @@ export class SupabaseTeacherService implements TeacherService {
       .eq('id', teacherId)
       .eq('role', 'USER')
       .maybeSingle();
-    if (error) {
-      throw new AppError(500, 'TEACHER_LOOKUP_FAILED', 'Data Guru tidak dapat dimuat');
-    }
-    if (!data) {
-      throw new AppError(404, 'TEACHER_NOT_FOUND', 'Guru tidak ditemukan');
-    }
+    if (error) throw new AppError(500, 'TEACHER_LOOKUP_FAILED', 'Data Guru tidak dapat dimuat');
+    if (!data) throw new AppError(404, 'TEACHER_NOT_FOUND', 'Guru tidak ditemukan');
     return toTeacher(data);
   }
 
@@ -121,9 +123,16 @@ export class SupabaseTeacherService implements TeacherService {
       before_data: beforeData,
       after_data: afterData,
     });
-    if (error) {
-      throw new AppError(500, 'AUDIT_WRITE_FAILED', 'Audit Guru tidak dapat dicatat');
-    }
+    if (error) throw new AppError(500, 'AUDIT_WRITE_FAILED', 'Audit Guru tidak dapat dicatat');
+  }
+
+  private async revokeSessions(teacherId: string): Promise<void> {
+    const { error } = await this.client
+      .from('app_sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('profile_id', teacherId)
+      .is('revoked_at', null);
+    if (error) throw new AppError(500, 'SESSION_REVOKE_FAILED', 'Sesi Guru tidak dapat dicabut');
   }
 
   async list(input: ListTeachersQuery): Promise<TeacherListResponse> {
@@ -137,21 +146,12 @@ export class SupabaseTeacherService implements TeacherService {
       .order('nip', { ascending: true })
       .range(start, end);
     if (input.search) {
-      query = query.or(
-        `nip.ilike.%${input.search}%,full_name.ilike.%${input.search}%`,
-      );
+      query = query.or(`nip.ilike.%${input.search}%,full_name.ilike.%${input.search}%`);
     }
-    if (input.isActive !== undefined) {
-      query = query.eq('is_active', input.isActive);
-    }
-    if (input.mustChangePassword !== undefined) {
-      query = query.eq('must_change_password', input.mustChangePassword);
-    }
+    if (input.isActive !== undefined) query = query.eq('is_active', input.isActive);
 
     const { data, error, count } = await query;
-    if (error) {
-      throw new AppError(500, 'TEACHER_LIST_FAILED', 'Daftar Guru tidak dapat dimuat');
-    }
+    if (error) throw new AppError(500, 'TEACHER_LIST_FAILED', 'Daftar Guru tidak dapat dimuat');
     const totalItems = count ?? 0;
     return TeacherListResponseSchema.parse({
       data: (data ?? []).map(toTeacher),
@@ -171,32 +171,10 @@ export class SupabaseTeacherService implements TeacherService {
       .select('id')
       .eq('nip', nip)
       .maybeSingle();
-    if (lookupError) {
-      throw new AppError(500, 'TEACHER_LOOKUP_FAILED', 'NIP tidak dapat diperiksa');
-    }
-    if (existing) {
-      throw new AppError(409, 'NIP_ALREADY_EXISTS', 'NIP sudah digunakan');
-    }
+    if (lookupError) throw new AppError(500, 'TEACHER_LOOKUP_FAILED', 'NIP tidak dapat diperiksa');
+    if (existing) throw new AppError(409, 'NIP_ALREADY_EXISTS', 'NIP sudah digunakan');
 
-    const { data: authData, error: authError } =
-      await this.client.auth.admin.createUser({
-        email: internalEmailForNip(nip),
-        password: input.initialPassword,
-        email_confirm: true,
-        app_metadata: { role: 'USER' },
-      });
-    if (authError || !authData.user) {
-      const identityConflict = authError
-        ? isAuthIdentityConflict(authError.code)
-        : false;
-      throw new AppError(
-        identityConflict ? 409 : 422,
-        identityConflict ? 'NIP_ALREADY_EXISTS' : 'TEACHER_CREATE_FAILED',
-        identityConflict ? 'NIP sudah digunakan' : 'Akun Guru tidak dapat dibuat',
-      );
-    }
-
-    const teacherId = authData.user.id;
+    const teacherId = randomUUID();
     const { data: profile, error: profileError } = await this.client
       .from('profiles')
       .insert({
@@ -206,47 +184,34 @@ export class SupabaseTeacherService implements TeacherService {
         whatsapp_number: input.whatsappNumber ?? null,
         role: 'USER',
         is_active: true,
-        must_change_password: true,
+        must_change_password: false,
         temporary_password_expires_at: null,
       })
       .select(PROFILE_FIELDS)
       .single();
     if (profileError || !profile) {
-      const { error: rollbackError } =
-        await this.client.auth.admin.deleteUser(teacherId);
-      if (rollbackError) {
-        throw new AppError(
-          500,
-          'TEACHER_CONSISTENCY_FAILED',
-          'Pembuatan Guru gagal dan membutuhkan pemulihan manual',
-        );
-      }
-      throw new AppError(500, 'TEACHER_CREATE_FAILED', 'Profil Guru tidak dapat dibuat');
+      throw new AppError(
+        profileError?.code === '23505' ? 409 : 500,
+        profileError?.code === '23505' ? 'NIP_ALREADY_EXISTS' : 'TEACHER_CREATE_FAILED',
+        profileError?.code === '23505' ? 'NIP sudah digunakan' : 'Profil Guru tidak dapat dibuat',
+      );
+    }
+
+    const { error: accountError } = await this.client.from('app_accounts').insert({
+      profile_id: teacherId,
+      password_hash: await hashPassword(input.initialPassword),
+    });
+    if (accountError) {
+      await this.client.from('profiles').delete().eq('id', teacherId);
+      throw new AppError(500, 'TEACHER_CREATE_FAILED', 'Akun Guru tidak dapat dibuat');
     }
 
     const teacher = toTeacher(profile);
     try {
-      await this.writeAudit(
-        actorId,
-        'TEACHER_CREATED',
-        teacherId,
-        null,
-        auditSnapshot(teacher),
-      );
+      await this.writeAudit(actorId, 'TEACHER_CREATED', teacherId, null, auditSnapshot(teacher));
     } catch (error) {
-      const { error: profileRollbackError } = await this.client
-        .from('profiles')
-        .delete()
-        .eq('id', teacherId);
-      const { error: authRollbackError } =
-        await this.client.auth.admin.deleteUser(teacherId);
-      if (profileRollbackError || authRollbackError) {
-        throw new AppError(
-          500,
-          'TEACHER_CONSISTENCY_FAILED',
-          'Pembuatan Guru gagal dan membutuhkan pemulihan manual',
-        );
-      }
+      await this.client.from('app_accounts').delete().eq('profile_id', teacherId);
+      await this.client.from('profiles').delete().eq('id', teacherId);
       throw error;
     }
     return teacher;
@@ -269,100 +234,31 @@ export class SupabaseTeacherService implements TeacherService {
       nextWhatsappNumber === before.whatsappNumber
     ) return before;
 
-    if (nextNip !== before.nip) {
-      const { data: duplicate, error } = await this.client
-        .from('profiles')
-        .select('id')
-        .eq('nip', nextNip)
-        .neq('id', teacherId)
-        .maybeSingle();
-      if (error) {
-        throw new AppError(500, 'TEACHER_LOOKUP_FAILED', 'NIP tidak dapat diperiksa');
-      }
-      if (duplicate) {
-        throw new AppError(409, 'NIP_ALREADY_EXISTS', 'NIP sudah digunakan');
-      }
-
-      const { error: authError } = await this.client.auth.admin.updateUserById(
-        teacherId,
-        { email: internalEmailForNip(nextNip), email_confirm: true },
-      );
-      if (authError) {
-        const identityConflict = isAuthIdentityConflict(authError.code);
-        throw new AppError(
-          identityConflict ? 409 : 500,
-          identityConflict ? 'NIP_ALREADY_EXISTS' : 'TEACHER_UPDATE_FAILED',
-          identityConflict ? 'NIP sudah digunakan' : 'NIP Auth tidak dapat diperbarui',
-        );
-      }
-    }
-
-    const { data: profile, error: profileError } = await this.client
+    const { data, error } = await this.client
       .from('profiles')
-      .update({
-        nip: nextNip,
-        full_name: nextFullName,
-        whatsapp_number: nextWhatsappNumber,
-      })
+      .update({ nip: nextNip, full_name: nextFullName, whatsapp_number: nextWhatsappNumber })
       .eq('id', teacherId)
       .eq('role', 'USER')
       .select(PROFILE_FIELDS)
       .single();
-    if (profileError || !profile) {
-      if (nextNip !== before.nip) {
-        const { error: rollbackError } =
-          await this.client.auth.admin.updateUserById(teacherId, {
-            email: internalEmailForNip(before.nip),
-            email_confirm: true,
-          });
-        if (rollbackError) {
-          throw new AppError(
-            500,
-            'TEACHER_CONSISTENCY_FAILED',
-            'Perubahan NIP gagal dan membutuhkan pemulihan manual',
-          );
-        }
-      }
+    if (error || !data) {
       throw new AppError(
-        profileError?.code === '23505' ? 409 : 500,
-        profileError?.code === '23505' ? 'NIP_ALREADY_EXISTS' : 'TEACHER_UPDATE_FAILED',
-        profileError?.code === '23505' ? 'NIP sudah digunakan' : 'Profil Guru tidak dapat diperbarui',
+        error?.code === '23505' ? 409 : 500,
+        error?.code === '23505' ? 'NIP_ALREADY_EXISTS' : 'TEACHER_UPDATE_FAILED',
+        error?.code === '23505' ? 'NIP sudah digunakan' : 'Profil Guru tidak dapat diperbarui',
       );
     }
 
-    const after = toTeacher(profile);
+    const after = toTeacher(data);
     try {
-      await this.writeAudit(
-        actorId,
-        'TEACHER_PROFILE_UPDATED',
-        teacherId,
-        auditSnapshot(before),
-        auditSnapshot(after),
-      );
-    } catch (error) {
-      const { error: profileRollbackError } = await this.client
-        .from('profiles')
-        .update({
-          nip: before.nip,
-          full_name: before.fullName,
-          whatsapp_number: before.whatsappNumber,
-        })
-        .eq('id', teacherId);
-      const { error: authRollbackError } =
-        nextNip === before.nip
-          ? { error: null }
-          : await this.client.auth.admin.updateUserById(teacherId, {
-              email: internalEmailForNip(before.nip),
-              email_confirm: true,
-            });
-      if (profileRollbackError || authRollbackError) {
-        throw new AppError(
-          500,
-          'TEACHER_CONSISTENCY_FAILED',
-          'Perubahan Guru gagal dan membutuhkan pemulihan manual',
-        );
-      }
-      throw error;
+      await this.writeAudit(actorId, 'TEACHER_PROFILE_UPDATED', teacherId, auditSnapshot(before), auditSnapshot(after));
+    } catch (auditError) {
+      await this.client.from('profiles').update({
+        nip: before.nip,
+        full_name: before.fullName,
+        whatsapp_number: before.whatsappNumber,
+      }).eq('id', teacherId);
+      throw auditError;
     }
     return after;
   }
@@ -384,7 +280,6 @@ export class SupabaseTeacherService implements TeacherService {
     if (error || !data) {
       throw new AppError(500, 'TEACHER_UPDATE_FAILED', 'Status Guru tidak dapat diperbarui');
     }
-
     const after = toTeacher(data);
     try {
       await this.writeAudit(
@@ -394,72 +289,33 @@ export class SupabaseTeacherService implements TeacherService {
         auditSnapshot(before),
         auditSnapshot(after),
       );
-    } catch (auditError) {
-      const { error: rollbackError } = await this.client
-        .from('profiles')
-        .update({ is_active: before.isActive })
-        .eq('id', teacherId);
-      if (rollbackError) {
-        throw new AppError(500, 'TEACHER_CONSISTENCY_FAILED', 'Status Guru membutuhkan pemulihan manual');
-      }
-      throw auditError;
+      if (!isActive) await this.revokeSessions(teacherId);
+    } catch (operationError) {
+      await this.client.from('profiles').update({ is_active: before.isActive }).eq('id', teacherId);
+      throw operationError;
     }
     return after;
   }
 
-  async resetPassword(
-    actorId: string,
-    teacherId: string,
-  ): Promise<PasswordResetResult> {
-    const before = await this.loadTeacher(teacherId);
-    const temporaryPassword = generateTemporaryPassword();
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
-    const { error: profileError } = await this.client
-      .from('profiles')
-      .update({
-        must_change_password: true,
-        temporary_password_expires_at: expiresAt,
-      })
-      .eq('id', teacherId)
-      .eq('role', 'USER');
-    if (profileError) {
-      throw new AppError(500, 'PASSWORD_RESET_FAILED', 'Profil Guru tidak dapat disiapkan');
-    }
+  async resetPassword(actorId: string, teacherId: string): Promise<PasswordResetResult> {
+    const teacher = await this.loadTeacher(teacherId);
+    const newPassword = generatePassword();
+    const { error } = await this.client.from('app_accounts').update({
+      password_hash: await hashPassword(newPassword),
+      password_changed_at: new Date().toISOString(),
+      failed_login_attempts: 0,
+      locked_until: null,
+    }).eq('profile_id', teacherId).select('profile_id').single();
+    if (error) throw new AppError(500, 'PASSWORD_RESET_FAILED', 'Password Guru tidak dapat direset');
 
-    const { error: authError } = await this.client.auth.admin.updateUserById(
-      teacherId,
-      { password: temporaryPassword },
-    );
-    if (authError) {
-      const { error: rollbackError } = await this.client
-        .from('profiles')
-        .update({
-          must_change_password: before.mustChangePassword,
-          temporary_password_expires_at: before.temporaryPasswordExpiresAt,
-        })
-        .eq('id', teacherId);
-      if (rollbackError) {
-        throw new AppError(
-          500,
-          'TEACHER_CONSISTENCY_FAILED',
-          'Reset password gagal dan membutuhkan pemulihan manual',
-        );
-      }
-      throw new AppError(422, 'PASSWORD_RESET_FAILED', 'Password sementara tidak dapat digunakan');
-    }
-
-    const after = await this.loadTeacher(teacherId);
+    await this.revokeSessions(teacherId);
     await this.writeAudit(
       actorId,
       'TEACHER_PASSWORD_RESET',
       teacherId,
-      auditSnapshot(before),
-      auditSnapshot(after),
+      auditSnapshot(teacher),
+      auditSnapshot(teacher),
     );
-    return PasswordResetResponseSchema.parse({
-      teacher: after,
-      temporaryPassword,
-      expiresAt,
-    });
+    return PasswordResetResponseSchema.parse({ teacher, newPassword });
   }
 }

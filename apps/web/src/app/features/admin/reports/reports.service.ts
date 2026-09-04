@@ -2,21 +2,28 @@ import type { DefaultReportPeriod, MonthlyReportPreview } from '@absensi/contrac
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { QueryGateway } from '../../../core/query/query-gateway';
+import { queryKeys } from '../../../core/query/query-keys';
 
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
   private readonly http = inject(HttpClient);
+  private readonly queries = inject(QueryGateway);
 
   async defaultPeriod(): Promise<DefaultReportPeriod> {
+    return this.queries.get(queryKeys.reports('default-period'), async () => {
     const value = await firstValueFrom(this.http.get<unknown>('/api/admin/reports/default-period', { withCredentials: true }));
     const { DefaultReportPeriodSchema } = await import('@absensi/contracts');
     return DefaultReportPeriodSchema.parse(value);
+    });
   }
 
   async preview(year: number, month: number): Promise<MonthlyReportPreview> {
+    return this.queries.get(queryKeys.reports(`${year}-${month}`), async () => {
     const value = await firstValueFrom(this.http.get<unknown>(`/api/admin/reports/monthly/${year}/${month}/preview`, { withCredentials: true }));
     const { MonthlyReportPreviewSchema } = await import('@absensi/contracts');
     return MonthlyReportPreviewSchema.parse(value);
+    });
   }
 
   async export(year: number, month: number): Promise<void> {

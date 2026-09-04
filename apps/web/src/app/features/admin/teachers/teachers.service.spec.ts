@@ -80,8 +80,8 @@ describe('TeachersService', () => {
     const resetPromise = service.resetPassword(teacher.id);
     http
       .expectOne(`/api/admin/teachers/${teacher.id}/reset-password`)
-      .flush({ teacher: { ...teacher, mustChangePassword: true, temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z' }, temporaryPassword: 'AG-random-value-9aA', expiresAt: '2026-08-28T01:00:00.000Z' });
-    await expect(resetPromise).resolves.toMatchObject({ temporaryPassword: 'AG-random-value-9aA' });
+      .flush({ teacher, newPassword: 'Baru1234' });
+    await expect(resetPromise).resolves.toMatchObject({ newPassword: 'Baru1234' });
   });
 
   it('rejects a response outside the shared teacher contract', async () => {

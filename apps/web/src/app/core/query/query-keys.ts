@@ -1,0 +1,14 @@
+export const queryKeys = {
+  auth: ['auth'] as const,
+  profile: ['profile'] as const,
+  monitoring: (filters?: unknown) => filters === undefined ? ['admin', 'monitoring'] as const : ['admin', 'monitoring', filters] as const,
+  teachers: (filters?: unknown) => filters === undefined ? ['admin', 'teachers'] as const : ['admin', 'teachers', filters] as const,
+  leaveRequests: (scope: 'own' | 'admin', filters?: unknown) => filters === undefined ? ['leave-requests', scope] as const : ['leave-requests', scope, filters] as const,
+  leaveRequest: (id: string) => ['leave-requests', 'detail', id] as const,
+  earlyDepartureRequests: (scope: 'own' | 'admin', filters?: unknown) => filters === undefined ? ['early-departure-requests', scope] as const : ['early-departure-requests', scope, filters] as const,
+  earlyDepartureRequest: (id: string) => ['early-departure-requests', 'detail', id] as const,
+  reports: (month?: string) => month === undefined ? ['admin', 'reports'] as const : ['admin', 'reports', month] as const,
+  settings: (section?: string) => section === undefined ? ['admin', 'settings'] as const : ['admin', 'settings', section] as const,
+  audit: (filters?: unknown) => ['admin', 'audit', filters] as const,
+  attendance: (scope: 'today' | 'history', filters?: unknown) => filters === undefined ? ['attendance', scope] as const : ['attendance', scope, filters] as const,
+} as const;

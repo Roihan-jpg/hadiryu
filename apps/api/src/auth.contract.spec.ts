@@ -16,7 +16,7 @@ describe('auth contracts', () => {
   it('trims a valid NIP without converting it to a number', () => {
     const result = LoginRequestSchema.parse({
       nip: ' 001234567890 ',
-      password: 'rahasia-sementara',
+      password: 'Guru1234',
     });
 
     expect(result.nip).toBe('001234567890');
@@ -25,7 +25,7 @@ describe('auth contracts', () => {
   it('rejects NIP characters that cannot be mapped safely to an internal email', () => {
     const result = LoginRequestSchema.safeParse({
       nip: 'guru 01',
-      password: 'rahasia-sementara',
+      password: 'Guru1234',
     });
 
     expect(result.success).toBe(false);
@@ -34,7 +34,7 @@ describe('auth contracts', () => {
   it('requires the current password and a strong replacement password', () => {
     expect(
       ChangePasswordRequestSchema.safeParse({
-        currentPassword: 'password-lama',
+        currentPassword: 'Guru1234',
         newPassword: 'pendek',
       }).success,
     ).toBe(false);
@@ -47,9 +47,16 @@ describe('auth contracts', () => {
       fullName: 'Guru Contoh',
       role: 'USER',
       isActive: true,
-      mustChangePassword: true,
+      photo: null,
     });
 
     expect(user).not.toHaveProperty('email');
+  });
+
+  it('requires exactly eight alphanumeric characters with upper, lower, and digit', () => {
+    expect(LoginRequestSchema.safeParse({ nip: 'guru', password: 'Guru1234' }).success).toBe(true);
+    for (const password of ['guru1234', 'GURU1234', 'GuruGuru', 'Guru123!', 'Guru12345']) {
+      expect(LoginRequestSchema.safeParse({ nip: 'guru', password }).success).toBe(false);
+    }
   });
 });

@@ -272,7 +272,7 @@ describe('SupabaseTeacherService integration', () => {
       .update({ must_change_password: false })
       .eq('id', account.teacher.id);
     const result = await teacherService.resetPassword(adminId, account.teacher.id);
-    const { temporaryPassword } = result;
+    const { newPassword } = result;
     const { data: audit } = await serviceClient
       .from('audit_logs')
       .select('before_data,after_data')
@@ -280,15 +280,15 @@ describe('SupabaseTeacherService integration', () => {
       .eq('action', 'TEACHER_PASSWORD_RESET')
       .single();
 
-    expect(result.teacher.mustChangePassword).toBe(true);
-    expect(result.teacher.temporaryPasswordExpiresAt).toBe(result.expiresAt);
+    expect(result.teacher.mustChangePassword).toBe(false);
+    expect(result.teacher.temporaryPasswordExpiresAt).toBeNull();
     await expect(
-      authService.login({ nip: account.teacher.nip, password: temporaryPassword }),
-    ).resolves.toMatchObject({ user: { mustChangePassword: true } });
+      authService.login({ nip: account.teacher.nip, password: newPassword }),
+    ).resolves.toMatchObject({ user: { mustChangePassword: false } });
     await expect(
       authService.login({ nip: account.teacher.nip, password: account.password }),
     ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
-    expect(JSON.stringify(audit)).not.toContain(temporaryPassword);
+    expect(JSON.stringify(audit)).not.toContain(newPassword);
     expect(audit?.before_data).not.toHaveProperty('temporaryPassword');
     expect(audit?.after_data).not.toHaveProperty('temporaryPassword');
   });

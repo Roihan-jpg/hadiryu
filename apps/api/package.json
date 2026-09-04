@@ -7,6 +7,7 @@
     "predev": "npm run build --workspace @absensi/contracts",
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
     "bootstrap:super-admin": "tsx --env-file-if-exists=../../.env src/bootstrap-super-admin.ts",
+    "prepare:app-accounts": "tsx --env-file-if-exists=../../.env src/prepare-app-accounts.ts",
     "start": "node dist/server.js",
     "prebuild": "npm run build --workspace @absensi/contracts",
     "build": "tsc -p tsconfig.build.json",

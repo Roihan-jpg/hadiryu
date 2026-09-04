@@ -11,14 +11,18 @@ import type {
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { QueryGateway } from '../../core/query/query-gateway';
+import { queryKeys } from '../../core/query/query-keys';
 
 @Injectable({ providedIn: 'root' })
 export class EarlyDepartureRequestsService {
   private readonly http = inject(HttpClient);
+  private readonly queries = inject(QueryGateway);
 
   async listOwn(
     input: ListEarlyDepartureRequestsQuery,
   ): Promise<EarlyDepartureRequestListResponse> {
+    return this.queries.get(queryKeys.earlyDepartureRequests('own', input), async () => {
     let params = new HttpParams()
       .set('page', input.page)
       .set('pageSize', input.pageSize);
@@ -33,9 +37,11 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return EarlyDepartureRequestListResponseSchema.parse(value);
+    });
   }
 
   async create(input: CreateEarlyDepartureRequest, attachment?: File): Promise<EarlyDepartureRequest> {
+    return this.queries.write(async () => {
     const body: CreateEarlyDepartureRequest | FormData = attachment ? this.formData(input, attachment) : input;
     const value = await firstValueFrom(
       this.http.post<unknown>('/api/early-departure-requests', body, {
@@ -46,17 +52,21 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return EarlyDepartureRequestResponseSchema.parse(value).earlyDepartureRequest;
+    }, [queryKeys.earlyDepartureRequests('own'), queryKeys.attendance('today')]);
   }
 
   async getAdmin(id: string): Promise<AdminEarlyDepartureRequestDetailResponse> {
+    return this.queries.get(queryKeys.earlyDepartureRequest(id), async () => {
     const value = await firstValueFrom(this.http.get<unknown>(`/api/admin/early-departure-requests/${id}`, { withCredentials: true }));
     const { AdminEarlyDepartureRequestDetailResponseSchema } = await import('@absensi/contracts');
     return AdminEarlyDepartureRequestDetailResponseSchema.parse(value);
+    });
   }
 
   async listAdmin(
     input: ListAdminEarlyDepartureRequestsQuery,
   ): Promise<AdminEarlyDepartureRequestListResponse> {
+    return this.queries.get(queryKeys.earlyDepartureRequests('admin', input), async () => {
     let params = new HttpParams()
       .set('page', input.page)
       .set('pageSize', input.pageSize);
@@ -73,6 +83,7 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return AdminEarlyDepartureRequestListResponseSchema.parse(value);
+    });
   }
 
   async decide(
@@ -80,6 +91,7 @@ export class EarlyDepartureRequestsService {
     action: 'APPROVED' | 'REJECTED',
     input: DecideEarlyDepartureRequest = {},
   ): Promise<EarlyDepartureRequest> {
+    return this.queries.write(async () => {
     const endpoint = action === 'APPROVED' ? 'approve' : 'reject';
     const value = await firstValueFrom(
       this.http.post<unknown>(
@@ -92,6 +104,7 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return EarlyDepartureRequestResponseSchema.parse(value).earlyDepartureRequest;
+    }, [queryKeys.earlyDepartureRequests('admin'), queryKeys.earlyDepartureRequest(id), queryKeys.reports()]);
   }
 
   private formData(input: CreateEarlyDepartureRequest, attachment: File): FormData {

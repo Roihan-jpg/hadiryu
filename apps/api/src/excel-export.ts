@@ -72,10 +72,9 @@ export interface ExcelExportService {
   ): Promise<ExcelExportResult>;
 }
 
-interface ExcelExportOptions {
-  templatePath: string;
+type ExcelExportOptions = ({ templatePath: string } | { loadTemplate: () => Promise<Uint8Array> }) & {
   now?: () => Date;
-}
+};
 
 interface SectionLayout {
   headerRow: number;
@@ -423,7 +422,9 @@ export function createExcelExportService(
   const now = options.now ?? (() => new Date());
   return {
     async export(input, actorId) {
-      const template = await readFile(options.templatePath);
+      const template = 'loadTemplate' in options
+        ? await options.loadTemplate()
+        : await readFile(options.templatePath);
       const templateChecksum = sha256(template);
       const report = await monthlyReportService.preview(input);
       const workbook = new ExcelJS.Workbook();

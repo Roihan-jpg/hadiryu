@@ -56,6 +56,7 @@ import {
   type SupabaseRequestAttachmentService,
 } from './request-attachments.js';
 import { registerAuditLogRoutes, type AuditLogService } from './audit-logs.js';
+import { registerProfileRoutes, type ProfileService } from './profile.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -69,6 +70,7 @@ export interface CreateAppOptions {
   excelExportService?: ExcelExportService;
   requestAttachmentService?: SupabaseRequestAttachmentService;
   auditLogService?: AuditLogService;
+  profileService?: ProfileService;
   secureCookies?: boolean;
   logger?: AppLogger;
   security?: Partial<SecurityConfig>;
@@ -257,6 +259,13 @@ export function createApp(options: CreateAppOptions = {}): Express {
       ? {}
       : { secureCookies: options.secureCookies }),
   });
+  if (options.profileService) {
+    registerProfileRoutes(
+      app,
+      options.authService ?? unavailableAuthService,
+      options.profileService,
+    );
+  }
   registerTeacherRoutes(
     app,
     options.authService ?? unavailableAuthService,

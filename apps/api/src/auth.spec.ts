@@ -24,7 +24,7 @@ const user: AuthUser = {
   fullName: 'Guru Contoh',
   role: 'USER',
   isActive: true,
-  mustChangePassword: true,
+  mustChangePassword: false,
 };
 
 class FakeAuthService implements AuthService {

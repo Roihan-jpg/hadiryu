@@ -18,8 +18,8 @@ export const TeacherSchema = z.strictObject({
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
   whatsappNumber: WhatsappNumberSchema.nullable(),
   isActive: z.boolean(),
-  mustChangePassword: z.boolean(),
-  temporaryPasswordExpiresAt: z.iso.datetime({ offset: true }).nullable(),
+  mustChangePassword: z.boolean().optional(),
+  temporaryPasswordExpiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
@@ -80,8 +80,7 @@ export type ResetTeacherPasswordRequest = z.infer<
 
 export const PasswordResetResponseSchema = z.strictObject({
   teacher: TeacherSchema,
-  temporaryPassword: NewPasswordSchema,
-  expiresAt: z.iso.datetime({ offset: true }),
+  newPassword: NewPasswordSchema,
 });
 export type PasswordResetResult = z.infer<typeof PasswordResetResponseSchema>;
 

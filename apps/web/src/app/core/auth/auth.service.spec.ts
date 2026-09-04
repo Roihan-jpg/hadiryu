@@ -7,6 +7,7 @@ import {
 import { TestBed } from '@angular/core/testing';
 
 import { AuthService } from './auth.service';
+import { appQueryClient } from '../query/query-client';
 
 const user: AuthUser = {
   id: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
@@ -22,6 +23,7 @@ describe('AuthService', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
+    appQueryClient.clear();
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
@@ -60,28 +62,14 @@ describe('AuthService', () => {
     expect(service.user()).toBeNull();
   });
 
-  it('refreshes an expired access session using the HttpOnly refresh cookie', async () => {
-    const resultPromise = service.refresh();
-    const request = http.expectOne('/api/auth/refresh');
-
-    expect(request.request.body).toEqual({});
-    expect(request.request.withCredentials).toBe(true);
-    request.flush({ user: { ...user, mustChangePassword: false } });
-
-    await resultPromise;
-    expect(service.user()?.mustChangePassword).toBe(false);
-  });
-
-  it('falls back to refresh when me reports an expired access cookie', async () => {
+  it('clears the cached profile when the absolute session is rejected', async () => {
     const resultPromise = service.ensureSession();
     http.expectOne('/api/auth/me').flush(
       { error: { code: 'AUTH_REQUIRED', message: 'Sesi habis' } },
       { status: 401, statusText: 'Unauthorized' },
     );
-    await Promise.resolve();
-    http.expectOne('/api/auth/refresh').flush({ user });
-
-    await expect(resultPromise).resolves.toEqual(user);
+    await expect(resultPromise).resolves.toBeNull();
+    expect(service.user()).toBeNull();
   });
 
   it('clears local profile state after logout', async () => {

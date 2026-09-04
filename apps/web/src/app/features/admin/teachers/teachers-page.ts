@@ -5,7 +5,6 @@ import type {
   UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import {
   FormControl,
@@ -87,7 +86,7 @@ interface ConfirmDialogData {
               autocomplete="new-password"
             />
             @if (form.controls.initialPassword.invalid) {
-              <mat-error>Password awal minimal 8 karakter.</mat-error>
+              <mat-error>Password harus tepat 8 karakter, berisi huruf besar, huruf kecil, dan angka.</mat-error>
             }
           </mat-form-field>
         }
@@ -127,7 +126,7 @@ export class TeacherFormDialog {
       nonNullable: true,
       validators: this.teacher
         ? []
-        : [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
+        : [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8}$/)],
     }),
   });
 
@@ -158,7 +157,7 @@ export class TeacherFormDialog {
   template: `
     <h2 mat-dialog-title>Reset password Guru</h2>
     <mat-dialog-content>
-      <p>Server akan membuat password acak yang berlaku 72 jam. Guru wajib menggantinya saat login.</p>
+      <p>Server akan membuat password baru delapan karakter dan mencabut seluruh sesi Guru.</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" [mat-dialog-close]="undefined">Batal</button>
@@ -177,8 +176,8 @@ export class ResetPasswordDialog {
 @Component({
   imports: [MatButtonModule, MatDialogModule],
   template: `
-    <h2 mat-dialog-title>Password sementara dibuat</h2>
-    <mat-dialog-content><p>Simpan sekarang. Password ini hanya ditampilkan sekali dan kedaluwarsa {{ expiresLabel() }}.</p><div class="secret"><code>{{ data.temporaryPassword }}</code><button mat-stroked-button type="button" (click)="copy()">{{ copied() ? 'Tersalin' : 'Salin' }}</button></div></mat-dialog-content>
+    <h2 mat-dialog-title>Password baru dibuat</h2>
+    <mat-dialog-content><p>Simpan sekarang. Password baru hanya ditampilkan sekali.</p><div class="secret"><code>{{ data.newPassword }}</code><button mat-stroked-button type="button" (click)="copy()">{{ copied() ? 'Tersalin' : 'Salin' }}</button></div></mat-dialog-content>
     <mat-dialog-actions align="end"><button mat-flat-button type="button" [mat-dialog-close]="true">Selesai</button></mat-dialog-actions>
   `,
   styles: `.secret{display:flex;align-items:center;gap:12px;padding:14px;background:#f4eee6;border-radius:6px}.secret code{flex:1;font-size:15px;overflow-wrap:anywhere}p{color:#687570;line-height:1.55}`,
@@ -186,8 +185,7 @@ export class ResetPasswordDialog {
 export class ResetPasswordResultDialog {
   readonly data = inject<PasswordResetResult>(MAT_DIALOG_DATA);
   readonly copied = signal(false);
-  async copy(): Promise<void> { await navigator.clipboard.writeText(this.data.temporaryPassword); this.copied.set(true); }
-  expiresLabel(): string { return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(this.data.expiresAt)); }
+  async copy(): Promise<void> { await navigator.clipboard.writeText(this.data.newPassword); this.copied.set(true); }
 }
 
 @Component({
@@ -209,7 +207,6 @@ export class ConfirmTeacherDialog {
 
 @Component({
   imports: [
-    DatePipe,
     MatButtonModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -230,10 +227,9 @@ export class TeachersPage implements OnInit {
   private readonly service = inject(TeachersService);
   private readonly dialog = inject(MatDialog);
 
-  readonly displayedColumns = ['teacher', 'nip', 'whatsapp', 'status', 'password', 'actions'];
+  readonly displayedColumns = ['teacher', 'nip', 'whatsapp', 'status', 'actions'];
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly statusControl = new FormControl<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL', { nonNullable: true });
-  readonly passwordControl = new FormControl<'ALL' | 'TEMPORARY' | 'CHANGED'>('ALL', { nonNullable: true });
   readonly teachers = signal<Teacher[]>([]);
   readonly loading = signal(true);
   readonly errorMessage = signal('');
@@ -259,7 +255,6 @@ export class TeachersPage implements OnInit {
       const result = await this.service.list({
         ...(search ? { search } : {}),
         ...(this.statusControl.value === 'ALL' ? {} : { isActive: this.statusControl.value === 'ACTIVE' }),
-        ...(this.passwordControl.value === 'ALL' ? {} : { mustChangePassword: this.passwordControl.value === 'TEMPORARY' }),
         page: page.page,
         pageSize: page.pageSize,
       });

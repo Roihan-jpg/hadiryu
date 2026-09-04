@@ -1,69 +1,91 @@
-type UpstreamFetch = (request: Request) => Promise<Response>;
+import { httpServerHandler } from 'cloudflare:node';
+import { env } from 'cloudflare:workers';
 
-type WorkerEnvironment = {
-  API_ORIGIN?: string;
-  ASSETS: {
-    fetch(request: Request): Promise<Response>;
-  };
+import { createApp } from '../apps/api/src/app.js';
+import { createAdminAttendanceService } from '../apps/api/src/admin-attendance.js';
+import { createAttendanceService } from '../apps/api/src/attendance.js';
+import { createAuditLogService } from '../apps/api/src/audit-logs.js';
+import { createEarlyDepartureRequestService } from '../apps/api/src/early-departure-requests.js';
+import { createExcelExportService } from '../apps/api/src/excel-export.js';
+import { createLeaveRequestService } from '../apps/api/src/leave-requests.js';
+import { createMonthlyReportService } from '../apps/api/src/monthly-report.js';
+import { createStructuredLogger } from '../apps/api/src/observability.js';
+import { SupabaseProfileService } from '../apps/api/src/profile.js';
+import { SupabaseRequestAttachmentService } from '../apps/api/src/request-attachments.js';
+import { SupabaseAdminAttendanceRepository } from '../apps/api/src/supabase-admin-attendance.js';
+import { SupabaseAttendanceRepository } from '../apps/api/src/supabase-attendance.js';
+import { SupabaseAuditLogRepository } from '../apps/api/src/supabase-audit-logs.js';
+import { SupabaseAuthService, type SupabaseAuthConfig } from '../apps/api/src/supabase-auth.js';
+import { SupabaseEarlyDepartureRequestRepository } from '../apps/api/src/supabase-early-departure-requests.js';
+import { SupabaseExcelExportAuditRepository } from '../apps/api/src/supabase-excel-export.js';
+import { SupabaseLeaveRequestRepository } from '../apps/api/src/supabase-leave-requests.js';
+import { SupabaseMonthlyReportRepository } from '../apps/api/src/supabase-monthly-report.js';
+import { SupabaseSettingsService } from '../apps/api/src/supabase-settings.js';
+import { SupabaseTeacherService } from '../apps/api/src/supabase-teachers.js';
+import reportTemplate from '../report-template.xlsx';
+import { isApiRequest } from './routing.js';
+
+interface WorkerBindings {
+  ASSETS: { fetch(request: Request): Promise<Response> };
+  SUPABASE_URL: string;
+  SUPABASE_SECRET_KEY: string;
+}
+
+const bindings = env as unknown as WorkerBindings;
+const supabaseConfig: SupabaseAuthConfig = {
+  url: bindings.SUPABASE_URL,
+  publishableKey: 'server-only',
+  secretKey: bindings.SUPABASE_SECRET_KEY,
 };
+const authService = new SupabaseAuthService(supabaseConfig);
+const teacherService = new SupabaseTeacherService(supabaseConfig);
+const settingsService = new SupabaseSettingsService(supabaseConfig);
+const attendanceService = createAttendanceService(new SupabaseAttendanceRepository(supabaseConfig));
+const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
+const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
+const leaveRequestService = createLeaveRequestService(
+  new SupabaseLeaveRequestRepository(supabaseConfig), undefined, requestAttachmentService,
+);
+const earlyDepartureRequestService = createEarlyDepartureRequestService(
+  new SupabaseEarlyDepartureRequestRepository(supabaseConfig), undefined, requestAttachmentService,
+);
+const adminAttendanceService = createAdminAttendanceService(
+  new SupabaseAdminAttendanceRepository(supabaseConfig),
+);
+const monthlyReportService = createMonthlyReportService(
+  new SupabaseMonthlyReportRepository(supabaseConfig),
+);
+const excelExportService = createExcelExportService(
+  monthlyReportService,
+  new SupabaseExcelExportAuditRepository(supabaseConfig),
+  { loadTemplate: async () => new Uint8Array(reportTemplate) },
+);
 
-function unavailableResponse(status: number): Response {
-  return Response.json(
-    {
-      error: {
-        code: 'API_UNAVAILABLE',
-        message: 'Backend sementara belum terhubung',
-      },
-    },
-    { status },
-  );
-}
+createApp({
+  adminAttendanceService,
+  attendanceService,
+  authService,
+  settingsService,
+  teacherService,
+  leaveRequestService,
+  earlyDepartureRequestService,
+  monthlyReportService,
+  excelExportService,
+  requestAttachmentService,
+  auditLogService,
+  profileService: new SupabaseProfileService(supabaseConfig),
+  logger: createStructuredLogger(),
+  secureCookies: true,
+  security: { production: true },
+}).listen(3000);
 
-function resolveApiOrigin(value: string | undefined): URL | undefined {
-  if (!value) return undefined;
-
-  try {
-    const origin = new URL(value);
-    if (origin.protocol !== 'http:' && origin.protocol !== 'https:') {
-      return undefined;
-    }
-    return origin;
-  } catch {
-    return undefined;
-  }
-}
-
-export async function proxyApiRequest(
-  request: Request,
-  apiOrigin: string | undefined,
-  upstreamFetch: UpstreamFetch = fetch,
-): Promise<Response> {
-  const origin = resolveApiOrigin(apiOrigin);
-  if (!origin) return unavailableResponse(503);
-
-  const incomingUrl = new URL(request.url);
-  const upstreamUrl = new URL(
-    `${incomingUrl.pathname}${incomingUrl.search}`,
-    origin,
-  );
-
-  try {
-    return await upstreamFetch(new Request(upstreamUrl, request));
-  } catch {
-    return unavailableResponse(502);
-  }
-}
-
-function isApiRequest(pathname: string): boolean {
-  return pathname === '/api' || pathname.startsWith('/api/');
-}
+const apiHandler = httpServerHandler({ port: 3000 });
 
 export default {
-  async fetch(request: Request, env: WorkerEnvironment): Promise<Response> {
+  fetch(request: Request, workerEnv: WorkerBindings, context: ExecutionContext): Promise<Response> {
     if (isApiRequest(new URL(request.url).pathname)) {
-      return proxyApiRequest(request, env.API_ORIGIN);
+      return apiHandler.fetch(request, workerEnv, context);
     }
-
-    return env.ASSETS.fetch(request);
+    return workerEnv.ASSETS.fetch(request);
   },
 };

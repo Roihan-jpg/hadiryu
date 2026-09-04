@@ -28,7 +28,7 @@ const teacher: Teacher = {
   fullName: 'Guru Contoh',
   whatsappNumber: null,
   isActive: true,
-  mustChangePassword: true,
+  mustChangePassword: false,
   temporaryPasswordExpiresAt: null,
   createdAt: '2026-08-25T01:00:00.000Z',
   updatedAt: '2026-08-25T01:00:00.000Z',
@@ -100,15 +100,13 @@ class FakeTeacherService implements TeacherService {
 
   async resetPassword(): Promise<PasswordResetResult> {
     this.action = 'reset-password';
-    const expiresAt = '2026-08-28T01:00:00.000Z';
     return {
       teacher: {
         ...teacher,
-        mustChangePassword: true,
-        temporaryPasswordExpiresAt: expiresAt,
+        mustChangePassword: false,
+        temporaryPasswordExpiresAt: null,
       },
-      temporaryPassword: 'AG-vA7Qm2pR-2026',
-      expiresAt,
+      newPassword: 'Baru1234',
     };
   }
 }

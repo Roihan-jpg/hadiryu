@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 
 import { createApp } from './app.js';
 import {
@@ -23,6 +24,7 @@ import { createStructuredLogger } from './observability.js';
 import { SupabaseRequestAttachmentService } from './request-attachments.js';
 import { createAuditLogService } from './audit-logs.js';
 import { SupabaseAuditLogRepository } from './supabase-audit-logs.js';
+import { SupabaseProfileService } from './profile.js';
 
 function commaSeparated(value: string | undefined): string[] {
   return (value ?? '')
@@ -50,6 +52,7 @@ const attendanceService = createAttendanceService(
 );
 const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
 const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
+const profileService = new SupabaseProfileService(supabaseConfig);
 const leaveRequestService = createLeaveRequestService(
   new SupabaseLeaveRequestRepository(supabaseConfig),
   undefined,
@@ -70,9 +73,9 @@ const excelExportService = createExcelExportService(
   monthlyReportService,
   new SupabaseExcelExportAuditRepository(supabaseConfig),
   {
-    templatePath: fileURLToPath(
+    loadTemplate: () => readFile(fileURLToPath(
       new URL('../../../report-template.xlsx', import.meta.url),
-    ),
+    )),
   },
 );
 const secureCookies =
@@ -94,6 +97,7 @@ createApp({
   excelExportService,
   requestAttachmentService,
   auditLogService,
+  profileService,
   logger,
   secureCookies,
   security: {

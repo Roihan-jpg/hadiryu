@@ -39,9 +39,8 @@ describe('TeachersPage', () => {
   const update = vi.fn(async () => teacher);
   const setActive = vi.fn(async () => ({ ...teacher, isActive: false }));
   const resetPassword = vi.fn(async () => ({
-    teacher: { ...teacher, mustChangePassword: true, temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z' },
-    temporaryPassword: 'AG-random-value-9aA',
-    expiresAt: '2026-08-28T01:00:00.000Z',
+    teacher,
+    newPassword: 'Baru1234',
   }));
   const open = vi.fn(() => ({
     afterClosed: (): Observable<unknown> => of(undefined),

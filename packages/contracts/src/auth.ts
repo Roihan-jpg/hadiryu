@@ -13,29 +13,36 @@ export const NipSchema = z
     'NIP hanya boleh berisi huruf, angka, titik, garis bawah, atau tanda hubung',
   );
 
-const ExistingPasswordSchema = z
+export const PasswordSchema = z
   .string()
-  .min(1, 'Password wajib diisi')
-  .max(128, 'Password maksimal 128 karakter');
+  .length(8, 'Password wajib tepat 8 karakter')
+  .regex(/^[A-Za-z0-9]+$/, 'Password hanya boleh berisi huruf dan angka')
+  .regex(/[A-Z]/, 'Password wajib memiliki huruf kapital')
+  .regex(/[a-z]/, 'Password wajib memiliki huruf kecil')
+  .regex(/[0-9]/, 'Password wajib memiliki angka');
 
-export const NewPasswordSchema = z
-  .string()
-  .min(8, 'Password baru minimal 8 karakter')
-  .max(128, 'Password baru maksimal 128 karakter');
+export const NewPasswordSchema = PasswordSchema;
 
 export const LoginRequestSchema = z.strictObject({
   nip: NipSchema,
-  password: ExistingPasswordSchema,
+  password: PasswordSchema,
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
 export const ChangePasswordRequestSchema = z.strictObject({
-  currentPassword: ExistingPasswordSchema,
+  currentPassword: PasswordSchema,
   newPassword: NewPasswordSchema,
 });
 export type ChangePasswordRequest = z.infer<
   typeof ChangePasswordRequestSchema
 >;
+
+export const ProfilePhotoMetadataSchema = z.strictObject({
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  sizeBytes: z.number().int().min(1).max(2 * 1024 * 1024),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type ProfilePhotoMetadata = z.infer<typeof ProfilePhotoMetadataSchema>;
 
 export const AuthUserSchema = z.strictObject({
   id: z.uuid(),
@@ -43,7 +50,8 @@ export const AuthUserSchema = z.strictObject({
   fullName: z.string().trim().min(1).max(200),
   role: UserRoleSchema,
   isActive: z.boolean(),
-  mustChangePassword: z.boolean(),
+  photo: ProfilePhotoMetadataSchema.nullable().optional(),
+  mustChangePassword: z.boolean().optional(),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 

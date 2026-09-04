@@ -33,7 +33,6 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   const teacherInitialPassword = requiredEnvironment(
     'E2E_TEACHER_INITIAL_PASSWORD',
   );
-  const teacherPassword = requiredEnvironment('E2E_TEACHER_PASSWORD');
   const earlyTeacherNip = requiredEnvironment('E2E_EARLY_TEACHER_NIP');
   const earlyTeacherInitialPassword = requiredEnvironment(
     'E2E_EARLY_TEACHER_INITIAL_PASSWORD',
@@ -110,11 +109,8 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     `/api/admin/teachers/${teacher.teacher.id}/reset-password`,
     {},
   ));
-  expect(reset.expiresAt).toBe(reset.teacher.temporaryPasswordExpiresAt);
-
   await logout(page);
-  await login(page, teacherNip, reset.temporaryPassword);
-  await changeInitialPassword(page, reset.temporaryPassword, teacherPassword);
+  await login(page, teacherNip, reset.newPassword);
   await expect(page.getByRole('heading', { name: /Hari ini, Guru Smoke E2E/ })).toBeVisible();
   await expect(page.locator('app-teacher-location-map')).toHaveCount(0);
   await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();

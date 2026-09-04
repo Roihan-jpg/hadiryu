@@ -16,9 +16,8 @@ import {
   type AppLogger,
 } from './observability.js';
 
-export const ACCESS_COOKIE_NAME = 'absensi_access';
+export const ACCESS_COOKIE_NAME = 'absensi_session';
 export const REFRESH_COOKIE_NAME = 'absensi_refresh';
-const REFRESH_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
 
 export interface SessionResult {
   user: AuthUser;
@@ -81,27 +80,15 @@ function setSessionCookies(
   secure: boolean,
 ): void {
   response.cookie(ACCESS_COOKIE_NAME, session.accessToken, {
-    ...cookieOptions(secure, '/api'),
+    ...cookieOptions(secure, '/'),
     maxAge: session.expiresIn * 1000,
   });
-  response.cookie(
-    REFRESH_COOKIE_NAME,
-    session.refreshToken,
-    {
-      ...cookieOptions(secure, '/api/auth'),
-      maxAge: REFRESH_COOKIE_MAX_AGE_MS,
-    },
-  );
 }
 
 function clearSessionCookies(response: Response, secure: boolean): void {
   response.clearCookie(
     ACCESS_COOKIE_NAME,
-    cookieOptions(secure, '/api'),
-  );
-  response.clearCookie(
-    REFRESH_COOKIE_NAME,
-    cookieOptions(secure, '/api/auth'),
+    cookieOptions(secure, '/'),
   );
 }
 
@@ -206,21 +193,6 @@ export function registerAuthRoutes(
     }
   });
 
-  app.post('/api/auth/refresh', async (request, response, next) => {
-    try {
-      const refreshToken = cookies(request)[REFRESH_COOKIE_NAME];
-      if (!refreshToken) {
-        throw new AppError(401, 'AUTH_REQUIRED', 'Refresh token tidak tersedia');
-      }
-      const session = await authService.refresh(refreshToken);
-      setSessionCookies(response, session, secure);
-      response.status(200).json({ user: session.user } satisfies AuthResponse);
-    } catch (error) {
-      clearSessionCookies(response, secure);
-      next(error);
-    }
-  });
-
   app.get('/api/auth/me', sessionGuard, (_request, response) => {
     const authUser = response.locals['authUser'] as AuthUser;
     response.status(200).json({ user: authUser } satisfies AuthResponse);
@@ -243,7 +215,7 @@ export function registerAuthRoutes(
         const requestCookies = cookies(request);
         const session = await authService.changePassword(
           requestCookies[ACCESS_COOKIE_NAME]!,
-          requestCookies[REFRESH_COOKIE_NAME] ?? '',
+          '',
           parsed.data,
         );
         setSessionCookies(response, session, secure);
@@ -261,7 +233,7 @@ export function registerAuthRoutes(
     try {
       await authService.logout(
         requestCookies[ACCESS_COOKIE_NAME],
-        requestCookies[REFRESH_COOKIE_NAME],
+        undefined,
       );
     } catch {
       // Logout remains idempotent even if the upstream session already expired.

@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names api,web \"npm run dev --workspace @absensi/api\" \"npm run dev --workspace @absensi/web\"",
     "bootstrap:super-admin": "npm run bootstrap:super-admin --workspace @absensi/api",
+    "prepare:app-accounts": "npm run prepare:app-accounts --workspace @absensi/api",
     "db:link:hosted": "node scripts/supabase-hosted.mjs link",
     "db:deploy:hosted": "node scripts/supabase-hosted.mjs deploy",
     "db:advisors:hosted": "node scripts/supabase-hosted.mjs advisors",

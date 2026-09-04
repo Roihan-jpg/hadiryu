@@ -29,20 +29,18 @@ describe('teacher contracts', () => {
     expect(
       ListTeachersQuerySchema.parse({
         isActive: 'true',
-        mustChangePassword: 'false',
       }),
     ).toEqual({
       page: 1,
       pageSize: 20,
       isActive: true,
-      mustChangePassword: false,
     });
 
     expect(
       CreateTeacherRequestSchema.parse({
         nip: '19870001',
         fullName: 'Guru Baru',
-        initialPassword: 'Sementara-123',
+        initialPassword: 'Guru1234',
         whatsappNumber: '  +628123456789  ',
       }).whatsappNumber,
     ).toBe('+628123456789');
@@ -50,7 +48,7 @@ describe('teacher contracts', () => {
       CreateTeacherRequestSchema.safeParse({
         nip: '19870001',
         fullName: 'Guru Baru',
-        initialPassword: 'Sementara-123',
+        initialPassword: 'Guru1234',
         whatsappNumber: '08123456789',
       }).success,
     ).toBe(false);
@@ -60,7 +58,7 @@ describe('teacher contracts', () => {
     const result = CreateTeacherRequestSchema.safeParse({
       nip: '19870001',
       fullName: 'Guru Baru',
-      initialPassword: 'Sementara-123',
+      initialPassword: 'Guru1234',
       role: 'SUPER_ADMIN',
     });
 
@@ -93,8 +91,6 @@ describe('teacher contracts', () => {
           fullName: 'Guru Baru',
           whatsappNumber: null,
           isActive: true,
-          mustChangePassword: true,
-          temporaryPasswordExpiresAt: null,
           createdAt: '2026-08-25T01:00:00.000Z',
           updatedAt: '2026-08-25T01:00:00.000Z',
         },
@@ -113,13 +109,9 @@ describe('teacher contracts', () => {
 
     expect(
       PasswordResetResponseSchema.parse({
-        teacher: {
-          ...response.data[0],
-          temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z',
-        },
-        temporaryPassword: 'AG-2026-vA7Qm2pR',
-        expiresAt: '2026-08-28T01:00:00.000Z',
-      }).temporaryPassword,
-    ).toBe('AG-2026-vA7Qm2pR');
+        teacher: response.data[0],
+        newPassword: 'Baru1234',
+      }).newPassword,
+    ).toBe('Baru1234');
   });
 });
