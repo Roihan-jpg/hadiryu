@@ -1,14 +1,16 @@
 import {
+  PasswordResetResponseSchema,
   TeacherListResponseSchema,
   TeacherSchema,
   type CreateTeacherRequest,
   type ListTeachersQuery,
-  type ResetTeacherPasswordRequest,
+  type PasswordResetResult,
   type Teacher,
   type TeacherListResponse,
   type UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 import { AppError } from './auth.js';
@@ -22,15 +24,17 @@ const TeacherProfileRowSchema = z.strictObject({
   id: z.uuid(),
   nip: z.string(),
   full_name: z.string(),
+  whatsapp_number: z.string().nullable(),
   role: z.literal('USER'),
   is_active: z.boolean(),
   must_change_password: z.boolean(),
+  temporary_password_expires_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
 
 const PROFILE_FIELDS =
-  'id,nip,full_name,role,is_active,must_change_password,created_at,updated_at';
+  'id,nip,full_name,whatsapp_number,role,is_active,must_change_password,temporary_password_expires_at,created_at,updated_at';
 
 function clientOptions() {
   return {
@@ -48,8 +52,12 @@ function toTeacher(value: unknown): Teacher {
     id: row.id,
     nip: row.nip,
     fullName: row.full_name,
+    whatsappNumber: row.whatsapp_number,
     isActive: row.is_active,
     mustChangePassword: row.must_change_password,
+    temporaryPasswordExpiresAt: row.temporary_password_expires_at
+      ? new Date(row.temporary_password_expires_at).toISOString()
+      : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
@@ -59,10 +67,16 @@ function auditSnapshot(teacher: Teacher) {
   return {
     nip: teacher.nip,
     fullName: teacher.fullName,
+    whatsappNumber: teacher.whatsappNumber,
     role: 'USER' as const,
     isActive: teacher.isActive,
     mustChangePassword: teacher.mustChangePassword,
+    temporaryPasswordExpiresAt: teacher.temporaryPasswordExpiresAt,
   };
+}
+
+export function generateTemporaryPassword(): string {
+  return `AG-${randomBytes(12).toString('base64url')}-9aA`;
 }
 
 function isAuthIdentityConflict(code: string | undefined): boolean {
@@ -127,6 +141,12 @@ export class SupabaseTeacherService implements TeacherService {
         `nip.ilike.%${input.search}%,full_name.ilike.%${input.search}%`,
       );
     }
+    if (input.isActive !== undefined) {
+      query = query.eq('is_active', input.isActive);
+    }
+    if (input.mustChangePassword !== undefined) {
+      query = query.eq('must_change_password', input.mustChangePassword);
+    }
 
     const { data, error, count } = await query;
     if (error) {
@@ -183,9 +203,11 @@ export class SupabaseTeacherService implements TeacherService {
         id: teacherId,
         nip,
         full_name: input.fullName,
+        whatsapp_number: input.whatsappNumber ?? null,
         role: 'USER',
         is_active: true,
         must_change_password: true,
+        temporary_password_expires_at: null,
       })
       .select(PROFILE_FIELDS)
       .single();
@@ -238,7 +260,14 @@ export class SupabaseTeacherService implements TeacherService {
     const before = await this.loadTeacher(teacherId);
     const nextNip = input.nip?.toLowerCase() ?? before.nip;
     const nextFullName = input.fullName ?? before.fullName;
-    if (nextNip === before.nip && nextFullName === before.fullName) return before;
+    const nextWhatsappNumber = input.whatsappNumber === undefined
+      ? before.whatsappNumber
+      : input.whatsappNumber;
+    if (
+      nextNip === before.nip &&
+      nextFullName === before.fullName &&
+      nextWhatsappNumber === before.whatsappNumber
+    ) return before;
 
     if (nextNip !== before.nip) {
       const { data: duplicate, error } = await this.client
@@ -270,7 +299,11 @@ export class SupabaseTeacherService implements TeacherService {
 
     const { data: profile, error: profileError } = await this.client
       .from('profiles')
-      .update({ nip: nextNip, full_name: nextFullName })
+      .update({
+        nip: nextNip,
+        full_name: nextFullName,
+        whatsapp_number: nextWhatsappNumber,
+      })
       .eq('id', teacherId)
       .eq('role', 'USER')
       .select(PROFILE_FIELDS)
@@ -309,7 +342,11 @@ export class SupabaseTeacherService implements TeacherService {
     } catch (error) {
       const { error: profileRollbackError } = await this.client
         .from('profiles')
-        .update({ nip: before.nip, full_name: before.fullName })
+        .update({
+          nip: before.nip,
+          full_name: before.fullName,
+          whatsapp_number: before.whatsappNumber,
+        })
         .eq('id', teacherId);
       const { error: authRollbackError } =
         nextNip === before.nip
@@ -373,37 +410,40 @@ export class SupabaseTeacherService implements TeacherService {
   async resetPassword(
     actorId: string,
     teacherId: string,
-    input: ResetTeacherPasswordRequest,
-  ): Promise<Teacher> {
+  ): Promise<PasswordResetResult> {
     const before = await this.loadTeacher(teacherId);
-    if (!before.mustChangePassword) {
-      const { error: profileError } = await this.client
-        .from('profiles')
-        .update({ must_change_password: true })
-        .eq('id', teacherId)
-        .eq('role', 'USER');
-      if (profileError) {
-        throw new AppError(500, 'PASSWORD_RESET_FAILED', 'Profil Guru tidak dapat disiapkan');
-      }
+    const temporaryPassword = generateTemporaryPassword();
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const { error: profileError } = await this.client
+      .from('profiles')
+      .update({
+        must_change_password: true,
+        temporary_password_expires_at: expiresAt,
+      })
+      .eq('id', teacherId)
+      .eq('role', 'USER');
+    if (profileError) {
+      throw new AppError(500, 'PASSWORD_RESET_FAILED', 'Profil Guru tidak dapat disiapkan');
     }
 
     const { error: authError } = await this.client.auth.admin.updateUserById(
       teacherId,
-      { password: input.temporaryPassword },
+      { password: temporaryPassword },
     );
     if (authError) {
-      if (!before.mustChangePassword) {
-        const { error: rollbackError } = await this.client
-          .from('profiles')
-          .update({ must_change_password: false })
-          .eq('id', teacherId);
-        if (rollbackError) {
-          throw new AppError(
-            500,
-            'TEACHER_CONSISTENCY_FAILED',
-            'Reset password gagal dan membutuhkan pemulihan manual',
-          );
-        }
+      const { error: rollbackError } = await this.client
+        .from('profiles')
+        .update({
+          must_change_password: before.mustChangePassword,
+          temporary_password_expires_at: before.temporaryPasswordExpiresAt,
+        })
+        .eq('id', teacherId);
+      if (rollbackError) {
+        throw new AppError(
+          500,
+          'TEACHER_CONSISTENCY_FAILED',
+          'Reset password gagal dan membutuhkan pemulihan manual',
+        );
       }
       throw new AppError(422, 'PASSWORD_RESET_FAILED', 'Password sementara tidak dapat digunakan');
     }
@@ -416,6 +456,10 @@ export class SupabaseTeacherService implements TeacherService {
       auditSnapshot(before),
       auditSnapshot(after),
     );
-    return after;
+    return PasswordResetResponseSchema.parse({
+      teacher: after,
+      temporaryPassword,
+      expiresAt,
+    });
   }
 }

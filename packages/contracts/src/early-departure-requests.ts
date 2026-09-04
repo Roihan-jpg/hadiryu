@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { LocationInputSchema } from './attendance.js';
 import { LocalDateSchema } from './settings.js';
 import { PaginationSchema } from './teachers.js';
+import { RequestAttachmentMetadataSchema } from './request-attachments.js';
 
 export const EarlyDepartureStatusSchema = z.enum([
   'PENDING',
@@ -25,6 +26,7 @@ const EarlyDepartureRequestBaseSchema = z.strictObject({
   workDate: LocalDateSchema,
   requestedAt: z.iso.datetime({ offset: true }),
   reason: ReasonSchema,
+  attachment: RequestAttachmentMetadataSchema.nullable().optional(),
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),
   accuracyMeters: z.number().finite().nonnegative(),
@@ -80,9 +82,25 @@ export const AdminEarlyDepartureRequestSchema =
   EarlyDepartureRequestBaseSchema.extend({
     teacherNip: z.string().trim().min(1),
     teacherFullName: z.string().trim().min(1),
+    teacherWhatsappNumber: z.string().nullable().optional(),
   }).superRefine(validateDecisionState);
 export type AdminEarlyDepartureRequest = z.infer<
   typeof AdminEarlyDepartureRequestSchema
+>;
+
+export const AttendanceTimelineEventSchema = z.strictObject({
+  type: z.enum(['CHECK_IN', 'REQUESTED', 'CHECKOUT', 'DECIDED']),
+  timestamp: z.iso.datetime({ offset: true }),
+  label: z.string().trim().min(1).max(200),
+});
+export type AttendanceTimelineEvent = z.infer<typeof AttendanceTimelineEventSchema>;
+
+export const AdminEarlyDepartureRequestDetailResponseSchema = z.strictObject({
+  earlyDepartureRequest: AdminEarlyDepartureRequestSchema,
+  attendanceTimeline: z.array(AttendanceTimelineEventSchema),
+});
+export type AdminEarlyDepartureRequestDetailResponse = z.infer<
+  typeof AdminEarlyDepartureRequestDetailResponseSchema
 >;
 
 export const ListAdminEarlyDepartureRequestsQuerySchema =

@@ -11,6 +11,7 @@ import {
   createLeaveRequestService,
   type LeaveRequestRepository,
 } from './leave-requests.js';
+import type { RequestAttachmentStorage } from './request-attachments.js';
 
 const teacherId = '50000000-0000-4000-8000-000000000001';
 const adminId = '50000000-0000-4000-8000-000000000002';
@@ -88,6 +89,40 @@ describe('leave request service', () => {
     });
     expect(result).toMatchObject({ teacherId, leaveType: 'FAMILY', status: 'PENDING' });
     expect(repository.saved).toMatchObject({ leaveDate: '2026-08-26' });
+  });
+
+  it('removes an uploaded attachment when creating the database record fails', async () => {
+    const repository = new FakeLeaveRepository();
+    repository.create = async () => { throw new Error('database unavailable'); };
+    const removed: string[] = [];
+    const attachmentStorage: RequestAttachmentStorage = {
+      async upload() {
+        return {
+          storagePath: `${teacherId}/leave/40000000-0000-4000-8000-000000000010.pdf`,
+          originalName: 'bukti.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 8,
+        };
+      },
+      async remove(storagePath) { removed.push(storagePath); },
+    };
+    const leaveService = createLeaveRequestService(
+      repository,
+      () => new Date('2026-08-25T05:00:00.000Z'),
+      attachmentStorage,
+    );
+
+    await expect(leaveService.create(teacherId, {
+      leaveDate: '2026-08-26', leaveType: 'SICK', reason: 'Perlu berobat',
+    }, {
+      originalName: 'bukti.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 8,
+      buffer: Buffer.from('%PDF-1.7'),
+    })).rejects.toThrowError('database unavailable');
+    expect(removed).toEqual([
+      `${teacherId}/leave/40000000-0000-4000-8000-000000000010.pdf`,
+    ]);
   });
 
   it('rejects past dates, requests after work ends, and dates with check-in', async () => {

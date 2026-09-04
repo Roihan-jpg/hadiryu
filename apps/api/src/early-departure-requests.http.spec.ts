@@ -70,6 +70,12 @@ class FakeService implements EarlyDepartureRequestService {
       pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
     };
   }
+  async getAdmin() {
+    return {
+      earlyDepartureRequest: { ...pending, teacherNip: teacher.nip, teacherFullName: teacher.fullName },
+      attendanceTimeline: [],
+    };
+  }
   async approve(actorId: string) {
     this.approvedBy = actorId;
     return { ...pending, status: 'APPROVED' as const, decidedBy: actorId, decidedAt: pending.createdAt };

@@ -125,6 +125,7 @@ describe('SupabaseAuthService integration', () => {
     role: 'USER' | 'SUPER_ADMIN';
     isActive?: boolean;
     mustChangePassword?: boolean;
+    temporaryPasswordExpiresAt?: string | null;
     password?: string;
   }) {
     const nip = `t03-${options.role.toLowerCase()}-${randomUUID()}`;
@@ -144,6 +145,7 @@ describe('SupabaseAuthService integration', () => {
       role: options.role,
       is_active: options.isActive ?? true,
       must_change_password: options.mustChangePassword ?? true,
+      temporary_password_expires_at: options.temporaryPasswordExpiresAt ?? null,
     });
     if (profileError) throw profileError;
     return { nip, password, id: data.user.id };
@@ -208,6 +210,18 @@ describe('SupabaseAuthService integration', () => {
     } satisfies Partial<AppError>);
   });
 
+  it('rejects an expired temporary password before issuing an application session', async () => {
+    const expired = await createAccount({
+      role: 'USER',
+      mustChangePassword: true,
+      temporaryPasswordExpiresAt: '2020-01-01T00:00:00.000Z',
+    });
+
+    await expect(authService.login(expired)).rejects.toMatchObject({
+      code: 'TEMPORARY_PASSWORD_EXPIRED',
+    } satisfies Partial<AppError>);
+  });
+
   it('changes the initial password and removes the first-login restriction', async () => {
     const account = await createAccount({ role: 'USER' });
     const initialSession = await authService.login(account);
@@ -220,6 +234,12 @@ describe('SupabaseAuthService integration', () => {
     );
 
     expect(changed.user.mustChangePassword).toBe(false);
+    const { data: profile } = await serviceClient
+      .from('profiles')
+      .select('temporary_password_expires_at')
+      .eq('id', account.id)
+      .single();
+    expect(profile?.temporary_password_expires_at).toBeNull();
     await expect(
       authService.login({ nip: account.nip, password: newPassword }),
     ).resolves.toMatchObject({ user: { mustChangePassword: false } });

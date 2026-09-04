@@ -51,6 +51,11 @@ import {
   resolveSecurityConfig,
   type SecurityConfig,
 } from './security.js';
+import {
+  registerRequestAttachmentRoutes,
+  type SupabaseRequestAttachmentService,
+} from './request-attachments.js';
+import { registerAuditLogRoutes, type AuditLogService } from './audit-logs.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -62,6 +67,8 @@ export interface CreateAppOptions {
   adminAttendanceService?: AdminAttendanceService;
   monthlyReportService?: MonthlyReportService;
   excelExportService?: ExcelExportService;
+  requestAttachmentService?: SupabaseRequestAttachmentService;
+  auditLogService?: AuditLogService;
   secureCookies?: boolean;
   logger?: AppLogger;
   security?: Partial<SecurityConfig>;
@@ -148,6 +155,7 @@ const unavailableLeaveRequestService: LeaveRequestService = {
   async listOwn() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
   async cancel() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
   async listAdmin() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
+  async getAdmin() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
   async approve() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
   async reject() { throw new AppError(500, 'LEAVE_NOT_CONFIGURED', 'Izin belum dikonfigurasi'); },
 };
@@ -156,6 +164,7 @@ const unavailableEarlyDepartureRequestService: EarlyDepartureRequestService = {
   async create() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
   async listOwn() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
   async listAdmin() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
+  async getAdmin() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
   async approve() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
   async reject() { throw new AppError(500, 'EARLY_DEPARTURE_NOT_CONFIGURED', 'Pulang awal belum dikonfigurasi'); },
 };
@@ -194,6 +203,12 @@ const unavailableExcelExportService: ExcelExportService = {
       'EXCEL_EXPORT_NOT_CONFIGURED',
       'Ekspor Excel belum dikonfigurasi',
     );
+  },
+};
+
+const unavailableAuditLogService: AuditLogService = {
+  async list() {
+    throw new AppError(500, 'AUDIT_NOT_CONFIGURED', 'Audit log belum dikonfigurasi');
   },
 };
 
@@ -281,6 +296,18 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.excelExportService ?? unavailableExcelExportService,
+  );
+  if (options.requestAttachmentService) {
+    registerRequestAttachmentRoutes(
+      app,
+      options.authService ?? unavailableAuthService,
+      options.requestAttachmentService,
+    );
+  }
+  registerAuditLogRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.auditLogService ?? unavailableAuditLogService,
   );
   app.use(createNotFoundHandler());
   app.use(createAuthErrorHandler(logger));

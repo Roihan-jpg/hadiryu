@@ -182,3 +182,67 @@ app-settings-page {
     }
   }
 }
+
+.admin-shell {
+  --mdc-filled-button-container-color: #477f79;
+  --mdc-filled-button-label-text-color: #ffffff;
+  --mdc-outlined-button-label-text-color: #477f79;
+  --mdc-text-button-label-text-color: #477f79;
+  --mat-select-focused-arrow-color: #477f79;
+
+  :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline-color: #477f79;
+    box-shadow: 0 0 0 4px #b9dcd7;
+  }
+
+  .page-shell {
+    width: min(100% - 48px, 1180px);
+    margin: 0 auto;
+    padding: 42px 0 64px;
+  }
+
+  h1 { color: #34413e; font-size: clamp(1.65rem, 3vw, 2.25rem); letter-spacing: -.035em; }
+  h2, h3 { color: #34413e; }
+  table { font-variant-numeric: tabular-nums; }
+
+  .feedback { padding: 11px 14px; border-radius: 6px; font-size: 13px; }
+  .feedback.error { color: #8b3535; background: #fcedeb; border: 1px solid #ebc9c5; }
+  .feedback.success { color: #35665f; background: #eaf3ef; border: 1px solid #c8ddd8; }
+
+  .admin-panel {
+    background: #fffdf9;
+    border: 1px solid #e8e0d6;
+    border-radius: 8px;
+  }
+
+  .mat-mdc-unelevated-button:not(:disabled) { background: #477f79; color: #fff; }
+  .mat-mdc-unelevated-button:not(:disabled):hover { background: #5d9f98; }
+  .mat-mdc-outlined-button:not(:disabled), .mat-mdc-button:not(:disabled) { color: #477f79; }
+
+  .status-pill { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .status-pill.pending { color: #8a672a; background: #f7eed6; }
+  .status-pill.approved, .status-pill.active { color: #35665f; background: #e5f1ed; }
+  .status-pill.rejected, .status-pill.inactive { color: #8b3535; background: #f5e5e2; }
+}
+
+.admin-side-sheet .mat-mdc-dialog-surface { border-radius: 8px 0 0 8px !important; background: #fffdf9 !important; }
+
+.admin-shell .school-identity { display: grid; gap: 2px; margin: 18px 8px 12px; padding: 12px; background: #f4eee6; border-radius: 6px; }
+.admin-shell .school-identity small { color: #74817d; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.admin-shell .school-identity strong { font-size: 12px; }
+.admin-shell .school-identity span { color: #74817d; font-size: 11px; }
+.admin-shell .admin-account { display: flex; align-items: center; gap: 9px; margin-top: auto; padding: 16px 8px 0; border-top: 1px solid #e8e0d6; }
+.admin-shell .admin-account > span:nth-child(2) { flex: 1; }
+.admin-shell .admin-account strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-shell .avatar { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; color: #fff; background: #477f79; border-radius: 50%; font-size: 10px; font-weight: 800; }
+.admin-shell .settings-tabs { display: flex; gap: 4px; margin: 24px 0 14px; padding: 4px; overflow-x: auto; background: #f4eee6; border-radius: 7px; }
+.admin-shell .settings-tabs button { min-width: 110px; min-height: 36px; padding: 0 14px; color: #74817d; background: transparent; border: 0; border-radius: 5px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.admin-shell .settings-tabs button[aria-selected='true'] { color: #477f79; background: #fffdf9; box-shadow: 0 1px 3px rgb(52 65 62 / 8%); }
+.admin-shell .tab-summary .setting-section { display: none; }
+.admin-shell .tab-schedule .resolved-section, .admin-shell .tab-schedule .geofence-tab, .admin-shell .tab-schedule .calendar-tab { display: none; }
+.admin-shell .tab-geofence .resolved-section, .admin-shell .tab-geofence .schedule-tab, .admin-shell .tab-geofence .calendar-tab { display: none; }
+.admin-shell .tab-calendar .resolved-section, .admin-shell .tab-calendar .schedule-tab, .admin-shell .tab-calendar .geofence-tab { display: none; }
+
+@media (max-width: 600px) {
+  .admin-shell .page-shell { width: min(100% - 28px, 1180px); padding-top: 26px; }
+}

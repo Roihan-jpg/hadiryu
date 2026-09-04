@@ -192,7 +192,11 @@ export class AdminDashboardPage implements OnInit {
     if (!record.attendanceId || this.noteInProgress()) return;
     const reference = this.dialog.open(AttendanceNoteDialog, {
       data: { teacherFullName: record.teacherFullName },
-      width: '38rem',
+      width: 'min(28rem, 100vw)',
+      maxWidth: '100vw',
+      height: '100dvh',
+      position: { right: '0', top: '0' },
+      panelClass: 'admin-side-sheet',
     });
     reference
       .afterClosed()

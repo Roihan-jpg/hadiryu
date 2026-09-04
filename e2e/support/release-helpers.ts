@@ -66,7 +66,7 @@ export async function changeInitialPassword(
 }
 
 export async function logout(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Keluar', exact: true }).click();
+  await page.getByRole('button', { name: /^Keluar/ }).click();
   await expect(page).toHaveURL(/\/login$/);
 }
 

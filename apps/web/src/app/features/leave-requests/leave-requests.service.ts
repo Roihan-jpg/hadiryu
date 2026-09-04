@@ -6,6 +6,7 @@ import type {
   ListAdminLeaveRequestsQuery,
   ListLeaveRequestsQuery,
   CreateLeaveRequest,
+  AdminLeaveRequestDetailResponse,
 } from '@absensi/contracts';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
@@ -23,10 +24,17 @@ export class LeaveRequestsService {
     return LeaveRequestListResponseSchema.parse(value);
   }
 
-  async create(input: CreateLeaveRequest): Promise<LeaveRequest> {
-    const value = await firstValueFrom(this.http.post<unknown>('/api/leave-requests', input, { withCredentials: true }));
+  async create(input: CreateLeaveRequest, attachment?: File): Promise<LeaveRequest> {
+    const body: CreateLeaveRequest | FormData = attachment ? this.formData(input, attachment) : input;
+    const value = await firstValueFrom(this.http.post<unknown>('/api/leave-requests', body, { withCredentials: true }));
     const { LeaveRequestResponseSchema } = await import('@absensi/contracts');
     return LeaveRequestResponseSchema.parse(value).leaveRequest;
+  }
+
+  async getAdmin(id: string): Promise<AdminLeaveRequestDetailResponse> {
+    const value = await firstValueFrom(this.http.get<unknown>(`/api/admin/leave-requests/${id}`, { withCredentials: true }));
+    const { AdminLeaveRequestDetailResponseSchema } = await import('@absensi/contracts');
+    return AdminLeaveRequestDetailResponseSchema.parse(value);
   }
 
   async cancel(id: string): Promise<LeaveRequest> {
@@ -50,5 +58,9 @@ export class LeaveRequestsService {
     const value = await firstValueFrom(this.http.post<unknown>(`/api/admin/leave-requests/${id}/${endpoint}`, input ?? {}, { withCredentials: true }));
     const { LeaveRequestResponseSchema } = await import('@absensi/contracts');
     return LeaveRequestResponseSchema.parse(value).leaveRequest;
+  }
+
+  private formData(input: CreateLeaveRequest, attachment: File): FormData {
+    const data = new FormData(); data.set('payload', JSON.stringify(input)); data.set('attachment', attachment); return data;
   }
 }

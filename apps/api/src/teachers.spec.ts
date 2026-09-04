@@ -2,7 +2,7 @@ import type {
   AuthUser,
   CreateTeacherRequest,
   ListTeachersQuery,
-  ResetTeacherPasswordRequest,
+  PasswordResetResult,
   Teacher,
   UpdateTeacherRequest,
 } from '@absensi/contracts';
@@ -26,8 +26,10 @@ const teacher: Teacher = {
   id: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
   nip: '19870001',
   fullName: 'Guru Contoh',
+  whatsappNumber: null,
   isActive: true,
   mustChangePassword: true,
+  temporaryPasswordExpiresAt: null,
   createdAt: '2026-08-25T01:00:00.000Z',
   updatedAt: '2026-08-25T01:00:00.000Z',
 };
@@ -58,7 +60,6 @@ class FakeTeacherService implements TeacherService {
   listInput?: ListTeachersQuery;
   createInput?: CreateTeacherRequest;
   updateInput?: UpdateTeacherRequest;
-  resetInput?: ResetTeacherPasswordRequest;
   action?: string;
 
   async list(input: ListTeachersQuery) {
@@ -97,14 +98,18 @@ class FakeTeacherService implements TeacherService {
     return { ...teacher, isActive };
   }
 
-  async resetPassword(
-    _actorId: string,
-    _teacherId: string,
-    input: ResetTeacherPasswordRequest,
-  ) {
+  async resetPassword(): Promise<PasswordResetResult> {
     this.action = 'reset-password';
-    this.resetInput = input;
-    return { ...teacher, mustChangePassword: true };
+    const expiresAt = '2026-08-28T01:00:00.000Z';
+    return {
+      teacher: {
+        ...teacher,
+        mustChangePassword: true,
+        temporaryPasswordExpiresAt: expiresAt,
+      },
+      temporaryPassword: 'AG-vA7Qm2pR-2026',
+      expiresAt,
+    };
   }
 }
 
@@ -201,17 +206,25 @@ describe('teacher HTTP API', () => {
     expect(teacherService.action).toBe(action);
   });
 
-  it('resets a teacher password and never returns the temporary password', async () => {
+  it('generates a temporary password on the server and returns it once', async () => {
     const { app, teacherService } = testApp();
     const response = await request(app)
       .post(`/api/admin/teachers/${teacher.id}/reset-password`)
       .set('Cookie', 'absensi_access=access-token')
-      .send({ temporaryPassword: 'Password-Baru-123' });
+      .send({});
 
     expect(response.status).toBe(200);
-    expect(teacherService.resetInput).toEqual({
-      temporaryPassword: 'Password-Baru-123',
+    expect(response.body).toMatchObject({
+      temporaryPassword: 'AG-vA7Qm2pR-2026',
+      expiresAt: '2026-08-28T01:00:00.000Z',
+      teacher: { temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z' },
     });
-    expect(JSON.stringify(response.body)).not.toContain('Password-Baru-123');
+    expect(teacherService.action).toBe('reset-password');
+
+    const clientPassword = await request(app)
+      .post(`/api/admin/teachers/${teacher.id}/reset-password`)
+      .set('Cookie', 'absensi_access=access-token')
+      .send({ temporaryPassword: 'Password-Baru-123' });
+    expect(clientPassword.status).toBe(400);
   });
 });

@@ -14,8 +14,10 @@ const teacher: Teacher = {
   id: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
   nip: '19870001',
   fullName: 'Guru Contoh',
+  whatsappNumber: null,
   isActive: true,
   mustChangePassword: false,
+  temporaryPasswordExpiresAt: null,
   createdAt: '2026-08-25T01:00:00.000Z',
   updatedAt: '2026-08-25T01:00:00.000Z',
 };
@@ -37,8 +39,9 @@ describe('TeachersPage', () => {
   const update = vi.fn(async () => teacher);
   const setActive = vi.fn(async () => ({ ...teacher, isActive: false }));
   const resetPassword = vi.fn(async () => ({
-    ...teacher,
-    mustChangePassword: true,
+    teacher: { ...teacher, mustChangePassword: true, temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z' },
+    temporaryPassword: 'AG-random-value-9aA',
+    expiresAt: '2026-08-28T01:00:00.000Z',
   }));
   const open = vi.fn(() => ({
     afterClosed: (): Observable<unknown> => of(undefined),
@@ -121,6 +124,7 @@ describe('TeachersPage', () => {
           nip: '19870002',
           fullName: 'Guru Baru',
           initialPassword: 'Sementara-123',
+          whatsappNumber: null,
         }),
     });
     fixture.componentInstance.openCreateDialog();
@@ -128,16 +132,18 @@ describe('TeachersPage', () => {
       nip: '19870002',
       fullName: 'Guru Baru',
       initialPassword: 'Sementara-123',
+      whatsappNumber: null,
     }));
     await vi.waitFor(() => expect(fixture.componentInstance.actionInProgress()).toBeNull());
 
     open.mockReturnValueOnce({
-      afterClosed: () => of({ nip: '19870003', fullName: 'Nama Baru' }),
+      afterClosed: () => of({ nip: '19870003', fullName: 'Nama Baru', whatsappNumber: null }),
     });
     fixture.componentInstance.openEditDialog(teacher);
     await vi.waitFor(() => expect(update).toHaveBeenCalledWith(teacher.id, {
       nip: '19870003',
       fullName: 'Nama Baru',
+      whatsappNumber: null,
     }));
   });
 
@@ -148,13 +154,10 @@ describe('TeachersPage', () => {
     await vi.waitFor(() => expect(fixture.componentInstance.actionInProgress()).toBeNull());
 
     open.mockReturnValueOnce({
-      afterClosed: () => of({ temporaryPassword: 'Password-Baru-123' }),
+      afterClosed: () => of(true),
     });
     fixture.componentInstance.openResetPasswordDialog(teacher);
-    await vi.waitFor(() => expect(resetPassword).toHaveBeenCalledWith(
-      teacher.id,
-      { temporaryPassword: 'Password-Baru-123' },
-    ));
+    await vi.waitFor(() => expect(resetPassword).toHaveBeenCalledWith(teacher.id));
   });
 
   it('shows a clear empty state', async () => {
@@ -165,6 +168,6 @@ describe('TeachersPage', () => {
     await fixture.componentInstance.loadTeachers();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Belum ada Guru');
+    expect(fixture.nativeElement.textContent).toContain('Guru tidak ditemukan');
   });
 });

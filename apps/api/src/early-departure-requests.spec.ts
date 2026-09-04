@@ -73,6 +73,7 @@ class FakeRepository implements EarlyDepartureRequestRepository {
       ? { ...this.request, teacherNip: '1987001', teacherFullName: 'Guru Satu' }
       : null;
   }
+  async findTimeline() { return []; }
   async listAdmin() { return { records: [], totalItems: 0 }; }
   async decide(_id: string, actorId: string, status: 'APPROVED' | 'REJECTED') {
     return {

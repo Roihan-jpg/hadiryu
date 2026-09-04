@@ -1,21 +1,18 @@
-<section class="approval-shell" aria-labelledby="approval-title">
-  <header class="page-header"><a mat-button routerLink="/admin">← Kembali ke dashboard</a><p class="eyebrow">Administrasi kehadiran</p><h1 id="approval-title">Approval izin</h1><p class="intro">Periksa pengajuan Guru, lalu putuskan sebelum laporan bulanan dibuat.</p></header>
-  <form class="filters" (ngSubmit)="applyFilter()" novalidate>
-    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select name="leaveStatus" [formControl]="statusControl"><mat-option value="PENDING">Pending</mat-option><mat-option value="APPROVED">Disetujui</mat-option><mat-option value="REJECTED">Ditolak</mat-option><mat-option value="CANCELLED">Dibatalkan</mat-option><mat-option value="ALL">Semua status</mat-option></mat-select></mat-form-field>
-    <mat-form-field appearance="outline"><mat-label>Tanggal izin</mat-label><input matInput type="date" name="leaveDate" autocomplete="off" [formControl]="dateControl" /></mat-form-field>
-    <mat-form-field appearance="outline"><mat-label>Cari Guru</mat-label><input matInput name="teacherSearch" autocomplete="off" placeholder="Contoh: Siti atau 1987001…" [formControl]="searchControl" /></mat-form-field>
-    <button mat-stroked-button type="submit" [disabled]="loading()">Terapkan filter</button>
+<section class="page-shell" aria-labelledby="approval-title">
+  <header class="page-header"><p class="eyebrow">ANTREAN KEPUTUSAN</p><h1 id="approval-title">Approval Izin</h1><p>Periksa pengajuan Guru dari halaman detail sebelum laporan bulanan dibuat.</p></header>
+  <form class="admin-panel filters" (ngSubmit)="applyFilter()" novalidate>
+    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select [formControl]="statusControl"><mat-option value="PENDING">Pending</mat-option><mat-option value="APPROVED">Disetujui</mat-option><mat-option value="REJECTED">Ditolak</mat-option><mat-option value="CANCELLED">Dibatalkan</mat-option><mat-option value="ALL">Semua</mat-option></mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Tanggal</mat-label><input matInput type="date" [formControl]="dateControl" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Cari Guru</mat-label><input matInput [formControl]="searchControl" placeholder="Nama atau NIP" /></mat-form-field>
+    <button mat-flat-button type="submit" [disabled]="loading()">Terapkan</button>
   </form>
-  @if (successMessage()) { <p class="feedback success" role="status" aria-live="polite">{{ successMessage() }}</p> }
-  @if (errorMessage()) { <div class="feedback error" role="alert"><span>{{ errorMessage() }}</span><button mat-button type="button" (click)="load()">Coba lagi</button></div> }
-  @if (loading()) { <div class="state" role="status" aria-live="polite"><mat-spinner diameter="28" aria-hidden="true" /> Memuat pengajuan izin…</div> }
-  @else if (errorMessage()) { }
-  @else if (requests().length === 0) { <div class="state empty-state" role="status"><div><strong>Tidak ada pengajuan izin</strong><p>Ubah filter untuk melihat hasil lain.</p></div></div> }
-  @else { <div class="approval-list">@for (request of requests(); track request.id) {
-    <article class="approval-item"><header><div><strong>{{ request.teacherFullName }}</strong><span>NIP {{ request.teacherNip }} · {{ dateLabel(request.leaveDate) }}</span></div><span class="status" [class.approved]="request.status === 'APPROVED'" [class.rejected]="request.status === 'REJECTED'">{{ statusLabel(request.status) }}</span></header><p><strong>{{ typeLabel(request.leaveType) }}</strong> · {{ request.reason }}</p>
-    @if (request.decisionNote) { <p class="decision">Catatan: {{ request.decisionNote }}</p> }
-    @if (request.status === 'PENDING') { <div class="decision-actions"><button mat-flat-button type="button" [disabled]="actionInProgress() !== null" (click)="openDecision(request, 'APPROVED')">{{ actionInProgress() === request.id ? 'Menyimpan…' : 'Setujui' }}</button><button mat-stroked-button type="button" [disabled]="actionInProgress() !== null" (click)="openDecision(request, 'REJECTED')">Tolak</button></div> }
-    </article> }</div>
-    <mat-paginator [length]="pagination().totalItems" [pageIndex]="pagination().page - 1" [pageSize]="pagination().pageSize" [pageSizeOptions]="[10, 20, 50]" (page)="pageChanged($event)" aria-label="Halaman approval izin" />
+  @if (successMessage()) { <p class="feedback success" role="status">{{ successMessage() }}</p> }
+  @if (errorMessage()) { <div class="feedback error" role="alert">{{ errorMessage() }} <button mat-button type="button" (click)="load()">Coba lagi</button></div> }
+  @if (loading()) { <div class="state"><mat-spinner diameter="28" /> Memuat pengajuan…</div> }
+  @else if (!errorMessage()) {
+    <div class="admin-panel table-wrap"><table><thead><tr><th>Guru</th><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th><th></th></tr></thead><tbody>
+      @for (request of requests(); track request.id) { <tr><td><strong>{{ request.teacherFullName }}</strong><small>{{ request.teacherNip }}</small></td><td>{{ dateLabel(request.leaveDate) }}</td><td>{{ typeLabel(request.leaveType) }}</td><td class="reason">{{ request.reason }}</td><td><span [class]="'status-pill ' + request.status.toLowerCase()">{{ statusLabel(request.status) }}</span></td><td><a mat-button [routerLink]="['/admin/leave-requests', request.id]">Lihat detail</a></td></tr> }
+    </tbody></table>@if(requests().length===0){<div class="state">Tidak ada pengajuan pada filter ini.</div>}</div>
+    <mat-paginator [length]="pagination().totalItems" [pageIndex]="pagination().page - 1" [pageSize]="pagination().pageSize" [pageSizeOptions]="[10,20,50]" (page)="pageChanged($event)" />
   }
 </section>

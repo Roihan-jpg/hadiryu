@@ -30,12 +30,22 @@ export const routes: Routes = [
       import('./features/auth/login-page').then((module) => module.LoginPage),
   },
   {
+    path: 'admin/early-departure-requests/:id',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
+    loadComponent: () => import('./features/admin/early-departure-requests/admin-early-departure-request-detail-page').then((module) => module.AdminEarlyDepartureRequestDetailPage),
+  },
+  {
     path: 'admin/early-departure-requests',
     canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
     loadComponent: () =>
       import('./features/admin/early-departure-requests/admin-early-departure-requests-page').then(
         (module) => module.AdminEarlyDepartureRequestsPage,
       ),
+  },
+  {
+    path: 'admin/leave-requests/:id',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
+    loadComponent: () => import('./features/admin/leave-requests/admin-leave-request-detail-page').then((module) => module.AdminLeaveRequestDetailPage),
   },
   {
     path: 'admin/leave-requests',
@@ -70,6 +80,21 @@ export const routes: Routes = [
     canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
       import('./features/home/home-page').then((module) => module.HomePage),
+  },
+  {
+    path: 'admin/reports',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
+    loadComponent: () => import('./features/admin/reports/reports-page').then((module) => module.ReportsPage),
+  },
+  {
+    path: 'admin/audit',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
+    loadComponent: () => import('./features/admin/audit/audit-page').then((module) => module.AuditPage),
+  },
+  {
+    path: 'admin/guide',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SUPER_ADMIN')],
+    loadComponent: () => import('./features/admin/guide/guide-page').then((module) => module.GuidePage),
   },
   {
     path: 'admin/settings',

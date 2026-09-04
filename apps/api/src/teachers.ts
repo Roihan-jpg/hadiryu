@@ -1,12 +1,13 @@
 import {
   CreateTeacherRequestSchema,
   ListTeachersQuerySchema,
+  PasswordResetResponseSchema,
   ResetTeacherPasswordRequestSchema,
   UpdateTeacherRequestSchema,
   type AuthUser,
   type CreateTeacherRequest,
   type ListTeachersQuery,
-  type ResetTeacherPasswordRequest,
+  type PasswordResetResult,
   type Teacher,
   type TeacherListResponse,
   type TeacherResponse,
@@ -40,8 +41,7 @@ export interface TeacherService {
   resetPassword(
     actorId: string,
     teacherId: string,
-    input: ResetTeacherPasswordRequest,
-  ): Promise<Teacher>;
+  ): Promise<PasswordResetResult>;
 }
 
 function actorId(request: Request): string {
@@ -146,12 +146,11 @@ export function registerTeacherRoutes(
         if (!parsed.success) {
           throw validationError('Password sementara tidak valid', parsed.error.flatten());
         }
-        const teacher = await teacherService.resetPassword(
+        const result = await teacherService.resetPassword(
           actorId(request),
           parseTeacherId(request.params['id'] ?? ''),
-          parsed.data,
         );
-        response.status(200).json({ teacher } satisfies TeacherResponse);
+        response.status(200).json(PasswordResetResponseSchema.parse(result));
       } catch (error) {
         next(error);
       }

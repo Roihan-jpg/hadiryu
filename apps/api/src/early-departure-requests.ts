@@ -1,5 +1,6 @@
 import {
   AdminEarlyDepartureRequestListResponseSchema,
+  AdminEarlyDepartureRequestDetailResponseSchema,
   CreateEarlyDepartureRequestSchema,
   DecideEarlyDepartureRequestSchema,
   EarlyDepartureRequestListResponseSchema,
@@ -16,6 +17,7 @@ import {
   type GeofenceRule,
   type ListAdminEarlyDepartureRequestsQuery,
   type ListEarlyDepartureRequestsQuery,
+  type AttendanceTimelineEvent,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
 import { z } from 'zod';
@@ -32,6 +34,14 @@ import {
   requireRole,
   type AuthService,
 } from './auth.js';
+import {
+  multipartPayload,
+  parseOptionalAttachment,
+  validateUploadedAttachment,
+  type RequestAttachmentStorage,
+  type StoredRequestAttachment,
+  type UploadedRequestAttachment,
+} from './request-attachments.js';
 
 const RequestIdSchema = z.uuid();
 
@@ -39,6 +49,7 @@ export interface SaveEarlyDepartureRequestInput
   extends CreateEarlyDepartureRequest {
   distanceMeters: number;
   boundaryClearanceMeters: number | null;
+  attachment?: StoredRequestAttachment;
 }
 
 export interface EarlyDepartureRequestRepository {
@@ -60,6 +71,7 @@ export interface EarlyDepartureRequestRepository {
     input: ListEarlyDepartureRequestsQuery,
   ): Promise<{ records: EarlyDepartureRequest[]; totalItems: number }>;
   findAny(requestId: string): Promise<AdminEarlyDepartureRequest | null>;
+  findTimeline(attendanceId: string): Promise<AttendanceTimelineEvent[]>;
   listAdmin(
     input: ListAdminEarlyDepartureRequestsQuery,
   ): Promise<{ records: AdminEarlyDepartureRequest[]; totalItems: number }>;
@@ -76,6 +88,7 @@ export interface EarlyDepartureRequestService {
   create(
     teacherId: string,
     input: CreateEarlyDepartureRequest,
+    attachment?: UploadedRequestAttachment,
   ): Promise<EarlyDepartureRequest>;
   listOwn(
     teacherId: string,
@@ -84,6 +97,10 @@ export interface EarlyDepartureRequestService {
   listAdmin(
     input: ListAdminEarlyDepartureRequestsQuery,
   ): Promise<AdminEarlyDepartureRequestListResponse>;
+  getAdmin(requestId: string): Promise<{
+    earlyDepartureRequest: AdminEarlyDepartureRequest;
+    attendanceTimeline: AttendanceTimelineEvent[];
+  }>;
   approve(
     actorId: string,
     requestId: string,
@@ -120,6 +137,7 @@ function requestId(value: unknown): string {
 export function createEarlyDepartureRequestService(
   repository: EarlyDepartureRequestRepository,
   now: () => Date = () => new Date(),
+  attachmentStorage?: RequestAttachmentStorage,
 ): EarlyDepartureRequestService {
   async function decide(
     actorId: string,
@@ -154,7 +172,7 @@ export function createEarlyDepartureRequestService(
   }
 
   return {
-    async create(teacherId, rawInput) {
+    async create(teacherId, rawInput, attachment) {
       const input = CreateEarlyDepartureRequestSchema.parse(rawInput);
       const serverNow = now();
       const current = jakartaDateTime(serverNow);
@@ -192,13 +210,28 @@ export function createEarlyDepartureRequestService(
         );
       }
       const { distanceMeters, boundaryClearanceMeters } = validatedLocation(input, geofence);
-      return EarlyDepartureRequestSchema.parse(
-        await repository.create(teacherId, {
-          ...input,
-          distanceMeters,
-          boundaryClearanceMeters,
-        }),
-      );
+      let storedAttachment: StoredRequestAttachment | undefined;
+      try {
+        if (attachment) {
+          if (!attachmentStorage) {
+            throw new AppError(500, 'ATTACHMENT_NOT_CONFIGURED', 'Penyimpanan lampiran belum dikonfigurasi');
+          }
+          storedAttachment = await attachmentStorage.upload(teacherId, 'early-departure', attachment);
+        }
+        return EarlyDepartureRequestSchema.parse(
+          await repository.create(teacherId, {
+            ...input,
+            distanceMeters,
+            boundaryClearanceMeters,
+            ...(storedAttachment ? { attachment: storedAttachment } : {}),
+          }),
+        );
+      } catch (error) {
+        if (storedAttachment && attachmentStorage) {
+          await attachmentStorage.remove(storedAttachment.storagePath);
+        }
+        throw error;
+      }
     },
 
     async listOwn(teacherId, rawInput) {
@@ -217,6 +250,31 @@ export function createEarlyDepartureRequestService(
         data: result.records,
         pagination: pagination(result.totalItems, input.page, input.pageSize),
       });
+    },
+
+    async getAdmin(id) {
+      const request = await repository.findAny(id);
+      if (!request) {
+        throw new AppError(404, 'EARLY_DEPARTURE_NOT_FOUND', 'Permohonan pulang awal tidak ditemukan');
+      }
+      const attendanceTimeline = await repository.findTimeline(request.attendanceId);
+      attendanceTimeline.push({
+        type: 'REQUESTED',
+        timestamp: request.requestedAt,
+        label: 'Permohonan pulang awal diajukan',
+      });
+      if (request.decidedAt) {
+        attendanceTimeline.push({
+          type: 'DECIDED',
+          timestamp: request.decidedAt,
+          label: request.status === 'APPROVED' ? 'Permohonan disetujui' : 'Permohonan ditolak',
+        });
+      }
+      attendanceTimeline.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+      return {
+        earlyDepartureRequest: request,
+        attendanceTimeline,
+      };
     },
 
     approve(actorId, id, input) {
@@ -268,12 +326,12 @@ export function registerEarlyDepartureRequestRoutes(
     } catch (error) { next(error); }
   });
 
-  app.post('/api/early-departure-requests', ...teacherGuards, async (request, response, next) => {
+  app.post('/api/early-departure-requests', ...teacherGuards, parseOptionalAttachment, async (request, response, next) => {
     try {
-      const parsed = CreateEarlyDepartureRequestSchema.safeParse(request.body);
+      const parsed = CreateEarlyDepartureRequestSchema.safeParse(multipartPayload(request));
       if (!parsed.success) throw validationError('Permohonan pulang awal tidak valid', parsed.error.flatten());
       response.status(201).json({
-        earlyDepartureRequest: await service.create(userId(request), parsed.data),
+        earlyDepartureRequest: await service.create(userId(request), parsed.data, validateUploadedAttachment(request.file)),
       });
     } catch (error) { next(error); }
   });
@@ -283,6 +341,14 @@ export function registerEarlyDepartureRequestRoutes(
       const parsed = ListAdminEarlyDepartureRequestsQuerySchema.safeParse(request.query);
       if (!parsed.success) throw validationError('Filter approval pulang awal tidak valid', parsed.error.flatten());
       response.status(200).json(await service.listAdmin(parsed.data));
+    } catch (error) { next(error); }
+  });
+
+  app.get('/api/admin/early-departure-requests/:id', ...adminGuards, async (request, response, next) => {
+    try {
+      response.status(200).json(AdminEarlyDepartureRequestDetailResponseSchema.parse(
+        await service.getAdmin(requestId(request.params['id'])),
+      ));
     } catch (error) { next(error); }
   });
 

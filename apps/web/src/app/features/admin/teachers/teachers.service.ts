@@ -1,7 +1,7 @@
 import type {
   CreateTeacherRequest,
   ListTeachersQuery,
-  ResetTeacherPasswordRequest,
+  PasswordResetResult,
   Teacher,
   TeacherListResponse,
   UpdateTeacherRequest,
@@ -17,6 +17,8 @@ export class TeachersService {
   async list(input: ListTeachersQuery): Promise<TeacherListResponse> {
     let params = new HttpParams();
     if (input.search) params = params.set('search', input.search);
+    if (input.isActive !== undefined) params = params.set('isActive', String(input.isActive));
+    if (input.mustChangePassword !== undefined) params = params.set('mustChangePassword', String(input.mustChangePassword));
     params = params
       .set('page', input.page.toString())
       .set('pageSize', input.pageSize.toString());
@@ -64,17 +66,16 @@ export class TeachersService {
 
   async resetPassword(
     teacherId: string,
-    input: ResetTeacherPasswordRequest,
-  ): Promise<Teacher> {
-    return this.parseTeacherResponse(
-      await firstValueFrom(
+  ): Promise<PasswordResetResult> {
+    const value = await firstValueFrom(
         this.http.post<unknown>(
           `/api/admin/teachers/${teacherId}/reset-password`,
-          input,
+          {},
           { withCredentials: true },
         ),
-      ),
-    );
+      );
+    const { PasswordResetResponseSchema } = await import('@absensi/contracts');
+    return PasswordResetResponseSchema.parse(value);
   }
 
   private async parseTeacherResponse(value: unknown): Promise<Teacher> {

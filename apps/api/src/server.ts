@@ -20,6 +20,9 @@ import { SupabaseMonthlyReportRepository } from './supabase-monthly-report.js';
 import { createExcelExportService } from './excel-export.js';
 import { SupabaseExcelExportAuditRepository } from './supabase-excel-export.js';
 import { createStructuredLogger } from './observability.js';
+import { SupabaseRequestAttachmentService } from './request-attachments.js';
+import { createAuditLogService } from './audit-logs.js';
+import { SupabaseAuditLogRepository } from './supabase-audit-logs.js';
 
 function commaSeparated(value: string | undefined): string[] {
   return (value ?? '')
@@ -45,11 +48,17 @@ const settingsService = new SupabaseSettingsService(supabaseConfig);
 const attendanceService = createAttendanceService(
   new SupabaseAttendanceRepository(supabaseConfig),
 );
+const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
+const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
 const leaveRequestService = createLeaveRequestService(
   new SupabaseLeaveRequestRepository(supabaseConfig),
+  undefined,
+  requestAttachmentService,
 );
 const earlyDepartureRequestService = createEarlyDepartureRequestService(
   new SupabaseEarlyDepartureRequestRepository(supabaseConfig),
+  undefined,
+  requestAttachmentService,
 );
 const adminAttendanceService = createAdminAttendanceService(
   new SupabaseAdminAttendanceRepository(supabaseConfig),
@@ -83,6 +92,8 @@ createApp({
   earlyDepartureRequestService,
   monthlyReportService,
   excelExportService,
+  requestAttachmentService,
+  auditLogService,
   logger,
   secureCookies,
   security: {

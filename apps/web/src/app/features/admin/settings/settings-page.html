@@ -1,4 +1,4 @@
-<section class="settings-shell" aria-labelledby="settings-title">
+<section class="settings-shell" [class]="'settings-shell tab-' + activeTab()" aria-labelledby="settings-title">
   <header class="page-header">
     <div>
       <a class="back-link" routerLink="/admin">← Kembali ke administrasi</a>
@@ -10,6 +10,12 @@
       </p>
     </div>
   </header>
+  <nav class="settings-tabs" aria-label="Bagian pengaturan">
+    <button type="button" [attr.aria-selected]="activeTab() === 'summary'" (click)="activeTab.set('summary')">Ringkasan</button>
+    <button type="button" [attr.aria-selected]="activeTab() === 'schedule'" (click)="activeTab.set('schedule')">Jadwal</button>
+    <button type="button" [attr.aria-selected]="activeTab() === 'geofence'" (click)="activeTab.set('geofence')">Geofence</button>
+    <button type="button" [attr.aria-selected]="activeTab() === 'calendar'" (click)="activeTab.set('calendar')">Kalender</button>
+  </nav>
 
   <form class="inspection-bar" (ngSubmit)="inspectDate()" novalidate>
     <div>
@@ -108,7 +114,7 @@
 
       </div>
     </section>
-  <section class="setting-section" aria-labelledby="schedule-form-title">
+  <section class="setting-section schedule-tab" aria-labelledby="schedule-form-title">
     <div class="section-heading">
       <div>
         <p class="section-kicker">Berlaku hari ini</p>
@@ -160,7 +166,7 @@
     </form>
   </section>
 
-  <section class="setting-section" aria-labelledby="geofence-form-title">
+  <section class="setting-section geofence-tab" aria-labelledby="geofence-form-title">
     <div class="section-heading">
       <div>
         <p class="section-kicker">Satu lokasi sekolah</p>
@@ -211,7 +217,7 @@
     </form>
   </section>
 
-  <section class="setting-section" aria-labelledby="calendar-form-title">
+  <section class="setting-section calendar-tab" aria-labelledby="calendar-form-title">
     <div class="section-heading">
       <div>
         <p class="section-kicker">Tanggal khusus</p>

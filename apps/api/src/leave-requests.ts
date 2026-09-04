@@ -1,5 +1,6 @@
 import {
   AdminLeaveRequestListResponseSchema,
+  AdminLeaveRequestDetailResponseSchema,
   CreateLeaveRequestSchema,
   DecideLeaveRequestSchema,
   LeaveRequestListResponseSchema,
@@ -23,6 +24,14 @@ import { z } from 'zod';
 
 import { AppError, createSessionGuard, requireRole, type AuthService } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
+import {
+  multipartPayload,
+  parseOptionalAttachment,
+  validateUploadedAttachment,
+  type RequestAttachmentStorage,
+  type StoredRequestAttachment,
+  type UploadedRequestAttachment,
+} from './request-attachments.js';
 
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 const LeaveRequestIdSchema = z.uuid();
@@ -31,7 +40,11 @@ export interface LeaveRequestRepository {
   findAttendance(teacherId: string, leaveDate: string): Promise<boolean>;
   findCalendarException(workDate: string): Promise<CalendarException | null>;
   findSchedule(scheduleType: ScheduleType, workDate: string): Promise<ScheduleRule | null>;
-  create(teacherId: string, input: CreateLeaveRequest): Promise<LeaveRequest>;
+  create(
+    teacherId: string,
+    input: CreateLeaveRequest,
+    attachment?: StoredRequestAttachment,
+  ): Promise<LeaveRequest>;
   findOwn(teacherId: string, leaveRequestId: string): Promise<LeaveRequest | null>;
   cancel(teacherId: string, leaveRequestId: string): Promise<LeaveRequest>;
   listOwn(
@@ -52,13 +65,18 @@ export interface LeaveRequestRepository {
 }
 
 export interface LeaveRequestService {
-  create(teacherId: string, input: CreateLeaveRequest): Promise<LeaveRequest>;
+  create(
+    teacherId: string,
+    input: CreateLeaveRequest,
+    attachment?: UploadedRequestAttachment,
+  ): Promise<LeaveRequest>;
   listOwn(
     teacherId: string,
     input: ListLeaveRequestsQuery,
   ): Promise<LeaveRequestListResponse>;
   cancel(teacherId: string, leaveRequestId: string): Promise<LeaveRequest>;
   listAdmin(input: ListAdminLeaveRequestsQuery): Promise<AdminLeaveRequestListResponse>;
+  getAdmin(leaveRequestId: string): Promise<AdminLeaveRequest>;
   approve(
     actorId: string,
     leaveRequestId: string,
@@ -119,6 +137,7 @@ export function calculateApprovedLeaveCredit(targetMinutes: number): {
 export function createLeaveRequestService(
   repository: LeaveRequestRepository,
   now: () => Date = () => new Date(),
+  attachmentStorage?: RequestAttachmentStorage,
 ): LeaveRequestService {
   async function assertNoCheckIn(teacherId: string, leaveDate: string): Promise<void> {
     if (await repository.findAttendance(teacherId, leaveDate)) {
@@ -144,7 +163,7 @@ export function createLeaveRequestService(
   }
 
   return {
-    async create(teacherId, rawInput) {
+    async create(teacherId, rawInput, attachment) {
       const input = CreateLeaveRequestSchema.parse(rawInput);
       const current = jakartaDateTime(now());
       if (input.leaveDate < current.workDate) {
@@ -165,10 +184,19 @@ export function createLeaveRequestService(
           );
         }
       }
+      let storedAttachment: StoredRequestAttachment | undefined;
       try {
-        return await repository.create(teacherId, input);
+        if (attachment) {
+          if (!attachmentStorage) {
+            throw new AppError(500, 'ATTACHMENT_NOT_CONFIGURED', 'Penyimpanan lampiran belum dikonfigurasi');
+          }
+          storedAttachment = await attachmentStorage.upload(teacherId, 'leave', attachment);
+        }
+        return await repository.create(teacherId, input, storedAttachment);
       } catch (error) {
-        if (error instanceof AppError) throw error;
+        if (storedAttachment && attachmentStorage) {
+          await attachmentStorage.remove(storedAttachment.storagePath);
+        }
         throw error;
       }
     },
@@ -192,6 +220,12 @@ export function createLeaveRequestService(
       const input = ListAdminLeaveRequestsQuerySchema.parse(rawInput);
       const result = await repository.listAdmin(input);
       return AdminLeaveRequestListResponseSchema.parse(paginated(result.records, result.totalItems, input.page, input.pageSize));
+    },
+
+    async getAdmin(id) {
+      const request = await repository.findAny(id);
+      if (!request) throw new AppError(404, 'LEAVE_REQUEST_NOT_FOUND', 'Pengajuan izin tidak ditemukan');
+      return request;
     },
 
     async approve(actorId, id, rawInput) {
@@ -218,11 +252,12 @@ export function registerLeaveRequestRoutes(
       response.status(200).json(await leaveRequestService.listOwn(userId(request), parsed.data));
     } catch (error) { next(error); }
   });
-  app.post('/api/leave-requests', ...teacherGuards, async (request, response, next) => {
+  app.post('/api/leave-requests', ...teacherGuards, parseOptionalAttachment, async (request, response, next) => {
     try {
-      const parsed = CreateLeaveRequestSchema.safeParse(request.body);
+      const parsed = CreateLeaveRequestSchema.safeParse(multipartPayload(request));
       if (!parsed.success) throw validationError('Data pengajuan izin tidak valid', parsed.error.flatten());
-      response.status(201).json({ leaveRequest: await leaveRequestService.create(userId(request), parsed.data) } satisfies { leaveRequest: LeaveRequest });
+      const attachment = validateUploadedAttachment(request.file);
+      response.status(201).json({ leaveRequest: await leaveRequestService.create(userId(request), parsed.data, attachment) } satisfies { leaveRequest: LeaveRequest });
     } catch (error) { next(error); }
   });
   app.post('/api/leave-requests/:id/cancel', ...teacherGuards, async (request, response, next) => {
@@ -236,6 +271,12 @@ export function registerLeaveRequestRoutes(
       const parsed = ListAdminLeaveRequestsQuerySchema.safeParse(request.query);
       if (!parsed.success) throw validationError('Parameter approval izin tidak valid', parsed.error.flatten());
       response.status(200).json(await leaveRequestService.listAdmin(parsed.data));
+    } catch (error) { next(error); }
+  });
+  app.get('/api/admin/leave-requests/:id', ...adminGuards, async (request, response, next) => {
+    try {
+      const result = { leaveRequest: await leaveRequestService.getAdmin(leaveRequestId(request.params['id'])) };
+      response.status(200).json(AdminLeaveRequestDetailResponseSchema.parse(result));
     } catch (error) { next(error); }
   });
   for (const [action, status] of [['approve', 'APPROVED'], ['reject', 'REJECTED']] as const) {

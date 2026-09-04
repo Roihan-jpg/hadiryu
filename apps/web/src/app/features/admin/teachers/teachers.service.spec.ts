@@ -12,8 +12,10 @@ const teacher: Teacher = {
   id: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
   nip: '19870001',
   fullName: 'Guru Contoh',
+  whatsappNumber: null,
   isActive: true,
   mustChangePassword: true,
+  temporaryPasswordExpiresAt: null,
   createdAt: '2026-08-25T01:00:00.000Z',
   updatedAt: '2026-08-25T01:00:00.000Z',
 };
@@ -75,13 +77,11 @@ describe('TeachersService', () => {
       .flush({ teacher: { ...teacher, isActive: false } });
     await expect(statusPromise).resolves.toMatchObject({ isActive: false });
 
-    const resetPromise = service.resetPassword(teacher.id, {
-      temporaryPassword: 'Password-Baru-123',
-    });
+    const resetPromise = service.resetPassword(teacher.id);
     http
       .expectOne(`/api/admin/teachers/${teacher.id}/reset-password`)
-      .flush({ teacher: { ...teacher, mustChangePassword: true } });
-    await expect(resetPromise).resolves.toMatchObject({ mustChangePassword: true });
+      .flush({ teacher: { ...teacher, mustChangePassword: true, temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z' }, temporaryPassword: 'AG-random-value-9aA', expiresAt: '2026-08-28T01:00:00.000Z' });
+    await expect(resetPromise).resolves.toMatchObject({ temporaryPassword: 'AG-random-value-9aA' });
   });
 
   it('rejects a response outside the shared teacher contract', async () => {

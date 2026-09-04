@@ -1,10 +1,11 @@
 import type {
   CreateTeacherRequest,
-  ResetTeacherPasswordRequest,
+  PasswordResetResult,
   Teacher,
   UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
+import { DatePipe } from '@angular/common';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
 import {
   FormControl,
@@ -24,6 +25,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 
 import { TeachersService } from './teachers.service';
@@ -34,6 +36,7 @@ interface TeacherFormValue {
   nip: string;
   fullName: string;
   initialPassword?: string;
+  whatsappNumber: string | null;
 }
 
 interface ConfirmDialogData {
@@ -60,6 +63,11 @@ interface ConfirmDialogData {
           @if (form.controls.nip.invalid) {
             <mat-error>NIP wajib diisi dengan format yang valid.</mat-error>
           }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Nomor WhatsApp (opsional)</mat-label>
+          <input matInput formControlName="whatsappNumber" name="whatsappNumber" placeholder="+628123456789" autocomplete="tel" />
+          @if (form.controls.whatsappNumber.invalid) { <mat-error>Gunakan format internasional, contoh +628123456789.</mat-error> }
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Nama lengkap</mat-label>
@@ -111,6 +119,10 @@ export class TeacherFormDialog {
       nonNullable: true,
       validators: [Validators.required, Validators.maxLength(200)],
     }),
+    whatsappNumber: new FormControl(this.teacher?.whatsappNumber ?? '', {
+      nonNullable: true,
+      validators: [Validators.pattern(/^$|^\+[1-9]\d{7,14}$/)],
+    }),
     initialPassword: new FormControl('', {
       nonNullable: true,
       validators: this.teacher
@@ -129,6 +141,7 @@ export class TeacherFormDialog {
     this.dialogRef.close({
       nip: value.nip.trim(),
       fullName: value.fullName.trim(),
+      whatsappNumber: value.whatsappNumber.trim() || null,
       ...(this.teacher ? {} : { initialPassword: value.initialPassword }),
     } satisfies TeacherFormValue);
   }
@@ -145,47 +158,36 @@ export class TeacherFormDialog {
   template: `
     <h2 mat-dialog-title>Reset password Guru</h2>
     <mat-dialog-content>
-      <p>Guru akan wajib mengganti password sementara ini saat login berikutnya.</p>
-      <mat-form-field appearance="outline">
-        <mat-label>Password sementara</mat-label>
-        <input
-          matInput
-          type="password"
-          [formControl]="password"
-          autocomplete="new-password"
-          name="temporaryPassword"
-          (keydown.enter)="submit()"
-        />
-        @if (password.invalid) {
-          <mat-error>Password sementara minimal 8 karakter.</mat-error>
-        }
-      </mat-form-field>
+      <p>Server akan membuat password acak yang berlaku 72 jam. Guru wajib menggantinya saat login.</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" [mat-dialog-close]="undefined">Batal</button>
       <button mat-flat-button type="button" (click)="submit()">Reset password</button>
     </mat-dialog-actions>
   `,
-  styles: `mat-form-field { width: 100%; } p { color: #58677d; line-height: 1.5; }`,
+  styles: `p { color: #58677d; line-height: 1.5; }`,
 })
 export class ResetPasswordDialog {
   private readonly dialogRef = inject(MatDialogRef<ResetPasswordDialog>);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  readonly password = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
-  });
-
   submit(): void {
-    if (this.password.invalid) {
-      this.password.markAsTouched();
-      focusFirstInvalidControl(this.host.nativeElement);
-      return;
-    }
-    this.dialogRef.close({
-      temporaryPassword: this.password.value,
-    } satisfies ResetTeacherPasswordRequest);
+    this.dialogRef.close(true);
   }
+}
+
+@Component({
+  imports: [MatButtonModule, MatDialogModule],
+  template: `
+    <h2 mat-dialog-title>Password sementara dibuat</h2>
+    <mat-dialog-content><p>Simpan sekarang. Password ini hanya ditampilkan sekali dan kedaluwarsa {{ expiresLabel() }}.</p><div class="secret"><code>{{ data.temporaryPassword }}</code><button mat-stroked-button type="button" (click)="copy()">{{ copied() ? 'Tersalin' : 'Salin' }}</button></div></mat-dialog-content>
+    <mat-dialog-actions align="end"><button mat-flat-button type="button" [mat-dialog-close]="true">Selesai</button></mat-dialog-actions>
+  `,
+  styles: `.secret{display:flex;align-items:center;gap:12px;padding:14px;background:#f4eee6;border-radius:6px}.secret code{flex:1;font-size:15px;overflow-wrap:anywhere}p{color:#687570;line-height:1.55}`,
+})
+export class ResetPasswordResultDialog {
+  readonly data = inject<PasswordResetResult>(MAT_DIALOG_DATA);
+  readonly copied = signal(false);
+  async copy(): Promise<void> { await navigator.clipboard.writeText(this.data.temporaryPassword); this.copied.set(true); }
+  expiresLabel(): string { return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(this.data.expiresAt)); }
 }
 
 @Component({
@@ -207,12 +209,14 @@ export class ConfirmTeacherDialog {
 
 @Component({
   imports: [
+    DatePipe,
     MatButtonModule,
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatPaginatorModule,
     MatProgressSpinnerModule,
+    MatSelectModule,
     MatTableModule,
     FormsModule,
     ReactiveFormsModule,
@@ -226,8 +230,10 @@ export class TeachersPage implements OnInit {
   private readonly service = inject(TeachersService);
   private readonly dialog = inject(MatDialog);
 
-  readonly displayedColumns = ['teacher', 'nip', 'status', 'password', 'actions'];
+  readonly displayedColumns = ['teacher', 'nip', 'whatsapp', 'status', 'password', 'actions'];
   readonly searchControl = new FormControl('', { nonNullable: true });
+  readonly statusControl = new FormControl<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL', { nonNullable: true });
+  readonly passwordControl = new FormControl<'ALL' | 'TEMPORARY' | 'CHANGED'>('ALL', { nonNullable: true });
   readonly teachers = signal<Teacher[]>([]);
   readonly loading = signal(true);
   readonly errorMessage = signal('');
@@ -252,6 +258,8 @@ export class TeachersPage implements OnInit {
       const search = this.searchControl.value.trim();
       const result = await this.service.list({
         ...(search ? { search } : {}),
+        ...(this.statusControl.value === 'ALL' ? {} : { isActive: this.statusControl.value === 'ACTIVE' }),
+        ...(this.passwordControl.value === 'ALL' ? {} : { mustChangePassword: this.passwordControl.value === 'TEMPORARY' }),
         page: page.page,
         pageSize: page.pageSize,
       });
@@ -296,7 +304,7 @@ export class TeachersPage implements OnInit {
     });
     reference.afterClosed().subscribe((value: TeacherFormValue | undefined) => {
       if (!value) return;
-      void this.updateTeacher(teacher, { nip: value.nip, fullName: value.fullName });
+      void this.updateTeacher(teacher, { nip: value.nip, fullName: value.fullName, whatsappNumber: value.whatsappNumber });
     });
   }
 
@@ -321,8 +329,8 @@ export class TeachersPage implements OnInit {
     const reference = this.dialog.open(ResetPasswordDialog, { width: '30rem' });
     reference
       .afterClosed()
-      .subscribe((input: ResetTeacherPasswordRequest | undefined) => {
-        if (input) void this.performPasswordReset(teacher, input);
+      .subscribe((confirmed: boolean | undefined) => {
+        if (confirmed) void this.performPasswordReset(teacher);
       });
   }
 
@@ -379,14 +387,14 @@ export class TeachersPage implements OnInit {
 
   private async performPasswordReset(
     teacher: Teacher,
-    input: ResetTeacherPasswordRequest,
   ): Promise<void> {
     if (this.actionInProgress()) return;
     this.actionInProgress.set(teacher.id);
     this.clearFeedback();
     try {
-      await this.service.resetPassword(teacher.id, input);
-      this.successMessage.set('Password Guru berhasil direset.');
+      const result = await this.service.resetPassword(teacher.id);
+      this.dialog.open(ResetPasswordResultDialog, { data: result, width: '34rem', disableClose: true });
+      this.successMessage.set('Password Guru berhasil direset dan berlaku 72 jam.');
       await this.loadTeachers();
     } catch (error) {
       this.errorMessage.set(this.errorText(error, 'Password Guru tidak dapat direset.'));

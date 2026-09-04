@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { LocalDateSchema } from './settings.js';
 import { PaginationSchema } from './teachers.js';
+import { RequestAttachmentMetadataSchema } from './request-attachments.js';
 
 export const LeaveTypeSchema = z.enum([
   'SICK',
@@ -32,6 +33,7 @@ const LeaveRequestBaseSchema = z.strictObject({
   leaveDate: LocalDateSchema,
   leaveType: LeaveTypeSchema,
   reason: ReasonSchema,
+  attachment: RequestAttachmentMetadataSchema.nullable().optional(),
   status: LeaveStatusSchema,
   decisionNote: z.string().nullable(),
   decidedBy: z.uuid().nullable(),
@@ -77,8 +79,16 @@ export type ListLeaveRequestsQuery = z.infer<typeof ListLeaveRequestsQuerySchema
 export const AdminLeaveRequestSchema = LeaveRequestBaseSchema.extend({
   teacherNip: z.string().min(1),
   teacherFullName: z.string().min(1),
+  teacherWhatsappNumber: z.string().nullable().optional(),
 }).superRefine(validateDecisionState);
 export type AdminLeaveRequest = z.infer<typeof AdminLeaveRequestSchema>;
+
+export const AdminLeaveRequestDetailResponseSchema = z.strictObject({
+  leaveRequest: AdminLeaveRequestSchema,
+});
+export type AdminLeaveRequestDetailResponse = z.infer<
+  typeof AdminLeaveRequestDetailResponseSchema
+>;
 
 export const ListAdminLeaveRequestsQuerySchema = ListLeaveRequestsQuerySchema.extend({
   leaveDate: LocalDateSchema.optional(),

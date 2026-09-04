@@ -10,6 +10,7 @@
     <mat-form-field appearance="outline"><mat-label>Tanggal izin</mat-label><input matInput type="date" formControlName="leaveDate" name="leaveDate" autocomplete="off" [min]="minDate" />@if (form.controls.leaveDate.invalid) { <mat-error>Tanggal izin wajib diisi dan tidak boleh lampau.</mat-error> }</mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Jenis izin</mat-label><mat-select formControlName="leaveType" name="leaveType" aria-label="Jenis izin"><mat-option value="SICK">Sakit</mat-option><mat-option value="OFFICIAL_DUTY">Dinas Luar</mat-option><mat-option value="FAMILY">Kepentingan Keluarga</mat-option><mat-option value="OTHER">Lainnya</mat-option></mat-select></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Alasan</mat-label><textarea matInput rows="3" formControlName="reason" name="reason" maxlength="1000" autocomplete="off"></textarea><mat-hint>Maksimal 1.000 karakter.</mat-hint>@if (form.controls.reason.invalid) { <mat-error>Alasan wajib diisi.</mat-error> }</mat-form-field>
+    <label class="attachment-field">Lampiran opsional (PDF/JPEG/PNG, maks. 5 MB)<input type="file" accept="application/pdf,image/jpeg,image/png" (change)="attachmentChanged($event)" /></label>
     <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">{{ actionInProgress() === 'create' ? 'Mengirim…' : 'Kirim pengajuan' }}</button>
   </form>
 
@@ -24,6 +25,7 @@
     @else { <div class="request-list">@for (request of requests(); track request.id) {
       <article class="request-item"><header><div><strong>{{ dateLabel(request.leaveDate) }}</strong><span>{{ typeLabel(request.leaveType) }}</span></div><span class="status" [class.approved]="request.status === 'APPROVED'" [class.rejected]="request.status === 'REJECTED'">{{ statusLabel(request.status) }}</span></header>
       <p>{{ request.reason }}</p>
+      @if (request.attachment) { <a [href]="'/api/leave-requests/' + request.id + '/attachment'">Unduh lampiran: {{ request.attachment.originalName }}</a> }
       @if (request.decisionNote) { <p class="decision"><strong>Catatan keputusan:</strong> {{ request.decisionNote }}</p> }
       @if (request.status === 'PENDING') { <button mat-button type="button" [disabled]="actionInProgress() !== null" (click)="cancel(request)">{{ actionInProgress() === request.id ? 'Membatalkan…' : 'Batalkan' }}</button> }
       </article> }</div>

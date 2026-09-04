@@ -5,6 +5,7 @@ import {
   type EarlyDepartureRequest,
   type ListAdminEarlyDepartureRequestsQuery,
   type ListEarlyDepartureRequestsQuery,
+  type AttendanceTimelineEvent,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -25,6 +26,10 @@ const EarlyDepartureRowSchema = z.strictObject({
   work_date: z.string(),
   requested_at: z.string(),
   reason: z.string(),
+  attachment_storage_path: z.string().nullable(),
+  attachment_original_name: z.string().nullable(),
+  attachment_mime_type: z.enum(['application/pdf', 'image/jpeg', 'image/png']).nullable(),
+  attachment_size_bytes: z.number().int().nullable(),
   latitude: NumericValueSchema,
   longitude: NumericValueSchema,
   accuracy_meters: NumericValueSchema,
@@ -38,11 +43,11 @@ const EarlyDepartureRowSchema = z.strictObject({
   updated_at: z.string(),
 });
 const AdminEarlyDepartureRowSchema = EarlyDepartureRowSchema.extend({
-  profiles: z.object({ nip: z.string(), full_name: z.string() }).nullable(),
+  profiles: z.object({ nip: z.string(), full_name: z.string(), whatsapp_number: z.string().nullable() }).nullable(),
 });
 
 const FIELDS =
-  'id,attendance_id,teacher_id,work_date,requested_at,reason,latitude,longitude,accuracy_meters,distance_meters,boundary_clearance_meters,status,decision_note,decided_by,decided_at,created_at,updated_at';
+  'id,attendance_id,teacher_id,work_date,requested_at,reason,attachment_storage_path,attachment_original_name,attachment_mime_type,attachment_size_bytes,latitude,longitude,accuracy_meters,distance_meters,boundary_clearance_meters,status,decision_note,decided_by,decided_at,created_at,updated_at';
 
 function clientOptions() {
   return {
@@ -63,6 +68,11 @@ function toRequest(value: unknown): EarlyDepartureRequest {
     workDate: row.work_date,
     requestedAt: row.requested_at,
     reason: row.reason,
+    attachment: row.attachment_storage_path ? {
+      originalName: row.attachment_original_name,
+      mimeType: row.attachment_mime_type,
+      sizeBytes: row.attachment_size_bytes,
+    } : null,
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     accuracyMeters: Number(row.accuracy_meters),
@@ -96,6 +106,10 @@ function toAdminRequest(value: unknown): AdminEarlyDepartureRequest {
       work_date: row.work_date,
       requested_at: row.requested_at,
       reason: row.reason,
+      attachment_storage_path: row.attachment_storage_path,
+      attachment_original_name: row.attachment_original_name,
+      attachment_mime_type: row.attachment_mime_type,
+      attachment_size_bytes: row.attachment_size_bytes,
       latitude: row.latitude,
       longitude: row.longitude,
       accuracy_meters: row.accuracy_meters,
@@ -110,6 +124,7 @@ function toAdminRequest(value: unknown): AdminEarlyDepartureRequest {
     }),
     teacherNip: row.profiles.nip,
     teacherFullName: row.profiles.full_name,
+    teacherWhatsappNumber: row.profiles.whatsapp_number,
   });
 }
 
@@ -141,7 +156,7 @@ export class SupabaseEarlyDepartureRequestRepository
     input: SaveEarlyDepartureRequestInput,
   ): Promise<EarlyDepartureRequest> {
     const { data, error } = await this.client.rpc(
-      'create_early_departure_request',
+      'create_early_departure_request_with_attachment',
       {
         p_teacher_id: teacherId,
         p_reason: input.reason,
@@ -150,6 +165,10 @@ export class SupabaseEarlyDepartureRequestRepository
         p_accuracy_meters: input.accuracyMeters,
         p_distance_meters: input.distanceMeters,
         p_boundary_clearance_meters: input.boundaryClearanceMeters,
+        p_attachment_storage_path: input.attachment?.storagePath ?? null,
+        p_attachment_original_name: input.attachment?.originalName ?? null,
+        p_attachment_mime_type: input.attachment?.mimeType ?? null,
+        p_attachment_size_bytes: input.attachment?.sizeBytes ?? null,
       },
     );
     if (!error && data) return toRequest(data);
@@ -203,18 +222,38 @@ export class SupabaseEarlyDepartureRequestRepository
   async findAny(requestId: string) {
     const { data, error } = await this.client
       .from('early_departure_requests')
-      .select(`${FIELDS},profiles!early_departure_requests_teacher_id_fkey(nip,full_name)`)
+      .select(`${FIELDS},profiles!early_departure_requests_teacher_id_fkey(nip,full_name,whatsapp_number)`)
       .eq('id', requestId)
       .maybeSingle();
     if (error) throw databaseError('EARLY_DEPARTURE_LOOKUP_FAILED', 'Permohonan pulang awal tidak dapat dimuat');
     return data ? toAdminRequest(data) : null;
   }
 
+  async findTimeline(attendanceId: string): Promise<AttendanceTimelineEvent[]> {
+    const { data, error } = await this.client
+      .from('attendance_records')
+      .select('check_in_at,check_out_at')
+      .eq('id', attendanceId)
+      .maybeSingle();
+    if (error || !data) {
+      throw databaseError('EARLY_DEPARTURE_LOOKUP_FAILED', 'Timeline absensi tidak dapat dimuat');
+    }
+    const events: AttendanceTimelineEvent[] = [{
+      type: 'CHECK_IN',
+      timestamp: data.check_in_at,
+      label: 'Guru melakukan check-in',
+    }];
+    if (data.check_out_at) {
+      events.push({ type: 'CHECKOUT', timestamp: data.check_out_at, label: 'Checkout pulang awal tercatat' });
+    }
+    return events;
+  }
+
   async listAdmin(input: ListAdminEarlyDepartureRequestsQuery) {
     const start = (input.page - 1) * input.pageSize;
     let query = this.client
       .from('early_departure_requests')
-      .select(`${FIELDS},profiles!early_departure_requests_teacher_id_fkey(nip,full_name)`, { count: 'exact' })
+      .select(`${FIELDS},profiles!early_departure_requests_teacher_id_fkey(nip,full_name,whatsapp_number)`, { count: 'exact' })
       .order('requested_at', { ascending: true })
       .range(start, start + input.pageSize - 1);
     if (input.status) query = query.eq('status', input.status);

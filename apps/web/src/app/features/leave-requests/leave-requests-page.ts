@@ -46,6 +46,7 @@ export class LeaveRequestsPage implements OnInit {
   readonly actionInProgress = signal<string | null>(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+  readonly attachment = signal<File | undefined>(undefined);
   readonly pagination = signal({ page: 1, pageSize: 10, totalItems: 0, totalPages: 0 });
 
   ngOnInit(): void { void this.load(); }
@@ -66,13 +67,21 @@ export class LeaveRequestsPage implements OnInit {
     this.actionInProgress.set('create'); this.errorMessage.set(''); this.successMessage.set('');
     try {
       const value = this.form.getRawValue();
-      await this.service.create({ leaveDate: value.leaveDate, leaveType: value.leaveType, reason: value.reason.trim() });
+      const input = { leaveDate: value.leaveDate, leaveType: value.leaveType, reason: value.reason.trim() };
+      const attachment = this.attachment();
+      if (attachment) await this.service.create(input, attachment);
+      else await this.service.create(input);
       this.successMessage.set('Pengajuan izin berhasil dikirim dan menunggu keputusan SuperAdmin.');
       this.form.controls.reason.setValue('');
+      this.attachment.set(undefined);
       this.pagination.update((page) => ({ ...page, page: 1 }));
       await this.load();
     } catch (error) { this.errorMessage.set(await this.errorText(error, 'Pengajuan izin tidak dapat dikirim.')); }
     finally { this.actionInProgress.set(null); }
+  }
+
+  attachmentChanged(event: Event): void {
+    this.attachment.set((event.target as HTMLInputElement).files?.[0]);
   }
 
   async cancel(request: LeaveRequest): Promise<void> {

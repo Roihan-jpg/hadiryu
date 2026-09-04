@@ -6,6 +6,7 @@ import type {
   EarlyDepartureRequestListResponse,
   ListAdminEarlyDepartureRequestsQuery,
   ListEarlyDepartureRequestsQuery,
+  AdminEarlyDepartureRequestDetailResponse,
 } from '@absensi/contracts';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
@@ -34,9 +35,10 @@ export class EarlyDepartureRequestsService {
     return EarlyDepartureRequestListResponseSchema.parse(value);
   }
 
-  async create(input: CreateEarlyDepartureRequest): Promise<EarlyDepartureRequest> {
+  async create(input: CreateEarlyDepartureRequest, attachment?: File): Promise<EarlyDepartureRequest> {
+    const body: CreateEarlyDepartureRequest | FormData = attachment ? this.formData(input, attachment) : input;
     const value = await firstValueFrom(
-      this.http.post<unknown>('/api/early-departure-requests', input, {
+      this.http.post<unknown>('/api/early-departure-requests', body, {
         withCredentials: true,
       }),
     );
@@ -44,6 +46,12 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return EarlyDepartureRequestResponseSchema.parse(value).earlyDepartureRequest;
+  }
+
+  async getAdmin(id: string): Promise<AdminEarlyDepartureRequestDetailResponse> {
+    const value = await firstValueFrom(this.http.get<unknown>(`/api/admin/early-departure-requests/${id}`, { withCredentials: true }));
+    const { AdminEarlyDepartureRequestDetailResponseSchema } = await import('@absensi/contracts');
+    return AdminEarlyDepartureRequestDetailResponseSchema.parse(value);
   }
 
   async listAdmin(
@@ -84,5 +92,9 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return EarlyDepartureRequestResponseSchema.parse(value).earlyDepartureRequest;
+  }
+
+  private formData(input: CreateEarlyDepartureRequest, attachment: File): FormData {
+    const data = new FormData(); data.set('payload', JSON.stringify(input)); data.set('attachment', attachment); return data;
   }
 }

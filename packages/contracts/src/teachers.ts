@@ -2,12 +2,24 @@ import { z } from 'zod';
 
 import { NewPasswordSchema, NipSchema } from './auth.js';
 
+export const WhatsappNumberSchema = z
+  .string()
+  .trim()
+  .regex(/^\+[1-9]\d{7,14}$/, 'Nomor WhatsApp wajib memakai format internasional E.164');
+
+const BooleanQuerySchema = z.union([
+  z.boolean(),
+  z.enum(['true', 'false']).transform((value) => value === 'true'),
+]);
+
 export const TeacherSchema = z.strictObject({
   id: z.uuid(),
   nip: NipSchema,
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
+  whatsappNumber: WhatsappNumberSchema.nullable(),
   isActive: z.boolean(),
   mustChangePassword: z.boolean(),
+  temporaryPasswordExpiresAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
@@ -25,6 +37,8 @@ export const ListTeachersQuerySchema = z.strictObject({
       'Pencarian hanya boleh berisi huruf, angka, spasi, titik, garis bawah, atau tanda hubung',
     )
     .optional(),
+  isActive: BooleanQuerySchema.optional(),
+  mustChangePassword: BooleanQuerySchema.optional(),
 });
 export type ListTeachersQuery = z.infer<typeof ListTeachersQuerySchema>;
 
@@ -32,6 +46,7 @@ export const CreateTeacherRequestSchema = z.strictObject({
   nip: NipSchema,
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
   initialPassword: NewPasswordSchema,
+  whatsappNumber: WhatsappNumberSchema.nullable().optional(),
 });
 export type CreateTeacherRequest = z.infer<
   typeof CreateTeacherRequestSchema
@@ -46,20 +61,29 @@ export const UpdateTeacherRequestSchema = z
       .min(1, 'Nama lengkap wajib diisi')
       .max(200)
       .optional(),
+    whatsappNumber: WhatsappNumberSchema.nullable().optional(),
   })
-  .refine((input) => input.nip !== undefined || input.fullName !== undefined, {
+  .refine((input) =>
+    input.nip !== undefined ||
+    input.fullName !== undefined ||
+    input.whatsappNumber !== undefined, {
     message: 'Minimal satu perubahan profil wajib diisi',
   });
 export type UpdateTeacherRequest = z.infer<
   typeof UpdateTeacherRequestSchema
 >;
 
-export const ResetTeacherPasswordRequestSchema = z.strictObject({
-  temporaryPassword: NewPasswordSchema,
-});
+export const ResetTeacherPasswordRequestSchema = z.strictObject({});
 export type ResetTeacherPasswordRequest = z.infer<
   typeof ResetTeacherPasswordRequestSchema
 >;
+
+export const PasswordResetResponseSchema = z.strictObject({
+  teacher: TeacherSchema,
+  temporaryPassword: NewPasswordSchema,
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type PasswordResetResult = z.infer<typeof PasswordResetResponseSchema>;
 
 export const PaginationSchema = z.strictObject({
   page: z.number().int().min(1),

@@ -271,11 +271,8 @@ describe('SupabaseTeacherService integration', () => {
       .from('profiles')
       .update({ must_change_password: false })
       .eq('id', account.teacher.id);
-    const temporaryPassword = `Reset-${randomUUID()}!`;
-
-    const updated = await teacherService.resetPassword(adminId, account.teacher.id, {
-      temporaryPassword,
-    });
+    const result = await teacherService.resetPassword(adminId, account.teacher.id);
+    const { temporaryPassword } = result;
     const { data: audit } = await serviceClient
       .from('audit_logs')
       .select('before_data,after_data')
@@ -283,7 +280,8 @@ describe('SupabaseTeacherService integration', () => {
       .eq('action', 'TEACHER_PASSWORD_RESET')
       .single();
 
-    expect(updated.mustChangePassword).toBe(true);
+    expect(result.teacher.mustChangePassword).toBe(true);
+    expect(result.teacher.temporaryPasswordExpiresAt).toBe(result.expiresAt);
     await expect(
       authService.login({ nip: account.teacher.nip, password: temporaryPassword }),
     ).resolves.toMatchObject({ user: { mustChangePassword: true } });

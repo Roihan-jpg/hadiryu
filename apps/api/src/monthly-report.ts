@@ -1,4 +1,5 @@
 import {
+  DefaultReportPeriodSchema,
   MonthlyReportPreviewSchema,
   MonthlyReportParamsSchema,
   type CalendarException,
@@ -425,6 +426,18 @@ export function registerMonthlyReportRoutes(
   authService: AuthService,
   monthlyReportService: MonthlyReportService,
 ): void {
+  app.get(
+    '/api/admin/reports/default-period',
+    createSessionGuard(authService),
+    requireRole('SUPER_ADMIN'),
+    (_request, response) => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta', year: 'numeric', month: 'numeric',
+      }).formatToParts(new Date());
+      const value = (type: 'year' | 'month') => Number(parts.find((part) => part.type === type)?.value);
+      response.status(200).json(DefaultReportPeriodSchema.parse({ year: value('year'), month: value('month') }));
+    },
+  );
   app.get(
     '/api/admin/reports/monthly/:year/:month/preview',
     createSessionGuard(authService),

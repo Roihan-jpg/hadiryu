@@ -16,17 +16,21 @@ import { z } from 'zod';
 
 import { AppError } from './auth.js';
 import type { LeaveRequestRepository } from './leave-requests.js';
+import type { StoredRequestAttachment } from './request-attachments.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
 const LeaveRowSchema = z.strictObject({
   id: z.uuid(), teacher_id: z.uuid(), leave_date: z.string(),
   leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']),
   reason: z.string(), status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
+  attachment_storage_path: z.string().nullable(), attachment_original_name: z.string().nullable(),
+  attachment_mime_type: z.enum(['application/pdf', 'image/jpeg', 'image/png']).nullable(),
+  attachment_size_bytes: z.number().int().nullable(),
   decision_note: z.string().nullable(), decided_by: z.uuid().nullable(), decided_at: z.string().nullable(),
   created_at: z.string(), updated_at: z.string(),
 });
 const AdminLeaveRowSchema = LeaveRowSchema.extend({
-  profiles: z.object({ nip: z.string(), full_name: z.string() }).nullable(),
+  profiles: z.object({ nip: z.string(), full_name: z.string(), whatsapp_number: z.string().nullable() }).nullable(),
 });
 const CalendarRowSchema = z.strictObject({
   id: z.uuid(), work_date: z.string(), exception_type: z.enum(['HOLIDAY', 'WORKING_DAY']),
@@ -37,7 +41,7 @@ const ScheduleRowSchema = z.strictObject({
   work_start: z.string(), check_in_close: z.string(), checkout_open: z.string(), work_end: z.string(),
   checkout_close: z.string(), target_minutes: z.number().int(), effective_from: z.string(), effective_to: z.string().nullable(),
 });
-const LEAVE_FIELDS = 'id,teacher_id,leave_date,leave_type,reason,status,decision_note,decided_by,decided_at,created_at,updated_at';
+const LEAVE_FIELDS = 'id,teacher_id,leave_date,leave_type,reason,attachment_storage_path,attachment_original_name,attachment_mime_type,attachment_size_bytes,status,decision_note,decided_by,decided_at,created_at,updated_at';
 
 function clientOptions() {
   return { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
@@ -47,7 +51,13 @@ function toLeave(value: unknown): LeaveRequest {
   const row = LeaveRowSchema.parse(value);
   return LeaveRequestSchema.parse({
     id: row.id, teacherId: row.teacher_id, leaveDate: row.leave_date, leaveType: row.leave_type,
-    reason: row.reason, status: row.status, decisionNote: row.decision_note, decidedBy: row.decided_by,
+    reason: row.reason,
+    attachment: row.attachment_storage_path ? {
+      originalName: row.attachment_original_name,
+      mimeType: row.attachment_mime_type,
+      sizeBytes: row.attachment_size_bytes,
+    } : null,
+    status: row.status, decisionNote: row.decision_note, decidedBy: row.decided_by,
     decidedAt: row.decided_at, createdAt: row.created_at, updatedAt: row.updated_at,
   });
 }
@@ -61,6 +71,10 @@ function toAdminLeave(value: unknown): AdminLeaveRequest {
       leave_date: row.leave_date,
       leave_type: row.leave_type,
       reason: row.reason,
+      attachment_storage_path: row.attachment_storage_path,
+      attachment_original_name: row.attachment_original_name,
+      attachment_mime_type: row.attachment_mime_type,
+      attachment_size_bytes: row.attachment_size_bytes,
       status: row.status,
       decision_note: row.decision_note,
       decided_by: row.decided_by,
@@ -70,6 +84,7 @@ function toAdminLeave(value: unknown): AdminLeaveRequest {
     }),
     teacherNip: row.profiles.nip,
     teacherFullName: row.profiles.full_name,
+    teacherWhatsappNumber: row.profiles.whatsapp_number,
   });
 }
 function toCalendar(value: unknown): CalendarException {
@@ -111,8 +126,18 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
     if (error) throw databaseError('LEAVE_LOOKUP_FAILED', 'Jadwal kerja tidak dapat dimuat');
     return data ? toSchedule(data) : null;
   }
-  async create(teacherId: string, input: CreateLeaveRequest): Promise<LeaveRequest> {
-    const { data, error } = await this.client.from('leave_requests').insert({ teacher_id: teacherId, leave_date: input.leaveDate, leave_type: input.leaveType, reason: input.reason, status: 'PENDING' }).select(LEAVE_FIELDS).single();
+  async create(teacherId: string, input: CreateLeaveRequest, attachment?: StoredRequestAttachment): Promise<LeaveRequest> {
+    const { data, error } = await this.client.from('leave_requests').insert({
+      teacher_id: teacherId,
+      leave_date: input.leaveDate,
+      leave_type: input.leaveType,
+      reason: input.reason,
+      status: 'PENDING',
+      attachment_storage_path: attachment?.storagePath ?? null,
+      attachment_original_name: attachment?.originalName ?? null,
+      attachment_mime_type: attachment?.mimeType ?? null,
+      attachment_size_bytes: attachment?.sizeBytes ?? null,
+    }).select(LEAVE_FIELDS).single();
     if (!error && data) return toLeave(data);
     if (error?.code === '23505') throw new AppError(409, 'ACTIVE_LEAVE_EXISTS', 'Sudah ada izin aktif pada tanggal tersebut');
     if (error?.code === '23514' && error.message.includes('attendance_leave_conflict')) {
@@ -140,13 +165,13 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
     return { records: (data ?? []).map(toLeave), totalItems: count ?? 0 };
   }
   async findAny(leaveRequestId: string): Promise<AdminLeaveRequest | null> {
-    const { data, error } = await this.client.from('leave_requests').select(`${LEAVE_FIELDS},profiles!leave_requests_teacher_id_fkey(nip,full_name)`).eq('id', leaveRequestId).maybeSingle();
+    const { data, error } = await this.client.from('leave_requests').select(`${LEAVE_FIELDS},profiles!leave_requests_teacher_id_fkey(nip,full_name,whatsapp_number)`).eq('id', leaveRequestId).maybeSingle();
     if (error) throw databaseError('LEAVE_LOOKUP_FAILED', 'Pengajuan izin tidak dapat dimuat');
     return data ? toAdminLeave(data) : null;
   }
   async listAdmin(input: ListAdminLeaveRequestsQuery) {
     const start = (input.page - 1) * input.pageSize;
-    let query = this.client.from('leave_requests').select(`${LEAVE_FIELDS},profiles!leave_requests_teacher_id_fkey(nip,full_name)`, { count: 'exact' }).order('leave_date', { ascending: true }).order('created_at', { ascending: true }).range(start, start + input.pageSize - 1);
+    let query = this.client.from('leave_requests').select(`${LEAVE_FIELDS},profiles!leave_requests_teacher_id_fkey(nip,full_name,whatsapp_number)`, { count: 'exact' }).order('leave_date', { ascending: true }).order('created_at', { ascending: true }).range(start, start + input.pageSize - 1);
     if (input.status) query = query.eq('status', input.status);
     if (input.leaveDate) query = query.eq('leave_date', input.leaveDate);
     if (input.search) query = query.or(`nip.ilike.%${input.search}%,full_name.ilike.%${input.search}%`, { referencedTable: 'profiles' });

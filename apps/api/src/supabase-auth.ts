@@ -27,6 +27,7 @@ const ProfileRowSchema = z.strictObject({
   role: UserRoleSchema,
   is_active: z.boolean(),
   must_change_password: z.boolean(),
+  temporary_password_expires_at: z.string().nullable(),
 });
 
 const AuthSessionSchema = z.object({
@@ -115,10 +116,13 @@ export class SupabaseAuthService implements AuthService {
     );
   }
 
-  private async loadProfile(userId: string): Promise<AuthUser> {
+  private async loadProfile(userId: string): Promise<{
+    user: AuthUser;
+    temporaryPasswordExpiresAt: string | null;
+  }> {
     const { data, error } = await this.serviceClient
       .from('profiles')
-      .select('id,nip,full_name,role,is_active,must_change_password')
+      .select('id,nip,full_name,role,is_active,must_change_password,temporary_password_expires_at')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
@@ -132,13 +136,28 @@ export class SupabaseAuthService implements AuthService {
     if (!parsed.success) {
       throw new AppError(500, 'PROFILE_INVALID', 'Data profil tidak valid');
     }
-    return toAuthUser(parsed.data);
+    return {
+      user: toAuthUser(parsed.data),
+      temporaryPasswordExpiresAt: parsed.data.temporary_password_expires_at,
+    };
   }
 
   private async loadActiveProfile(userId: string): Promise<AuthUser> {
-    const user = await this.loadProfile(userId);
+    const profile = await this.loadProfile(userId);
+    const { user } = profile;
     if (!user.isActive) {
       throw new AppError(403, 'ACCOUNT_INACTIVE', 'Akun dinonaktifkan');
+    }
+    if (
+      user.mustChangePassword &&
+      profile.temporaryPasswordExpiresAt !== null &&
+      Date.parse(profile.temporaryPasswordExpiresAt) <= Date.now()
+    ) {
+      throw new AppError(
+        403,
+        'TEMPORARY_PASSWORD_EXPIRED',
+        'Password sementara kedaluwarsa. Hubungi SuperAdmin untuk reset baru',
+      );
     }
     return user;
   }
@@ -221,7 +240,10 @@ export class SupabaseAuthService implements AuthService {
 
     const { error: profileError } = await this.serviceClient
       .from('profiles')
-      .update({ must_change_password: false })
+      .update({
+        must_change_password: false,
+        temporary_password_expires_at: null,
+      })
       .eq('id', currentUser.id);
     if (profileError) {
       throw new AppError(500, 'PROFILE_UPDATE_FAILED', 'Profil tidak dapat diperbarui');
@@ -276,7 +298,7 @@ export async function bootstrapSuperAdmin(
   );
   const { data: existing, error: lookupError } = await client
     .from('profiles')
-    .select('id,nip,full_name,role,is_active,must_change_password')
+    .select('id,nip,full_name,role,is_active,must_change_password,temporary_password_expires_at')
     .eq('nip', nip)
     .maybeSingle();
   if (lookupError) {
@@ -312,6 +334,7 @@ export async function bootstrapSuperAdmin(
     role: 'SUPER_ADMIN' as const,
     is_active: true,
     must_change_password: true,
+    temporary_password_expires_at: null,
   };
   const { error: profileError } = await client
     .from('profiles')

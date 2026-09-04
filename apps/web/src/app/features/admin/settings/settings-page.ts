@@ -109,6 +109,7 @@ function scheduleRuleForm() {
 export class SettingsPage implements OnInit {
   private readonly service = inject(SettingsService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  readonly activeTab = signal<'summary' | 'schedule' | 'geofence' | 'calendar'>('summary');
 
   readonly timeFields: ReadonlyArray<{
     key: (typeof timeKeys)[number];

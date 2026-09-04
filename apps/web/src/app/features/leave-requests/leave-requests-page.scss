@@ -7,6 +7,8 @@ h1 { margin: 0; color: #17253a; font-size: clamp(2.25rem, 8vw, 3.5rem); letter-s
 .leave-form { display: grid; gap: .75rem; padding: 1.25rem; background: #fff; border: 1px solid #c6d1df; border-radius: .75rem; }
 .leave-form mat-form-field { width: 100%; }
 .leave-form button[type='submit'] { min-height: 3rem; }
+.attachment-field { display: grid; gap: .4rem; color: #58677d; font-size: .82rem; }
+.attachment-field input { padding: .65rem; border: 1px dashed #aeb9c8; border-radius: .45rem; }
 .request-section { margin-top: 2.5rem; }
 .request-section h2 { color: #17253a; }
 .request-list { display: grid; gap: .75rem; }

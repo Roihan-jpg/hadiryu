@@ -35,6 +35,7 @@ class FakeLeaveRequestService implements LeaveRequestService {
   async listOwn(_teacherId: string, input: ListLeaveRequestsQuery): Promise<LeaveRequestListResponse> { this.listOwnCalls.push(input); return { data: [leaveRequest], pagination: { page: input.page, pageSize: input.pageSize, totalItems: 1, totalPages: 1 } }; }
   async cancel(): Promise<LeaveRequest> { return { ...leaveRequest, status: 'CANCELLED' }; }
   async listAdmin(input: ListAdminLeaveRequestsQuery) { this.listAdminCalls.push(input); return { data: [] as AdminLeaveRequest[], pagination: { page: input.page, pageSize: input.pageSize, totalItems: 0, totalPages: 0 } }; }
+  async getAdmin(): Promise<AdminLeaveRequest> { return { ...leaveRequest, teacherNip: teacher.nip, teacherFullName: teacher.fullName }; }
   async approve(): Promise<LeaveRequest> { return { ...leaveRequest, status: 'APPROVED', decidedBy: admin.id, decidedAt: '2026-08-25T01:00:00.000Z' }; }
   async reject(): Promise<LeaveRequest> { return { ...leaveRequest, status: 'REJECTED', decidedBy: admin.id, decidedAt: '2026-08-25T01:00:00.000Z' }; }
 }

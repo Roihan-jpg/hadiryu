@@ -11,6 +11,12 @@ export const MonthlyReportParamsSchema = z.strictObject({
 });
 export type MonthlyReportParams = z.infer<typeof MonthlyReportParamsSchema>;
 
+export const DefaultReportPeriodSchema = z.strictObject({
+  year: z.number().int().min(2000).max(9999),
+  month: z.number().int().min(1).max(12),
+});
+export type DefaultReportPeriod = z.infer<typeof DefaultReportPeriodSchema>;
+
 export const MonthlyReportDayStatusSchema = z.enum([
   'WORKED',
   'INCOMPLETE',

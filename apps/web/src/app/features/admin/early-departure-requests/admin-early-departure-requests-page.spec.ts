@@ -57,12 +57,10 @@ describe('AdminEarlyDepartureRequestsPage', () => {
     fixture.detectChanges();
   });
 
-  it('loads Pending requests and approves after confirmation', async () => {
+  it('loads Pending requests and links decisions to the detail page', async () => {
     expect(fixture.nativeElement.textContent).toContain('Guru Satu');
-    vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
-
-    await fixture.componentInstance.decide(pending, 'APPROVED');
-
-    expect(decide).toHaveBeenCalledWith(pending.id, 'APPROVED');
+    const link = fixture.nativeElement.querySelector('a[href*="early-departure-requests"]');
+    expect(link).toBeTruthy();
+    expect(decide).not.toHaveBeenCalled();
   });
 });

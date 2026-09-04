@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { MonthlyReportPreviewSchema } from '@absensi/contracts';
+import {
+  MonthlyReportPreviewSchema,
+  PasswordResetResponseSchema,
+  TeacherResponseSchema,
+} from '@absensi/contracts';
 
 import {
   APP_BASE_URL,
@@ -12,6 +16,8 @@ import {
   requiredEnvironment,
   waitForJakartaMinute,
 } from './support/release-helpers';
+
+test.setTimeout(180_000);
 
 test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   browser,
@@ -77,6 +83,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   });
   await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
   await page.goto(`${APP_BASE_URL}/admin/settings`);
+  await page.getByRole('button', { name: 'Geofence', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Geofence global' })).toBeVisible();
   await expect(page.locator('app-admin-geofence-map')).toBeVisible();
   await expect(page.getByText('4 titik batas', { exact: true })).toBeVisible();
@@ -86,20 +93,28 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await expect(page.getByText('5 titik batas', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Urungkan titik' }).click();
   await expect(page.getByText('4 titik batas', { exact: true })).toBeVisible();
-  await expectSuccessfulJsonMutation(page, '/api/admin/teachers', {
+  const teacher = TeacherResponseSchema.parse(await expectSuccessfulJsonMutation(page, '/api/admin/teachers', {
     nip: teacherNip,
     fullName: 'Guru Smoke E2E',
     initialPassword: teacherInitialPassword,
-  });
+    whatsappNumber: '+6281234567801',
+  }));
   await expectSuccessfulJsonMutation(page, '/api/admin/teachers', {
     nip: earlyTeacherNip,
     fullName: 'Guru Pulang Awal E2E',
     initialPassword: earlyTeacherInitialPassword,
+    whatsappNumber: '+6281234567802',
   });
+  const reset = PasswordResetResponseSchema.parse(await expectSuccessfulJsonMutation(
+    page,
+    `/api/admin/teachers/${teacher.teacher.id}/reset-password`,
+    {},
+  ));
+  expect(reset.expiresAt).toBe(reset.teacher.temporaryPasswordExpiresAt);
 
   await logout(page);
-  await login(page, teacherNip, teacherInitialPassword);
-  await changeInitialPassword(page, teacherInitialPassword, teacherPassword);
+  await login(page, teacherNip, reset.temporaryPassword);
+  await changeInitialPassword(page, reset.temporaryPassword, teacherPassword);
   await expect(page.getByRole('heading', { name: /Hari ini, Guru Smoke E2E/ })).toBeVisible();
   await expect(page.locator('app-teacher-location-map')).toHaveCount(0);
   await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
@@ -144,6 +159,11 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
 
   await earlyPage.getByRole('link', { name: 'Pulang awal', exact: true }).click();
   await earlyPage.getByLabel('Alasan pulang awal').fill('Keperluan keluarga untuk smoke E2E');
+  await earlyPage.getByLabel(/Lampiran opsional/).setInputFiles({
+    name: 'bukti-pulang-awal.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.7\nE2E'),
+  });
   await earlyPage
     .getByRole('button', { name: 'Kirim permohonan dan catat pulang' })
     .click();
@@ -159,6 +179,11 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await page.getByLabel('Jenis izin').click();
   await page.getByRole('option', { name: 'Dinas Luar' }).click();
   await page.getByLabel('Alasan').fill('Verifikasi release readiness E2E');
+  await page.getByLabel(/Lampiran opsional/).setInputFiles({
+    name: 'bukti-izin.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.7\nE2E'),
+  });
   await page.getByRole('button', { name: 'Kirim pengajuan' }).click();
   await expect(
     page.getByText(
@@ -171,18 +196,29 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await logout(page);
   await login(page, adminNip, adminPassword);
   await page.getByRole('link', { name: 'Approval izin' }).click();
-  const request = page.locator('article').filter({ hasText: teacherNip });
+  const request = page.getByRole('row').filter({
+    has: page.getByText(teacherNip, { exact: true }),
+  });
   await expect(request).toContainText('Pending');
-  await request.getByRole('button', { name: 'Setujui' }).click();
+  await request.getByRole('link', { name: 'Lihat detail' }).click();
+  await expect(page.getByRole('link', { name: 'Hubungi via WhatsApp' })).toHaveAttribute(
+    'href',
+    'https://wa.me/6281234567801',
+  );
+  await expect(page.getByRole('link', { name: /Unduh bukti-izin\.pdf/ })).toBeVisible();
   await page.getByRole('button', { name: 'Setujui izin' }).click();
-  await expect(page.getByText('Izin berhasil disetujui.')).toBeVisible();
+  await expect(page.getByText('Disetujui', { exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: 'Approval pulang awal' }).click();
-  const earlyRequest = page.locator('article').filter({ hasText: earlyTeacherNip });
+  const earlyRequest = page.getByRole('row').filter({
+    has: page.getByText(earlyTeacherNip, { exact: true }),
+  });
   await expect(earlyRequest).toContainText('Pending');
-  page.once('dialog', (dialog) => dialog.accept());
-  await earlyRequest.getByRole('button', { name: 'Setujui' }).click();
-  await expect(page.getByText('Pulang awal disetujui.')).toBeVisible();
+  await earlyRequest.getByRole('link', { name: 'Lihat detail' }).click();
+  await expect(page.getByRole('heading', { name: 'Timeline absensi' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Unduh bukti-pulang-awal\.pdf/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Setujui', exact: true }).click();
+  await expect(page.getByText('Disetujui', { exact: true })).toBeVisible();
 
   const [attendanceYear, attendanceMonth] = attendanceWindow.workDate
     .split('-')
@@ -233,4 +269,12 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   );
   expect(exportBody.byteLength).toBeGreaterThan(1_000);
+
+  await page.getByRole('link', { name: 'Laporan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Laporan Absensi' })).toBeVisible();
+  await page.getByRole('link', { name: 'Audit Log', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
+  await expect(page.getByText('TEACHER_PASSWORD_RESET', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Panduan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Panduan Super Admin' })).toBeVisible();
 });

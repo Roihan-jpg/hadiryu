@@ -1,0 +1,64 @@
+import { expect, test } from '@playwright/test';
+
+const admin = {
+  id: '50000000-0000-4000-8000-000000000001',
+  nip: 'admin-001',
+  fullName: 'Admin Sekolah',
+  role: 'SUPER_ADMIN',
+  isActive: true,
+  mustChangePassword: false,
+};
+
+const records = [
+  ['PRESENT', 'Guru Aminah', '1987001'],
+  ['LATE', 'Guru Budi', '1987002'],
+  ['NOT_PRESENT', 'Guru Citra', '1987003'],
+  ['INCOMPLETE', 'Guru Damar', '1987004'],
+  ['LEAVE', 'Guru Eka', '1987005'],
+] as const;
+
+async function mockAdminApi(page: import('@playwright/test').Page): Promise<void> {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: { user: admin } }));
+  await page.route('**/api/admin/attendance**', (route) => route.fulfill({
+    json: {
+      summary: { workDate: '2026-09-04', generatedAt: '2026-09-04T01:00:00.000Z', present: 1, late: 1, notPresent: 1, incomplete: 1, leave: 1, total: 5 },
+      data: records.map(([status, teacherFullName, teacherNip], index) => ({
+        teacherId: `50000000-0000-4000-8000-00000000000${index + 2}`,
+        teacherNip, teacherFullName, workDate: '2026-09-04', status,
+        attendanceId: status === 'NOT_PRESENT' || status === 'LEAVE' ? null : `40000000-0000-4000-8000-00000000000${index + 1}`,
+        checkInAt: status === 'NOT_PRESENT' || status === 'LEAVE' ? null : '2026-09-04T00:01:00.000Z',
+        checkOutAt: status === 'PRESENT' ? '2026-09-04T08:35:00.000Z' : null,
+        workedMinutes: status === 'PRESENT' ? 514 : null,
+        workDeficitMinutes: status === 'PRESENT' ? 1 : null,
+        arrivalLateMinutes: status === 'LATE' ? 8 : status === 'PRESENT' ? 1 : null,
+        leaveType: status === 'LEAVE' ? 'SICK' : null,
+        notes: [],
+      })),
+      pagination: { page: 1, pageSize: 20, totalItems: 5, totalPages: 1 },
+    },
+  }));
+}
+
+for (const viewport of [
+  { name: 'desktop-1440', width: 1440, height: 900 },
+  { name: 'tablet-1024', width: 1024, height: 768 },
+  { name: 'mobile-390', width: 390, height: 844 },
+]) {
+  test(`admin shell has no viewport overflow at ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockAdminApi(page);
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', { name: 'Monitoring kehadiran' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (viewport.width <= 820) {
+      const menuButton = page.getByRole('button', { name: 'Buka menu' });
+      await expect(menuButton).toBeVisible();
+      await menuButton.focus();
+      await expect(menuButton).toBeFocused();
+      await menuButton.press('Enter');
+      await expect(page.getByRole('complementary', { name: 'Navigasi Super Admin' })).toBeVisible();
+    } else {
+      await expect(page.getByText('SD Islam Tompokersan', { exact: true })).toBeVisible();
+    }
+  });
+}

@@ -1,32 +1,53 @@
 <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
 
-<mat-toolbar role="banner">
-  <a class="brand" [routerLink]="homeRoute()" aria-label="Absensi Guru, halaman utama">
-    <span class="brand-mark" aria-hidden="true">AG</span>
-    <span>{{ appName }}</span>
-  </a>
-
-  @if (user(); as currentUser) {
-    <nav aria-label="Navigasi utama">
+@if (user(); as currentUser) {
+  @if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
+    <div class="admin-shell" [class.drawer-open]="adminMenuOpen()">
+      <button class="drawer-backdrop" type="button" aria-label="Tutup menu" (click)="closeAdminMenu()"></button>
+      <aside class="admin-sidebar" aria-label="Navigasi Super Admin">
+        <div class="admin-brand">
+          <span class="admin-brand-mark" aria-hidden="true">AG</span>
+          <span><strong>Absensi Guru</strong><small>Portal Super Admin</small></span>
+          <button class="drawer-close" type="button" aria-label="Tutup menu" (click)="closeAdminMenu()">×</button>
+        </div>
+        <div class="school-identity"><small>SEKOLAH</small><strong>SD Islam Tompokersan</strong><span>Lumajang</span></div>
+        <nav class="admin-nav">
+          @for (item of adminNavigation; track item.path) {
+            <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }" ariaCurrentWhenActive="page" (click)="closeAdminMenu()">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="item.icon" /></svg><span>{{ item.label }}</span>
+            </a>
+          }
+        </nav>
+        <div class="admin-account">
+          <span class="avatar" aria-hidden="true">{{ initials(currentUser.fullName) }}</span>
+          <span><strong>{{ currentUser.fullName }}</strong><small>Super Admin</small></span>
+          <button type="button" (click)="logout()" aria-label="Keluar dari aplikasi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3m12-9h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" /></svg></button>
+        </div>
+      </aside>
+      <div class="admin-workspace">
+        <header class="admin-mobile-header">
+          <button type="button" aria-label="Buka menu" [attr.aria-expanded]="adminMenuOpen()" (click)="toggleAdminMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
+          <strong>Absensi Guru</strong><span class="avatar" aria-hidden="true">{{ initials(currentUser.fullName) }}</span>
+        </header>
+        <main id="main-content" class="admin-main" tabindex="-1"><router-outlet /></main>
+      </div>
+    </div>
+  } @else {
+    <mat-toolbar role="banner">
+      <a class="brand" [routerLink]="homeRoute()" aria-label="Absensi Guru, halaman utama"><span class="brand-mark" aria-hidden="true">AG</span><span>{{ appName }}</span></a>
       @if (currentUser.role === 'USER' && !currentUser.mustChangePassword) {
-        <a mat-button routerLink="/guru" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Hari ini</a>
-        <a mat-button routerLink="/guru/riwayat" routerLinkActive="active" ariaCurrentWhenActive="page">Riwayat</a>
-        <a mat-button routerLink="/guru/izin" routerLinkActive="active" ariaCurrentWhenActive="page">Izin</a>
-        <a mat-button routerLink="/guru/pulang-awal" routerLinkActive="active" ariaCurrentWhenActive="page">Pulang awal</a>
-      } @else if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
-        <a mat-button routerLink="/admin" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Monitoring</a>
-        <a mat-button routerLink="/admin/teachers" routerLinkActive="active" ariaCurrentWhenActive="page">Guru</a>
-        <a mat-button routerLink="/admin/leave-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Approval izin</a>
-        <a mat-button routerLink="/admin/early-departure-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Approval pulang awal</a>
-        <a mat-button routerLink="/admin/settings" routerLinkActive="active" ariaCurrentWhenActive="page">Pengaturan</a>
+        <nav aria-label="Navigasi utama">
+          <a mat-button routerLink="/guru" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Hari ini</a>
+          <a mat-button routerLink="/guru/riwayat" routerLinkActive="active" ariaCurrentWhenActive="page">Riwayat</a>
+          <a mat-button routerLink="/guru/izin" routerLinkActive="active" ariaCurrentWhenActive="page">Izin</a>
+          <a mat-button routerLink="/guru/pulang-awal" routerLinkActive="active" ariaCurrentWhenActive="page">Pulang awal</a>
+        </nav>
       }
-    </nav>
-    <span class="toolbar-spacer"></span>
-    <span class="account-name">{{ currentUser.fullName }}</span>
-    <button mat-button type="button" (click)="logout()">Keluar</button>
+      <span class="toolbar-spacer"></span><span class="account-name">{{ currentUser.fullName }}</span><button mat-button type="button" (click)="logout()">Keluar</button>
+    </mat-toolbar>
+    <main id="main-content" tabindex="-1"><router-outlet /></main>
   }
-</mat-toolbar>
-
-<main id="main-content" tabindex="-1">
-  <router-outlet />
-</main>
+} @else {
+  <mat-toolbar role="banner"><a class="brand" routerLink="/login"><span class="brand-mark" aria-hidden="true">AG</span><span>{{ appName }}</span></a></mat-toolbar>
+  <main id="main-content" tabindex="-1"><router-outlet /></main>
+}

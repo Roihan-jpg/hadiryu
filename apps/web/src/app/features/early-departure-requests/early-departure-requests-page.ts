@@ -48,6 +48,7 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
           <textarea matInput rows="4" maxlength="1000" formControlName="reason"></textarea>
           <mat-error>Alasan wajib diisi, maksimal 1.000 karakter.</mat-error>
         </mat-form-field>
+        <label class="attachment-field">Lampiran opsional (PDF/JPEG/PNG, maks. 5 MB)<input type="file" accept="application/pdf,image/jpeg,image/png" (change)="attachmentChanged($event)" /></label>
         <button mat-flat-button type="submit" [disabled]="submitting()">
           {{ submitting() ? 'Mengirim…' : 'Kirim permohonan dan catat pulang' }}
         </button>
@@ -68,6 +69,7 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
                 <strong>{{ dateTimeLabel(request.requestedAt) }}</strong>
                 <span>{{ statusLabel(request.status) }}</span>
                 <p>{{ request.reason }}</p>
+                @if (request.attachment) { <a [href]="'/api/early-departure-requests/' + request.id + '/attachment'">Unduh lampiran: {{ request.attachment.originalName }}</a> }
                 @if (request.decisionNote) { <small>Catatan admin: {{ request.decisionNote }}</small> }
               </article>
             }
@@ -80,7 +82,7 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
     .page-shell { width: min(100% - 2rem, 54rem); margin: 0 auto; padding: 2rem 0 4rem; }
     header { margin: 1.5rem 0; } header p:first-child { color: #315ea8; font-weight: 700; }
     h1, h2, p { margin-top: 0; } form { display: grid; gap: .75rem; padding: 1.25rem; border: 1px solid #ccd6e4; border-radius: .75rem; }
-    mat-form-field { width: 100%; } form button { justify-self: start; }
+    mat-form-field { width: 100%; } form button { justify-self: start; } .attachment-field { display: grid; gap: .4rem; color: #58677d; font-size: .82rem; } .attachment-field input { padding: .65rem; border: 1px dashed #aeb9c8; border-radius: .45rem; }
     section[aria-labelledby] { margin-top: 2rem; } .request-list { display: grid; gap: .75rem; }
     article { border: 1px solid #d6deea; border-radius: .65rem; padding: 1rem; }
     article span { float: right; color: #315ea8; font-weight: 600; } article p { margin: .65rem 0; }
@@ -103,6 +105,7 @@ export class EarlyDepartureRequestsPage implements OnInit {
   readonly submitting = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+  readonly attachment = signal<File | undefined>(undefined);
   readonly locationProgress = signal<LocationAccuracyProgress | null>(null);
   readonly locationMaxAccuracyMeters = signal(15);
 
@@ -131,11 +134,15 @@ export class EarlyDepartureRequestsPage implements OnInit {
     this.locationProgress.set(null);
     try {
       const location = await this.currentLocation();
-      await this.service.create({
+      const input = {
         reason: this.form.controls.reason.value.trim(),
         ...location,
-      });
+      };
+      const attachment = this.attachment();
+      if (attachment) await this.service.create(input, attachment);
+      else await this.service.create(input);
       this.form.reset({ reason: '' });
+      this.attachment.set(undefined);
       this.successMessage.set('Permohonan terkirim. Absensi pulang dicatat dan menunggu keputusan admin.');
       await this.load();
     } catch (error) {
@@ -154,6 +161,8 @@ export class EarlyDepartureRequestsPage implements OnInit {
   }
 
   rounded(value: number): number { return Math.round(value); }
+
+  attachmentChanged(event: Event): void { this.attachment.set((event.target as HTMLInputElement).files?.[0]); }
 
   private async currentLocation(): Promise<LocationInput> {
     if (!this.geolocation) return Promise.reject(new Error('Lokasi tidak tersedia'));

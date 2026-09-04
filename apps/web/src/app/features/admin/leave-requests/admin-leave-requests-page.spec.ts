@@ -33,9 +33,9 @@ describe('AdminLeaveRequestsPage', () => {
   afterEach(() => TestBed.resetTestingModule());
   it('renders pending approvals and filters them by status', async () => {
     await setup();
-    expect(fixture.nativeElement.textContent).toContain('Approval izin');
+    expect(fixture.nativeElement.textContent).toContain('Approval Izin');
     expect(fixture.nativeElement.textContent).toContain('Guru Satu');
-    expect(fixture.nativeElement.textContent).toContain('Setujui');
+    expect(fixture.nativeElement.textContent).toContain('Lihat detail');
   });
   it('submits an approval only once while it is in progress', async () => {
     await setup();

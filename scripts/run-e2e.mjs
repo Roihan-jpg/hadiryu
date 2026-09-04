@@ -34,6 +34,23 @@ function run(
 let runtimeEnvironment;
 let testFile;
 if (mode === 'local') {
+  // Attachments are exercised by the local smoke test, so make sure the Storage
+  // API is running even when a preceding database test started a reduced stack.
+  run(
+    'node_modules/supabase/dist/supabase.js',
+    ['stop'],
+    process.env,
+  );
+  run(
+    'node_modules/supabase/dist/supabase.js',
+    [
+      'start',
+      '--exclude',
+      'realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor,mailpit',
+    ],
+    process.env,
+    true,
+  );
   const status = run(
     'node_modules/supabase/dist/supabase.js',
     ['status', '-o', 'env'],
