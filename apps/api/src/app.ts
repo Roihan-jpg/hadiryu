@@ -227,7 +227,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
   }
   app.use(createRequestObservabilityMiddleware(logger));
   app.use(createSecurityHeadersMiddleware(security.production));
-  if (security.production || security.allowedOrigins.length > 0) {
+  if (
+    !security.edgeValidatedOrigin &&
+    (security.production || security.allowedOrigins.length > 0)
+  ) {
     app.use(createCorsMiddleware(security.allowedOrigins));
   }
   app.use(createCsrfProtectionMiddleware(security.production));

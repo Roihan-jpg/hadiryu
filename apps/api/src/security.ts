@@ -12,6 +12,7 @@ export interface RateLimitConfig {
 
 export interface SecurityConfig {
   production: boolean;
+  edgeValidatedOrigin: boolean;
   allowedOrigins: readonly string[];
   authRateLimit: RateLimitConfig;
   attendanceRateLimit: RateLimitConfig;
@@ -20,6 +21,7 @@ export interface SecurityConfig {
 
 export const defaultSecurityConfig: SecurityConfig = {
   production: process.env['NODE_ENV'] === 'production',
+  edgeValidatedOrigin: false,
   allowedOrigins: [],
   authRateLimit: { windowMs: 15 * 60_000, max: 20 },
   attendanceRateLimit: { windowMs: 60_000, max: 30 },
@@ -30,6 +32,8 @@ export function resolveSecurityConfig(
 ): SecurityConfig {
   return {
     production: input?.production ?? defaultSecurityConfig.production,
+    edgeValidatedOrigin:
+      input?.edgeValidatedOrigin ?? defaultSecurityConfig.edgeValidatedOrigin,
     allowedOrigins: input?.allowedOrigins ?? defaultSecurityConfig.allowedOrigins,
     authRateLimit: input?.authRateLimit ?? defaultSecurityConfig.authRateLimit,
     attendanceRateLimit:
@@ -62,26 +66,29 @@ export function createCorsMiddleware(
   allowedOrigins: readonly string[],
 ): RequestHandler {
   const allowlist = new Set(allowedOrigins);
-  return cors({
-    origin(origin, callback) {
-      if (!origin || allowlist.has(origin)) {
-        callback(null, true);
-        return;
+  return (request, response, next) => {
+    const origin = request.get('origin');
+    const host = request.get('host');
+    const isSameHost = origin !== undefined && host !== undefined && (() => {
+      try {
+        return new URL(origin).host === host;
+      } catch {
+        return false;
       }
-      callback(
-        new AppError(
-          403,
-          'CORS_ORIGIN_FORBIDDEN',
-          'Origin request tidak diizinkan',
-        ),
-      );
-    },
-    credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Request-ID'],
-    exposedHeaders: ['X-Request-ID', 'Content-Disposition'],
-    maxAge: 600,
-  });
+    })();
+    if (origin && !allowlist.has(origin) && !isSameHost) {
+      next(new AppError(403, 'CORS_ORIGIN_FORBIDDEN', 'Origin request tidak diizinkan'));
+      return;
+    }
+    cors({
+      origin: origin ?? false,
+      credentials: true,
+      methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Request-ID'],
+      exposedHeaders: ['X-Request-ID', 'Content-Disposition'],
+      maxAge: 600,
+    })(request, response, next);
+  };
 }
 
 export function createCsrfProtectionMiddleware(

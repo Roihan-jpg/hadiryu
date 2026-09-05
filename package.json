@@ -18,7 +18,7 @@
     "db:advisors": "supabase db advisors --local --type all --level warn --fail-on warn",
     "e2e:install": "playwright install chromium",
     "lint": "eslint playwright.config.ts e2e scripts && npm run lint --workspaces --if-present",
-    "typecheck": "tsc -p tsconfig.e2e.json --noEmit && npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.e2e.json --noEmit && tsc -p worker/tsconfig.json --noEmit && npm run typecheck --workspaces --if-present",
     "test": "npm run test:release-config && npm run test:worker && npm run test:workspaces",
     "test:release-config": "node --test scripts/release-config.test.mjs",
     "test:worker": "vitest run worker/index.spec.ts",

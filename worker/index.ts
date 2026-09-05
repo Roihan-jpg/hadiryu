@@ -23,13 +23,15 @@ import { SupabaseMonthlyReportRepository } from '../apps/api/src/supabase-monthl
 import { SupabaseSettingsService } from '../apps/api/src/supabase-settings.js';
 import { SupabaseTeacherService } from '../apps/api/src/supabase-teachers.js';
 import reportTemplate from '../report-template.xlsx';
-import { isApiRequest } from './routing.js';
+import { hasForeignOrigin, isApiRequest, normalizeSameOriginRequest } from './routing.js';
 
 interface WorkerBindings {
-  ASSETS: { fetch(request: Request): Promise<Response> };
+  ASSETS: Fetcher;
   SUPABASE_URL: string;
   SUPABASE_SECRET_KEY: string;
 }
+
+const publicOrigin = 'https://absensi-guru.roihanboizz2006.workers.dev';
 
 const bindings = env as unknown as WorkerBindings;
 const supabaseConfig: SupabaseAuthConfig = {
@@ -76,16 +78,27 @@ createApp({
   profileService: new SupabaseProfileService(supabaseConfig),
   logger: createStructuredLogger(),
   secureCookies: true,
-  security: { production: true },
+  security: {
+    production: true,
+    edgeValidatedOrigin: true,
+    allowedOrigins: [],
+  },
 }).listen(3000);
 
 const apiHandler = httpServerHandler({ port: 3000 });
 
 export default {
-  fetch(request: Request, workerEnv: WorkerBindings, context: ExecutionContext): Promise<Response> {
-    if (isApiRequest(new URL(request.url).pathname)) {
-      return apiHandler.fetch(request, workerEnv, context);
+  async fetch(request, workerEnv, context) {
+    const pathname = new URL(request.url).pathname;
+    if (isApiRequest(pathname)) {
+      if (hasForeignOrigin(request, [publicOrigin])) {
+        return Response.json({
+          error: { code: 'CORS_ORIGIN_FORBIDDEN', message: 'Origin request tidak diizinkan' },
+        }, { status: 403 });
+      }
+      if (!apiHandler.fetch) return new Response('API handler unavailable', { status: 503 });
+      return apiHandler.fetch(normalizeSameOriginRequest(request), workerEnv, context);
     }
     return workerEnv.ASSETS.fetch(request);
   },
-};
+} satisfies ExportedHandler<WorkerBindings>;
