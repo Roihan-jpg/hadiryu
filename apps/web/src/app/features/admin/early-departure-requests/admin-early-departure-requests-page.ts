@@ -1,7 +1,7 @@
 import type { AdminEarlyDepartureRequest, EarlyDepartureStatus } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -13,10 +13,10 @@ import { EarlyDepartureRequestsService } from '../../early-departure-requests/ea
 type StatusFilter = EarlyDepartureStatus | 'ALL';
 
 @Component({
-  imports: [MatButtonModule, MatPaginatorModule, MatProgressSpinnerModule, MatSelectModule, ReactiveFormsModule, RouterLink], selector: 'app-admin-early-departure-requests-page',
+  imports: [FormsModule, MatButtonModule, MatPaginatorModule, MatProgressSpinnerModule, MatSelectModule, ReactiveFormsModule, RouterLink], selector: 'app-admin-early-departure-requests-page',
   template: `
     <section class="page-shell"><header><p>ANTREAN KEPUTUSAN</p><h1>Approval Pulang Awal</h1><span>Keputusan dilakukan setelah meninjau timeline dan lokasi pada halaman detail.</span></header>
-      <form class="admin-panel filters" (ngSubmit)="applyFilters()"><div class="filter-control"><span>Status</span><mat-select aria-label="Status" [formControl]="statusControl"><mat-option value="PENDING">Pending</mat-option><mat-option value="APPROVED">Disetujui</mat-option><mat-option value="REJECTED">Ditolak</mat-option><mat-option value="ALL">Semua</mat-option></mat-select></div><label for="early-date">Tanggal</label><input id="early-date" type="date" [formControl]="dateControl" /><label for="early-search">Cari Guru</label><input id="early-search" type="search" placeholder="Nama atau NIP" [formControl]="searchControl" /><button mat-flat-button type="submit">Terapkan</button></form>
+      <form class="admin-panel filters" (ngSubmit)="applyFilters()"><div class="filter-control"><span>Status</span><mat-select aria-label="Status" [formControl]="statusControl"><mat-option value="PENDING">Pending</mat-option><mat-option value="APPROVED">Disetujui</mat-option><mat-option value="REJECTED">Ditolak</mat-option><mat-option value="ALL">Semua</mat-option></mat-select></div><label for="early-date">Tanggal</label><input id="early-date" type="date" [formControl]="dateControl" /><label for="early-search">Cari Guru</label><input id="early-search" type="search" placeholder="Nama atau NIP" [formControl]="searchControl" /><button mat-flat-button type="submit" [disabled]="loading()">Terapkan</button></form>
       @if(errorMessage()){<p class="feedback error" role="alert">{{errorMessage()}}</p>}
       @if(loading()){<div class="state"><mat-spinner diameter="28"/>Memuat permohonan…</div>}@else{<div class="admin-panel table-wrap"><table><thead><tr><th>Guru</th><th>Waktu pengajuan</th><th>Alasan</th><th>Lokasi</th><th>Status</th><th></th></tr></thead><tbody>@for(item of requests();track item.id){<tr><td><strong>{{item.teacherFullName}}</strong><small>{{item.teacherNip}}</small></td><td>{{dateTimeLabel(item.requestedAt)}}</td><td class="reason">{{item.reason}}</td><td>{{distanceLabel(item)}}</td><td><span [class]="'status-pill '+item.status.toLowerCase()">{{statusLabel(item.status)}}</span></td><td><a mat-button [routerLink]="['/admin/early-departure-requests',item.id]">Lihat detail</a></td></tr>}</tbody></table>@if(requests().length===0){<div class="state">Tidak ada permohonan pada filter ini.</div>}</div><mat-paginator [length]="pagination().totalItems" [pageIndex]="pagination().page-1" [pageSize]="pagination().pageSize" [pageSizeOptions]="[10,20,50]" (page)="pageChanged($event)"/>}
     </section>

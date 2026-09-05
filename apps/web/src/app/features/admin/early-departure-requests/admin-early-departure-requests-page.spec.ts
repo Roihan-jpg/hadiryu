@@ -63,4 +63,22 @@ describe('AdminEarlyDepartureRequestsPage', () => {
     expect(link).toBeTruthy();
     expect(decide).not.toHaveBeenCalled();
   });
+
+  it('applies the selected filters when the form is submitted', async () => {
+    fixture.componentInstance.statusControl.setValue('APPROVED');
+    fixture.componentInstance.dateControl.setValue('2026-09-05');
+    fixture.componentInstance.searchControl.setValue('  Guru Dua  ');
+
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+
+    await vi.waitFor(() => expect(listAdmin).toHaveBeenCalledTimes(2));
+    expect(listAdmin).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 100,
+      status: 'APPROVED',
+      workDate: '2026-09-05',
+      search: 'Guru Dua',
+    });
+  });
 });

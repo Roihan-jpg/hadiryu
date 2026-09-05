@@ -1,8 +1,13 @@
 :host {
+  position: relative;
+  z-index: 0;
   display: block;
+  isolation: isolate;
 }
 
 .location-map {
+  position: relative;
+  z-index: 0;
   width: 100%;
   height: clamp(15rem, 45vw, 19rem);
   overflow: hidden;

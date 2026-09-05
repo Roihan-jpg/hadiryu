@@ -33,6 +33,32 @@ async function mockTeacherApi(page: import('@playwright/test').Page): Promise<vo
   await page.route('**/tile.openstreetmap.org/**', (route) => route.abort());
 }
 
+async function mockGeolocation(page: import('@playwright/test').Page): Promise<void> {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition(success: PositionCallback): void {
+          success({
+            coords: {
+              accuracy: 8,
+              altitude: null,
+              altitudeAccuracy: null,
+              heading: null,
+              latitude: -8.1328,
+              longitude: 113.2219,
+              speed: null,
+              toJSON: () => ({}),
+            },
+            timestamp: Date.now(),
+            toJSON: () => ({}),
+          });
+        },
+      },
+    });
+  });
+}
+
 for (const viewport of [
   { name: 'desktop-1440', width: 1440, height: 900 },
   { name: 'tablet-1024', width: 1024, height: 768 },
@@ -74,3 +100,32 @@ for (const viewport of [
     expect(secondLink!.y).toBeGreaterThanOrEqual(firstLink!.y + firstLink!.height);
   });
 }
+
+test('open Guru drawer stays above the Leaflet map', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGeolocation(page);
+  await mockTeacherApi(page);
+  await page.goto('/guru');
+
+  await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
+  const map = page.locator('.leaflet-container');
+  await expect(map).toBeVisible();
+
+  await page.getByRole('button', { name: 'Buka menu Guru' }).click();
+  const drawer = page.getByRole('complementary', { name: 'Navigasi Guru' });
+  await expect(drawer).toBeVisible();
+
+  const overlapIsCoveredByDrawer = await page.evaluate(() => {
+    const mapElement = document.querySelector<HTMLElement>('.leaflet-container');
+    const drawerElement = document.querySelector<HTMLElement>('.teacher-drawer');
+    if (!mapElement || !drawerElement) return false;
+
+    const mapRect = mapElement.getBoundingClientRect();
+    const drawerRect = drawerElement.getBoundingClientRect();
+    const x = Math.max(mapRect.left, drawerRect.left) + 24;
+    const y = Math.max(mapRect.top, drawerRect.top) + 24;
+    return document.elementFromPoint(x, y)?.closest('.teacher-drawer') === drawerElement;
+  });
+
+  expect(overlapIsCoveredByDrawer).toBe(true);
+});
