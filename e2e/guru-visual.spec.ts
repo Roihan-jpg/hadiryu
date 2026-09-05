@@ -47,18 +47,30 @@ for (const viewport of [
     await expect(page.getByRole('button', { name: 'Check-in sekarang' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
+    await expect(page.locator('.teacher-topbar nav')).toHaveCount(0);
+    const drawer = page.getByRole('complementary', { name: 'Navigasi Guru' });
+    const drawerNavigation = drawer.getByRole('navigation', { name: 'Navigasi Guru' });
+    const menuButton = page.getByRole('button', { name: 'Buka menu Guru' });
+
     if (viewport.width <= 760) {
-      const menuButton = page.getByRole('button', { name: 'Buka menu Guru' });
       await expect(menuButton).toBeVisible();
+      await expect(drawer).toBeHidden();
       await menuButton.focus();
       await expect(menuButton).toBeFocused();
       await menuButton.press('Enter');
-      const drawer = page.getByRole('complementary', { name: 'Navigasi Guru' });
       await expect(drawer).toBeVisible();
-      await expect(drawer.getByRole('link', { name: 'Izin', exact: true })).toBeVisible();
     } else {
-      await expect(page.getByRole('navigation', { name: 'Navigasi utama Guru' })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Buka Profil Saya' })).toBeVisible();
+      await expect(menuButton).toBeHidden();
+      await expect(drawer).toBeVisible();
     }
+
+    await expect(drawerNavigation).toHaveCSS('display', 'grid');
+    await expect(drawer.getByRole('link', { name: 'Izin', exact: true })).toBeVisible();
+
+    const firstLink = await drawerNavigation.getByRole('link').nth(0).boundingBox();
+    const secondLink = await drawerNavigation.getByRole('link').nth(1).boundingBox();
+    expect(firstLink).not.toBeNull();
+    expect(secondLink).not.toBeNull();
+    expect(secondLink!.y).toBeGreaterThanOrEqual(firstLink!.y + firstLink!.height);
   });
 }

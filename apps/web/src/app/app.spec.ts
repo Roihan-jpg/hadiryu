@@ -63,6 +63,7 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.teacher-app-shell')).not.toBeNull();
     expect(compiled.querySelector('nav[aria-label="Navigasi Guru"]')).not.toBeNull();
+    expect(compiled.querySelector('.teacher-topbar nav')).toBeNull();
 
     const menuButton = compiled.querySelector<HTMLButtonElement>('[aria-label="Buka menu Guru"]');
     menuButton?.click();

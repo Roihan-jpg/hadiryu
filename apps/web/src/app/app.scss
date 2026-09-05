@@ -4,8 +4,8 @@
 mat-toolbar { position: relative; z-index: 1; display: flex; gap: .75rem; min-height: 4rem; height: auto; padding-block: .45rem; color: #17253a; background: #fff; border-bottom: 1px solid #dce3ed; }
 .brand { display: inline-flex; align-items: center; gap: .6rem; color: #17253a; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .brand-mark, .admin-brand-mark { display: grid; width: 2rem; height: 2rem; place-items: center; color: #fff; background: #477f79; border-radius: 6px; font-size: .72rem; letter-spacing: .04em; }
-nav { display: flex; align-items: center; gap: .1rem; }
-nav a.active { color: #174b91; background: #e9f1fc; }
+mat-toolbar nav { display: flex; align-items: center; gap: .1rem; }
+mat-toolbar nav a.active { color: #174b91; background: #e9f1fc; }
 .toolbar-spacer { flex: 1; }
 .account-name { max-width: 13rem; overflow: hidden; color: #58677d; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
 main { flex: 1; min-width: 0; scroll-margin-top: 1rem; }

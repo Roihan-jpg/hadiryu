@@ -112,22 +112,7 @@ p {
   background: var(--ag-bg);
 }
 
-.teacher-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: rgb(255 253 249 / 96%);
-  border-bottom: 1px solid var(--ag-border);
-}
-
-.teacher-topbar-inner {
-  display: flex;
-  width: min(100% - 32px, 960px);
-  min-height: 60px;
-  align-items: center;
-  gap: 18px;
-  margin: 0 auto;
-}
+.teacher-mobile-header { display: none; }
 
 .teacher-brand {
   display: inline-flex;
@@ -164,30 +149,6 @@ p {
   color: var(--ag-muted);
   font-size: 10px;
   letter-spacing: .03em;
-}
-
-.teacher-desktop-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.teacher-desktop-nav a {
-  min-height: 36px;
-  padding: 8px 11px;
-  color: var(--ag-muted);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 650;
-  text-decoration: none;
-  transition: color .18s ease, background-color .18s ease;
-}
-
-.teacher-desktop-nav a:hover,
-.teacher-desktop-nav a.active {
-  color: var(--ag-primary);
-  background: var(--ag-primary-soft);
 }
 
 .teacher-avatar {
@@ -229,6 +190,8 @@ p {
   display: none;
 }
 
+.teacher-drawer-header > button { display: none; }
+
 .teacher-menu-button svg,
 .teacher-drawer nav svg {
   width: 20px;
@@ -240,14 +203,102 @@ p {
   stroke-linejoin: round;
 }
 
-.teacher-drawer,
-.teacher-drawer-backdrop {
-  display: none;
+.teacher-drawer-backdrop { display: none; }
+
+.teacher-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: flex;
+  width: 264px;
+  flex-direction: column;
+  padding: 24px 16px 18px;
+  overflow-y: auto;
+  background: var(--ag-surface);
+  border-right: 1px solid var(--ag-border);
+}
+
+.teacher-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 22px;
+  border-bottom: 1px solid var(--ag-border);
+}
+
+.teacher-drawer-header .teacher-brand { flex: 1; }
+
+.teacher-drawer-account {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 18px 0 12px;
+  padding: 12px;
+  background: var(--ag-surface-soft);
+  border-radius: 6px;
+}
+
+.teacher-drawer-account strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-drawer nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 3px;
+}
+
+.teacher-drawer nav a {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  color: var(--ag-muted);
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.teacher-drawer nav a:hover,
+.teacher-drawer nav a.active {
+  color: var(--ag-primary);
+  background: var(--ag-primary-soft);
+}
+
+.teacher-drawer-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--ag-border);
+}
+
+.teacher-drawer-footer :is(a, button) {
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--ag-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .teacher-main {
   min-width: 0;
-  min-height: calc(100dvh - 61px);
+  min-height: 100dvh;
+  margin-left: 264px;
 }
 
 .teacher-app-shell :is(.mat-mdc-unelevated-button, .mat-mdc-outlined-button, .mat-mdc-button) {
@@ -364,24 +415,16 @@ p {
 }
 
 @media (max-width: 760px) {
-  .teacher-topbar-inner { width: min(100% - 24px, 780px); min-height: 56px; }
-  .teacher-topbar .teacher-brand { flex: 1; }
-  .teacher-desktop-nav, .teacher-profile-link { display: none; }
+  .teacher-mobile-header { position: sticky; top: 0; z-index: 20; display: block; background: rgb(255 253 249 / 96%); border-bottom: 1px solid var(--ag-border); }
+  .teacher-mobile-header-inner { display: flex; width: min(100% - 24px, 780px); min-height: 56px; align-items: center; gap: 12px; margin: 0 auto; }
+  .teacher-mobile-header .teacher-brand { flex: 1; }
   .teacher-menu-button { display: grid; }
   .teacher-drawer-backdrop { position: fixed; inset: 0; z-index: 35; padding: 0; background: rgb(52 65 62 / 34%); border: 0; }
-  .teacher-drawer { position: fixed; inset: 0 0 0 auto; z-index: 40; display: flex; width: min(320px, 88vw); flex-direction: column; padding: 18px 16px; background: var(--ag-surface); border-left: 1px solid var(--ag-border); box-shadow: -16px 0 36px rgb(52 65 62 / 14%); transform: translateX(105%); transition: transform .2s ease; }
+  .teacher-drawer { z-index: 40; width: min(320px, 88vw); padding: 18px 16px; visibility: hidden; box-shadow: 16px 0 36px rgb(52 65 62 / 14%); transform: translateX(-105%); transition: transform .2s ease, visibility 0s linear .2s; }
   .drawer-open .teacher-drawer-backdrop { display: block; }
-  .drawer-open .teacher-drawer { transform: translateX(0); }
-  .teacher-drawer-header { display: flex; align-items: center; gap: 8px; padding-bottom: 18px; border-bottom: 1px solid var(--ag-border); }
-  .teacher-drawer-header .teacher-brand { flex: 1; }
-  .teacher-drawer-header > button { font-size: 25px; }
-  .teacher-drawer-account { display: flex; align-items: center; gap: 11px; margin: 18px 0 12px; padding: 12px; background: var(--ag-surface-soft); border-radius: 6px; }
-  .teacher-drawer-account strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-  .teacher-drawer nav { display: grid; gap: 3px; }
-  .teacher-drawer nav a { display: flex; min-height: 44px; align-items: center; gap: 12px; padding: 0 12px; color: var(--ag-muted); border-radius: 5px; font-size: 13px; font-weight: 650; text-decoration: none; }
-  .teacher-drawer nav a:hover, .teacher-drawer nav a.active { color: var(--ag-primary); background: var(--ag-primary-soft); }
-  .teacher-drawer-footer { display: grid; gap: 6px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--ag-border); }
-  .teacher-drawer-footer :is(a, button) { min-height: 44px; padding: 0 12px; color: var(--ag-primary); background: transparent; border: 0; border-radius: 4px; font: inherit; font-size: 12px; font-weight: 700; text-align: left; text-decoration: none; cursor: pointer; }
+  .drawer-open .teacher-drawer { visibility: visible; transform: translateX(0); transition-delay: 0s; }
+  .teacher-drawer-header > button { display: grid; font-size: 25px; }
+  .teacher-main { min-height: calc(100dvh - 57px); margin-left: 0; }
   .teacher-app-shell .teacher-page { width: min(100% - 24px, 780px); padding-top: 20px; }
 }
 

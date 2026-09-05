@@ -39,8 +39,6 @@
       <aside
         class="teacher-drawer"
         aria-label="Navigasi Guru"
-        [attr.aria-hidden]="!teacherMenuOpen()"
-        [attr.inert]="teacherMenuOpen() ? null : ''"
         [cdkTrapFocus]="teacherMenuOpen()"
         [cdkTrapFocusAutoCapture]="teacherMenuOpen()"
       >
@@ -71,19 +69,11 @@
         </div>
       </aside>
 
-      <header class="teacher-topbar">
-        <div class="teacher-topbar-inner">
+      <header class="teacher-mobile-header">
+        <div class="teacher-mobile-header-inner">
           <a class="teacher-brand" routerLink="/guru" aria-label="SD Islam Tompokersan, halaman Guru">
             <img src="/assets/sdi-logo.svg" alt="" />
             <span><strong>SD Islam Tompokersan</strong><small>{{ appName }} Guru</small></span>
-          </a>
-          <nav class="teacher-desktop-nav" aria-label="Navigasi utama Guru">
-            @for (item of teacherNavigation.slice(0, 4); track item.path) {
-              <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }" ariaCurrentWhenActive="page">{{ item.label }}</a>
-            }
-          </nav>
-          <a class="teacher-avatar teacher-profile-link" routerLink="/profile" aria-label="Buka Profil Saya">
-            @if (currentUser.photo) { <img [src]="photoUrl(currentUser.photo.updatedAt)" alt="" /> } @else { {{ initials(currentUser.fullName) }} }
           </a>
           <button class="teacher-menu-button" type="button" aria-label="Buka menu Guru" [attr.aria-expanded]="teacherMenuOpen()" (click)="toggleTeacherMenu()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
