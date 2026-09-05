@@ -3,267 +3,176 @@
     <p class="status-label">Akun aktif · {{ roleLabel() }}</p>
     <h1 id="home-title">Selamat datang, {{ user()?.fullName }}.</h1>
     <p class="intro">Kelola data Guru dan aturan operasional sekolah.</p>
-
-    <dl class="account-list">
-      <div>
-        <dt>NIP</dt>
-        <dd>{{ user()?.nip }}</dd>
-      </div>
-      <div>
-        <dt>Peran</dt>
-        <dd>{{ roleLabel() }}</dd>
-      </div>
-    </dl>
-
-    <div class="home-actions">
-      <a mat-flat-button routerLink="/admin/teachers">Kelola Guru</a>
-      <a mat-stroked-button routerLink="/admin/leave-requests">Approval izin</a>
-      <a mat-stroked-button routerLink="/admin/settings">Jadwal dan geofence</a>
-      <button mat-stroked-button type="button" (click)="logout()">
-        Keluar dari akun
-      </button>
-    </div>
   </section>
 } @else {
-  <section class="teacher-shell" aria-labelledby="home-title">
-    <header class="teacher-header">
-      <p class="status-label">Dashboard Guru</p>
-      <h1 id="home-title">Hari ini, {{ user()?.fullName }}</h1>
+  <section class="teacher-page dashboard-page" aria-labelledby="home-title">
+    <header class="identity-card ledger-panel">
+      <div class="identity-avatar">
+        @if (user()?.photo; as photo) {
+          <img [src]="profilePhotoUrl(photo.updatedAt)" alt="Foto profil {{ user()?.fullName }}" />
+        } @else {
+          <span aria-hidden="true">{{ initials(user()?.fullName ?? '') }}</span>
+        }
+      </div>
+      <div class="identity-copy">
+        <p class="eyebrow">Dashboard Guru</p>
+        <h1 id="home-title">Hari ini, {{ user()?.fullName }}</h1>
+        <span>NIP {{ user()?.nip }}</span>
+      </div>
       @if (workDateLabel()) {
-        <p class="date-label">{{ workDateLabel() }}</p>
+        <time class="identity-date">{{ workDateLabel() }}</time>
       }
     </header>
 
-    <section class="attendance-board" aria-labelledby="attendance-title" [attr.aria-busy]="loadingToday()">
-      <div class="board-heading">
-        <div>
-          <p class="board-kicker">Kehadiran hari ini</p>
-          <h2 id="attendance-title">
-            @if (loadingToday()) {
-              Memuat status…
-            } @else if (today()?.state === 'CHECKED_IN') {
-              Sudah check-in
-            } @else if (today()?.state === 'COMPLETED') {
-              Absensi selesai
-            } @else if (today()?.state === 'INCOMPLETE') {
-              Data tidak lengkap
-            } @else if (today()?.state === 'NON_WORKING_DAY') {
-              Hari libur
-            } @else if (today()?.state === 'CONFIGURATION_ERROR') {
-              Jadwal belum siap
-            } @else {
-              Belum check-in
-            }
-          </h2>
+    <section class="attendance-card ledger-panel" aria-labelledby="attendance-title" [attr.aria-busy]="loadingToday()">
+      @if (loadingToday()) {
+        <div class="attendance-skeleton" role="status" aria-live="polite">
+          <span class="visually-hidden">Memuat jadwal dari server…</span>
+          <span class="skeleton-line short"></span>
+          <span class="skeleton-line title"></span>
+          <span class="skeleton-block"></span>
+          <span class="skeleton-line"></span>
         </div>
-        @if (today()?.state === 'CHECKED_IN') {
-          <span class="state-mark">Menunggu checkout</span>
-        } @else if (today()?.state === 'COMPLETED') {
-          <span class="state-mark state-mark--done">Tercatat</span>
-        } @else if (today()?.state === 'INCOMPLETE') {
-          <span class="state-mark state-mark--warning">Tidak lengkap</span>
-        } @else if (today()?.state === 'READY_TO_CHECK_IN') {
-          <span class="state-mark">Menunggu</span>
-        }
-      </div>
-
-      @if (today()?.schedule; as schedule) {
-        @if (today()?.state === 'CHECKED_IN') {
-          <div class="time-ruler" aria-label="Jadwal checkout hari ini">
-            <div>
-              <span>Checkout dibuka</span>
-              <strong>{{ schedule.checkoutOpen }}</strong>
-            </div>
-            <div>
-              <span>Selesai kerja</span>
-              <strong>{{ schedule.workEnd }}</strong>
-            </div>
-            <div>
-              <span>Checkout ditutup</span>
-              <strong>{{ schedule.checkoutClose }}</strong>
-            </div>
-          </div>
-        } @else {
-          <div class="time-ruler" aria-label="Jadwal check-in hari ini">
-            <div>
-              <span>Dibuka</span>
-              <strong>{{ schedule.checkInOpen }}</strong>
-            </div>
-            <div>
-              <span>Mulai kerja</span>
-              <strong>{{ schedule.workStart }}</strong>
-            </div>
-            <div>
-              <span>Ditutup</span>
-              <strong>{{ schedule.checkInClose }}</strong>
-            </div>
-          </div>
-        }
-        <p class="schedule-note">
-          Target {{ schedule.targetMinutes }} menit · selesai {{ schedule.workEnd }}
-        </p>
-      }
-
-      @if (today()?.attendance; as attendance) {
-        <dl class="attendance-result">
+      } @else {
+        <div class="board-heading">
           <div>
-            <dt>Check-in</dt>
-            <dd>{{ jakartaTime(attendance.checkInAt) }} WIB</dd>
-          </div>
-          @if (attendance.status === 'CHECKED_IN') {
-            <div>
-              <dt>Keterlambatan</dt>
-              <dd>{{ attendance.arrivalLateMinutes }} menit</dd>
-            </div>
-            <div>
-              @if (attendance.boundaryClearanceMeters !== null && attendance.boundaryClearanceMeters !== undefined) {
-                <dt>Jarak aman dari batas</dt>
-                <dd>{{ attendance.boundaryClearanceMeters }} meter</dd>
+            <p class="board-kicker">Status presensi hari ini</p>
+            <h2 id="attendance-title">
+              @if (today()?.state === 'CHECKED_IN') {
+                Sudah check-in
+              } @else if (today()?.state === 'COMPLETED') {
+                Absensi selesai
+              } @else if (today()?.state === 'INCOMPLETE') {
+                Data tidak lengkap
+              } @else if (today()?.state === 'NON_WORKING_DAY') {
+                Hari libur
+              } @else if (today()?.state === 'CONFIGURATION_ERROR') {
+                Jadwal belum siap
               } @else {
-                <dt>Jarak dari pusat</dt>
-                <dd>{{ attendance.distanceMeters }} meter</dd>
+                Belum check-in
               }
+            </h2>
+          </div>
+          @if (today()?.state === 'CHECKED_IN') {
+            <span class="status-chip">Menunggu checkout</span>
+          } @else if (today()?.state === 'COMPLETED') {
+            <span class="status-chip success">Tercatat</span>
+          } @else if (today()?.state === 'INCOMPLETE') {
+            <span class="status-chip warning">Tidak lengkap</span>
+          } @else if (today()?.state === 'READY_TO_CHECK_IN') {
+            <span class="status-chip">Siap absen</span>
+          }
+        </div>
+
+        @if (today()?.schedule; as schedule) {
+          @if (today()?.state === 'CHECKED_IN') {
+            <div class="time-ruler" aria-label="Jadwal checkout hari ini">
+              <div><span>Checkout dibuka</span><strong>{{ schedule.checkoutOpen }}</strong></div>
+              <div><span>Selesai kerja</span><strong>{{ schedule.workEnd }}</strong></div>
+              <div><span>Checkout ditutup</span><strong>{{ schedule.checkoutClose }}</strong></div>
             </div>
           } @else {
-            <div>
-              <dt>Checkout</dt>
-              <dd>
-                @if (attendance.status === 'COMPLETED') {
-                  {{ jakartaTime(attendance.checkOutAt) }} WIB
-                } @else {
-                  Tidak tercatat
-                }
-              </dd>
-            </div>
-            <div>
-              <dt>Menit kerja</dt>
-              <dd>{{ attendance.workedMinutes }} menit</dd>
-            </div>
-            <div>
-              <dt>Keterlambatan</dt>
-              <dd>{{ attendance.arrivalLateMinutes }} menit</dd>
-            </div>
-            <div>
-              <dt>Kekurangan</dt>
-              <dd>{{ attendance.workDeficitMinutes }} menit</dd>
+            <div class="time-ruler" aria-label="Jadwal check-in hari ini">
+              <div><span>Dibuka</span><strong>{{ schedule.checkInOpen }}</strong></div>
+              <div><span>Mulai kerja</span><strong>{{ schedule.workStart }}</strong></div>
+              <div><span>Ditutup</span><strong>{{ schedule.checkInClose }}</strong></div>
             </div>
           }
-        </dl>
-      } @else if (today()?.state === 'NON_WORKING_DAY') {
-        <p class="state-copy">Tidak ada jadwal kerja yang perlu dicatat hari ini.</p>
-      } @else if (today()?.state === 'CONFIGURATION_ERROR') {
-        <p class="state-copy">Konfigurasi hari ini belum lengkap. Hubungi SuperAdmin.</p>
-      }
+          <p class="schedule-note">Target {{ schedule.targetMinutes }} menit · selesai {{ schedule.workEnd }}</p>
+        }
 
-      @if (errorMessage()) {
-        <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
-      }
-      @if (actionInProgress() && locationAccuracyProgress(); as progress) {
-        <p class="permission-note" aria-live="polite">
-          Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter
-        </p>
-      }
-      @if (successMessage()) {
-        <p class="feedback feedback--success" role="status" aria-live="polite">{{ successMessage() }}</p>
-      }
+        @if (today()?.attendance; as attendance) {
+          <dl class="attendance-result">
+            <div><dt>Check-in</dt><dd>{{ jakartaTime(attendance.checkInAt) }} WIB</dd></div>
+            @if (attendance.status === 'CHECKED_IN') {
+              <div><dt>Keterlambatan</dt><dd>{{ attendance.arrivalLateMinutes }} menit</dd></div>
+              <div>
+                @if (attendance.boundaryClearanceMeters !== null && attendance.boundaryClearanceMeters !== undefined) {
+                  <dt>Jarak aman dari batas</dt><dd>{{ attendance.boundaryClearanceMeters }} meter</dd>
+                } @else {
+                  <dt>Jarak dari pusat</dt><dd>{{ attendance.distanceMeters }} meter</dd>
+                }
+              </div>
+            } @else {
+              <div><dt>Checkout</dt><dd>@if (attendance.status === 'COMPLETED') { {{ jakartaTime(attendance.checkOutAt) }} WIB } @else { Tidak tercatat }</dd></div>
+              <div><dt>Menit kerja</dt><dd>{{ attendance.workedMinutes }} menit</dd></div>
+              <div><dt>Keterlambatan</dt><dd>{{ attendance.arrivalLateMinutes }} menit</dd></div>
+              <div><dt>Kekurangan</dt><dd>{{ attendance.workDeficitMinutes }} menit</dd></div>
+            }
+          </dl>
+        } @else if (today()?.state === 'NON_WORKING_DAY') {
+          <p class="state-copy">Tidak ada jadwal kerja yang perlu dicatat hari ini.</p>
+        } @else if (today()?.state === 'CONFIGURATION_ERROR') {
+          <p class="state-copy">Konfigurasi hari ini belum lengkap. Hubungi SuperAdmin.</p>
+        }
 
-      @if (loadingToday()) {
-        <div class="loading-copy" role="status" aria-live="polite"><mat-spinner diameter="24" aria-hidden="true" /> <span>Memuat jadwal dari server…</span></div>
-      } @else if (!today() && errorMessage()) {
-        <button mat-stroked-button type="button" (click)="loadToday()">
-          Coba lagi
-        </button>
-      } @else if (today()?.state === 'READY_TO_CHECK_IN') {
-        <button
-          mat-flat-button
-          data-action="check-in"
-          type="button"
-          [disabled]="locationRequestInProgress()"
-          (click)="checkIn()"
-        >
-          {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Check-in sekarang' }}
-        </button>
-      } @else if (today()?.state === 'CHECKED_IN') {
-        <button
-          mat-flat-button
-          data-action="checkout"
-          type="button"
-          [disabled]="locationRequestInProgress()"
-          (click)="checkout()"
-        >
-          {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Checkout sekarang' }}
-        </button>
-        <p class="permission-note">
-          Lokasi presisi baru diminta setelah tombol ditekan.
-        </p>
+        @if (errorMessage()) {
+          <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
+        }
+        @if (actionInProgress() && locationAccuracyProgress(); as progress) {
+          <div class="gps-progress" aria-live="polite">
+            <span class="gps-pulse" aria-hidden="true"></span>
+            <div><strong>Mencari sinyal GPS presisi…</strong><small>Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</small></div>
+          </div>
+        }
+        @if (successMessage()) {
+          <p class="feedback feedback--success" role="status" aria-live="polite">{{ successMessage() }}</p>
+        }
+
+        @if (!today() && errorMessage()) {
+          <button mat-stroked-button type="button" (click)="loadToday()">Coba lagi</button>
+        } @else if (today()?.state === 'READY_TO_CHECK_IN') {
+          <button mat-flat-button class="primary-action" data-action="check-in" type="button" [disabled]="locationRequestInProgress()" (click)="checkIn()">
+            {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Check-in sekarang' }}
+          </button>
+        } @else if (today()?.state === 'CHECKED_IN') {
+          <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="locationRequestInProgress()" (click)="checkout()">
+            {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Checkout sekarang' }}
+          </button>
+          <p class="permission-note">Lokasi presisi baru diminta setelah tombol ditekan.</p>
+        }
       }
     </section>
 
-    <section class="attendance-board location-panel" aria-labelledby="location-title">
-      <div class="board-heading">
-        <div>
-          <h2 id="location-title">Lokasi saya</h2>
-        </div>
-      </div>
-      <br>
+    <section class="location-panel ledger-panel" aria-labelledby="location-title">
+      <header>
+        <div><p class="board-kicker">Pratinjau perangkat</p><h2 id="location-title">Lokasi saya</h2></div>
+        @if (locationPreview()) { <span class="status-chip success">Terbaca</span> }
+      </header>
 
       @if (locationPreview(); as location) {
         <app-teacher-location-map [location]="location" />
-        <dl class="attendance-result location-details" aria-label="Koordinat lokasi saat ini">
-          <div>
-            <dt>Latitude</dt>
-            <dd>{{ coordinateText(location.latitude) }}</dd>
-          </div>
-          <div>
-            <dt>Longitude</dt>
-            <dd>{{ coordinateText(location.longitude) }}</dd>
-          </div>
-          <div>
-            <dt>Akurasi</dt>
-            <dd>{{ accuracyText(location.accuracyMeters) }}</dd>
-          </div>
+        <dl class="location-details" aria-label="Koordinat lokasi saat ini">
+          <div><dt>Latitude</dt><dd>{{ coordinateText(location.latitude) }}</dd></div>
+          <div><dt>Longitude</dt><dd>{{ coordinateText(location.longitude) }}</dd></div>
+          <div><dt>Akurasi</dt><dd>{{ accuracyText(location.accuracyMeters) }}</dd></div>
         </dl>
+        <p class="map-note">Pratinjau ini tidak dikirim sebagai absensi dan tidak menentukan hasil geofence.</p>
       } @else {
-        <p class="state-copy location-empty">
-          Peta akan tampil setelah lokasi berhasil dibaca.
-        </p>
+        <div class="location-empty">
+          <span aria-hidden="true">⌖</span>
+          <div><strong>Lokasi belum dibaca</strong><p>Peta akan tampil setelah Anda meminta akses lokasi.</p></div>
+        </div>
       }
 
       @if (locationPreviewError()) {
-        <p class="feedback feedback--error" role="alert">
-          {{ locationPreviewError() }}
-        </p>
+        <p class="feedback feedback--error" role="alert">{{ locationPreviewError() }}</p>
       }
       @if (locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
-        <p class="permission-note" aria-live="polite">
-          Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter
-        </p>
+        <p class="permission-note" aria-live="polite">Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</p>
       }
-      <br>
 
-      <button
-        mat-stroked-button
-        data-action="location-preview"
-        type="button"
-        [disabled]="locationRequestInProgress()"
-        (click)="showLocationPreview()"
-      >
-        @if (locationPreviewInProgress()) {
-          Memeriksa lokasi…
-        } @else if (locationPreview()) {
-          Perbarui lokasi
-        } @else {
-          Tampilkan lokasi saya
-        }
+      <button mat-stroked-button data-action="location-preview" type="button" [disabled]="locationRequestInProgress()" (click)="showLocationPreview()">
+        @if (locationPreviewInProgress()) { Memeriksa lokasi… } @else if (locationPreview()) { Perbarui lokasi } @else { Tampilkan lokasi saya }
       </button>
     </section>
 
-    <footer class="teacher-footer">
-      <span>NIP {{ user()?.nip }}</span>
-      <div class="footer-actions">
-        <a mat-button routerLink="/guru/riwayat">Lihat riwayat</a>
-        <a mat-button routerLink="/guru/izin">Ajukan izin</a>
-      </div>
-    </footer>
+    <nav class="quick-actions" aria-label="Layanan mandiri Guru">
+      <a class="ledger-panel" routerLink="/guru/riwayat"><span aria-hidden="true">↺</span><strong>Lihat riwayat</strong><small>Catatan kehadiran</small></a>
+      <a class="ledger-panel" routerLink="/guru/izin"><span aria-hidden="true">▣</span><strong>Ajukan izin</strong><small>Sakit atau bertugas</small></a>
+      <a class="ledger-panel" routerLink="/guru/pulang-awal"><span aria-hidden="true">◷</span><strong>Pulang awal</strong><small>Dengan persetujuan</small></a>
+    </nav>
+
+    <footer class="teacher-footer"><span>Data resmi mengikuti waktu server</span><span>NIP {{ user()?.nip }}</span></footer>
   </section>
 }

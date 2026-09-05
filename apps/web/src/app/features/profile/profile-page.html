@@ -1,0 +1,55 @@
+<main class="profile-page">
+  <header class="teacher-page-header">
+    <p class="eyebrow">AKUN</p>
+    <h1>Profil saya</h1>
+    <p>Kelola identitas yang tampil di aplikasi absensi.</p>
+  </header>
+  @if (errorMessage()) { <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p> }
+  @if (message()) { <p class="feedback feedback--success" role="status">{{ message() }}</p> }
+
+  @if (user(); as currentUser) {
+    <section class="profile-ledger" aria-labelledby="identity-title">
+      <div class="identity-column">
+        <p class="eyebrow">IDENTITAS</p>
+        <div class="profile-avatar">
+          @if (currentUser.photo) { <img [src]="photoUrl()" alt="Foto profil {{ currentUser.fullName }}" /> }
+          @else { <span aria-hidden="true">{{ initials(currentUser.fullName) }}</span> }
+        </div>
+        <div class="photo-actions">
+          <h2 id="identity-title">Foto profil</h2>
+          <p>JPEG, PNG, atau WebP · maksimal 2 MB</p>
+          <div>
+            <label class="upload-button" [class.upload-button--disabled]="uploadPhoto.isPending()">
+              {{ uploadPhoto.isPending() ? 'Mengunggah…' : currentUser.photo ? 'Ganti foto' : 'Tambah foto' }}
+              <input type="file" accept="image/jpeg,image/png,image/webp" [disabled]="uploadPhoto.isPending()" (change)="selectPhoto($event)" />
+            </label>
+            @if (currentUser.photo) {
+              <button mat-button type="button" [disabled]="deletePhoto.isPending()" (click)="deletePhoto.mutate()">{{ deletePhoto.isPending() ? 'Menghapus…' : 'Hapus foto' }}</button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <form (submit)="saveName($event)" novalidate>
+        <div class="form-heading"><p class="eyebrow">DATA AKUN</p><h2>Informasi personal</h2></div>
+        <mat-form-field appearance="outline">
+          <mat-label>Nama lengkap</mat-label>
+          <input matInput [formControl]="fullName" autocomplete="name" />
+          @if (fullName.invalid) { <mat-error>Nama wajib diisi, maksimal 200 karakter.</mat-error> }
+        </mat-form-field>
+        <dl class="account-metadata">
+          <div><dt>NIP</dt><dd>{{ currentUser.nip }}</dd></div>
+          <div><dt>Role</dt><dd>{{ currentUser.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Guru' }}</dd></div>
+          <div><dt>Status akun</dt><dd><span class="status-chip status-chip--success">{{ currentUser.isActive ? 'Aktif' : 'Nonaktif' }}</span></dd></div>
+        </dl>
+        <div class="security-row">
+          <div><strong>Keamanan akun</strong><span>Gunakan password unik dan jangan membagikannya.</span></div>
+          <a mat-button routerLink="/change-password">Ganti password</a>
+        </div>
+        <div class="form-actions">
+          <button mat-flat-button type="submit" [disabled]="fullName.invalid || updateName.isPending()">{{ updateName.isPending() ? 'Menyimpan…' : 'Simpan perubahan' }}</button>
+        </div>
+      </form>
+    </section>
+  }
+</main>

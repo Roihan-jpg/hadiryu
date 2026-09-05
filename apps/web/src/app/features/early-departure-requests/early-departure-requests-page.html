@@ -1,0 +1,62 @@
+<main class="teacher-page early-page">
+  <a class="back-link" routerLink="/guru">← Kembali ke hari ini</a>
+  <header class="teacher-page-header">
+    <p class="eyebrow">PERMOHONAN HARI INI</p>
+    <h1>Pulang awal</h1>
+    <p>Ajukan kepulangan sebelum jadwal selesai. Waktu dan lokasi dicatat oleh server saat permohonan dikirim.</p>
+  </header>
+
+  @if (errorMessage()) { <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p> }
+  @if (successMessage()) { <p class="feedback feedback--success" role="status">{{ successMessage() }}</p> }
+
+  <div class="early-layout">
+    <section class="ledger-panel request-panel" aria-labelledby="request-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">FORMULIR</p><h2 id="request-title">Permohonan baru</h2></div>
+        <span class="step-mark" aria-hidden="true">01</span>
+      </div>
+      <p class="notice"><strong>Perlu diketahui</strong> Checkout yang tercatat tidak dapat diubah. Pastikan alasan dan lampiran sudah benar sebelum mengirim.</p>
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <mat-form-field appearance="outline">
+          <mat-label>Alasan pulang awal</mat-label>
+          <textarea matInput rows="5" maxlength="1000" formControlName="reason"></textarea>
+          <mat-hint align="end">{{ form.controls.reason.value.length }}/1.000</mat-hint>
+          <mat-error>Alasan wajib diisi, maksimal 1.000 karakter.</mat-error>
+        </mat-form-field>
+        <label class="attachment-field">
+          <span><strong>Lampiran opsional</strong> PDF, JPEG, atau PNG · maksimal 5 MB</span>
+          <input type="file" accept="application/pdf,image/jpeg,image/png" (change)="attachmentChanged($event)" />
+        </label>
+        @if (submitting() && locationProgress(); as progress) {
+          <div class="location-progress" aria-live="polite"><span class="location-dot" aria-hidden="true"></span><span>Mencari lokasi presisi · akurasi terbaik {{ rounded(progress.bestAccuracyMeters) }} m dari batas {{ progress.maxAccuracyMeters }} m</span></div>
+        }
+        <button mat-flat-button type="submit" [disabled]="submitting()">{{ submitting() ? 'Mengirim…' : 'Kirim permohonan dan catat pulang' }}</button>
+      </form>
+    </section>
+
+    <section class="ledger-panel history-panel" aria-labelledby="history-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">CATATAN</p><h2 id="history-title">Riwayat permohonan</h2></div>
+        <span class="step-mark" aria-hidden="true">02</span>
+      </div>
+      @if (loading()) {
+        <div class="skeleton-list" aria-label="Memuat permohonan" aria-busy="true">
+          @for (item of [1, 2, 3]; track item) { <div class="skeleton request-skeleton"></div> }
+        </div>
+      } @else if (requests().length === 0) {
+        <div class="empty-state"><strong>Belum ada permohonan</strong><p>Permohonan pulang awal yang Anda kirim akan muncul di sini.</p></div>
+      } @else {
+        <div class="request-list">
+          @for (request of requests(); track request.id) {
+            <article>
+              <div class="request-meta"><strong>{{ dateTimeLabel(request.requestedAt) }}</strong><span class="status-chip" [class.status-chip--success]="request.status === 'APPROVED'" [class.status-chip--danger]="request.status === 'REJECTED'">{{ statusLabel(request.status) }}</span></div>
+              <p>{{ request.reason }}</p>
+              @if (request.attachment) { <a class="attachment-link" [href]="'/api/early-departure-requests/' + request.id + '/attachment'">Unduh lampiran · {{ request.attachment.originalName }}</a> }
+              @if (request.decisionNote) { <small class="admin-note"><strong>Catatan admin</strong>{{ request.decisionNote }}</small> }
+            </article>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</main>

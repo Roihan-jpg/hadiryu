@@ -1,22 +1,23 @@
 <section class="login-layout" aria-labelledby="login-title">
-  <aside class="login-context" aria-label="Tentang sistem">
-    <p class="eyebrow">Sistem internal sekolah</p>
-    <h1>Catat kehadiran dengan identitas yang tepat.</h1>
-    <p class="context-copy">
-      Gunakan NIP dan password yang diberikan sekolah. Waktu absensi selalu
-      mengikuti waktu server.
-    </p>
-    <div class="ledger-note" aria-hidden="true">
-      <span>Identitas</span><strong>NIP Guru</strong>
-      <span>Akses</span><strong>Sesuai peran</strong>
+  <aside class="login-context" aria-label="Identitas sekolah">
+    <img src="/assets/sdi-logo.svg" alt="Logo SD Islam Tompokersan" />
+    <div>
+      <p class="eyebrow">Sistem kepegawaian sekolah</p>
+      <h1>SD Islam Tompokersan</h1>
+      <p>Presensi dan administrasi Guru</p>
     </div>
+    <small>Waktu absensi mengikuti waktu resmi server.</small>
   </aside>
 
-  <div class="form-region">
+  <main class="form-region">
+    <a class="mobile-brand" href="/login" aria-label="Absensi Guru">
+      <img src="/assets/sdi-logo.svg" alt="" />
+      <span><strong>Absensi Guru</strong><small>Masuk ke akun sekolah</small></span>
+    </a>
     <form (ngSubmit)="submit()" [formGroup]="form" novalidate>
-      <p class="eyebrow">Absensi Guru</p>
+      <p class="eyebrow">Akses Guru dan Super Admin</p>
       <h2 id="login-title">Masuk ke akun</h2>
-      <p class="form-intro">Masukkan NIP sebagai teks, termasuk angka nol di awal.</p>
+      <p class="form-intro">Gunakan NIP dan password yang diberikan sekolah.</p>
 
       <mat-form-field appearance="outline">
         <mat-label>NIP</mat-label>
@@ -42,8 +43,9 @@
           autocomplete="current-password"
           formControlName="password"
           name="password"
-          type="password"
+          [type]="passwordVisible() ? 'text' : 'password'"
         />
+        <button class="visibility-toggle" data-action="toggle-password" matSuffix type="button" [attr.aria-label]="passwordVisible() ? 'Sembunyikan password' : 'Tampilkan password'" [attr.aria-pressed]="passwordVisible()" (click)="togglePasswordVisibility()">{{ passwordVisible() ? 'Sembunyikan' : 'Tampilkan' }}</button>
         @if (form.controls.password.hasError('required')) {
           <mat-error>Password wajib diisi.</mat-error>
         }
@@ -61,6 +63,7 @@
       >
         {{ isSubmitting() ? 'Memeriksa akun…' : 'Masuk' }}
       </button>
+      <p class="security-note">Akun ini hanya digunakan untuk keperluan internal sekolah.</p>
     </form>
-  </div>
+  </main>
 </section>

@@ -1,13 +1,12 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatToolbarModule } from '@angular/material/toolbar';
+import { A11yModule } from '@angular/cdk/a11y';
+import { Component, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AuthService } from './core/auth/auth.service';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 
 @Component({
-  imports: [MatButtonModule, MatToolbarModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [A11yModule, RouterLink, RouterLinkActive, RouterOutlet],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',
@@ -19,6 +18,7 @@ export class App {
   protected readonly appName = 'Absensi';
   protected readonly user = this.auth.user;
   protected readonly adminMenuOpen = signal(false);
+  protected readonly teacherMenuOpen = signal(false);
   protected readonly sidebarCollapsed = signal(this.savedSidebarState());
   protected readonly adminNavigation = [
     { path: '/admin', label: 'Monitoring', exact: true, icon: 'M4 13h6V4H4v9zm0 7h6v-4H4v4zm10 0h6v-9h-6v9zm0-16v4h6V4h-6z' },
@@ -31,12 +31,13 @@ export class App {
     { path: '/admin/guide', label: 'Panduan', exact: false, icon: 'M4 19.5A2.5 2.5 0 016.5 17H20V4H6.5A2.5 2.5 0 004 6.5v13zm0 0A2.5 2.5 0 006.5 22H20' },
     { path: '/profile', label: 'Profil Saya', exact: false, icon: 'M20 21a8 8 0 00-16 0m8-10a4 4 0 100-8 4 4 0 000 8z' },
   ];
-  protected readonly homeRoute = computed(() => {
-    const user = this.user();
-    if (!user) return '/login';
-    if (user.mustChangePassword) return '/change-password';
-    return user.role === 'SUPER_ADMIN' ? '/admin' : '/guru';
-  });
+  protected readonly teacherNavigation = [
+    { path: '/guru', label: 'Hari ini', exact: true, icon: 'M4 10.5L12 4l8 6.5V20h-5v-6H9v6H4v-9.5z' },
+    { path: '/guru/riwayat', label: 'Riwayat', exact: false, icon: 'M4 5v5h5M5.2 15a8 8 0 101.4-8.9L4 10m8-4v6l4 2' },
+    { path: '/guru/izin', label: 'Izin', exact: false, icon: 'M7 3h10v4h4v14H3V7h4V3zm2 0v6h6V3M7 13h10M7 17h7' },
+    { path: '/guru/pulang-awal', label: 'Pulang awal', exact: false, icon: 'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { path: '/profile', label: 'Profil Saya', exact: false, icon: 'M20 21a8 8 0 00-16 0m8-10a4 4 0 100-8 4 4 0 000 8z' },
+  ];
 
   protected readonly logoutMutation = injectMutation(() => ({
     mutationFn: () => this.auth.logout(),
@@ -51,6 +52,20 @@ export class App {
 
   protected closeAdminMenu(): void {
     this.adminMenuOpen.set(false);
+  }
+
+  protected toggleTeacherMenu(): void {
+    this.teacherMenuOpen.update((open) => !open);
+  }
+
+  protected closeTeacherMenu(): void {
+    this.teacherMenuOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  protected closeOpenMenu(): void {
+    this.adminMenuOpen.set(false);
+    this.teacherMenuOpen.set(false);
   }
 
   protected toggleSidebar(): void {

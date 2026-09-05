@@ -31,6 +31,7 @@ export class LoginPage {
   private readonly router = inject(Router);
 
   readonly isSubmitting = signal(false);
+  readonly passwordVisible = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly form = new FormGroup({
     nip: new FormControl('', {
@@ -42,6 +43,10 @@ export class LoginPage {
       validators: [Validators.required],
     }),
   });
+
+  togglePasswordVisibility(): void {
+    this.passwordVisible.update((visible) => !visible);
+  }
 
   async submit(): Promise<void> {
     if (this.isSubmitting()) return;

@@ -227,6 +227,19 @@ export class HomePage implements OnInit {
     return `${Math.round(value)} meter`;
   }
 
+  profilePhotoUrl(updatedAt: string): string {
+    return `/api/profile/photo?v=${encodeURIComponent(updatedAt)}`;
+  }
+
+  initials(name: string): string {
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('');
+  }
+
   async logout(): Promise<void> {
     await this.auth.logout();
     await this.router.navigateByUrl('/login');

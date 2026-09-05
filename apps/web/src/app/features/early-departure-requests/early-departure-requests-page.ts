@@ -9,7 +9,6 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
@@ -27,67 +26,12 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
-    MatProgressSpinnerModule,
     ReactiveFormsModule,
     RouterLink,
   ],
   selector: 'app-early-departure-requests-page',
-  template: `
-    <section class="page-shell">
-      <a routerLink="/guru">← Kembali ke hari ini</a>
-      <header>
-        <p>Permohonan hari ini</p>
-        <h1>Pulang awal</h1>
-        <p>Waktu dan lokasi keberangkatan dicatat server saat permohonan dikirim.</p>
-      </header>
-      @if (errorMessage()) { <p class="feedback error" role="alert">{{ errorMessage() }}</p> }
-      @if (successMessage()) { <p class="feedback success" role="status">{{ successMessage() }}</p> }
-      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <mat-form-field appearance="outline">
-          <mat-label>Alasan pulang awal</mat-label>
-          <textarea matInput rows="4" maxlength="1000" formControlName="reason"></textarea>
-          <mat-error>Alasan wajib diisi, maksimal 1.000 karakter.</mat-error>
-        </mat-form-field>
-        <label class="attachment-field">Lampiran opsional (PDF/JPEG/PNG, maks. 5 MB)<input type="file" accept="application/pdf,image/jpeg,image/png" (change)="attachmentChanged($event)" /></label>
-        <button mat-flat-button type="submit" [disabled]="submitting()">
-          {{ submitting() ? 'Mengirim…' : 'Kirim permohonan dan catat pulang' }}
-        </button>
-        @if (submitting() && locationProgress(); as progress) {
-          <small aria-live="polite">Akurasi terbaik {{ rounded(progress.bestAccuracyMeters) }} meter · syarat maksimal {{ progress.maxAccuracyMeters }} meter</small>
-        }
-      </form>
-      <section aria-labelledby="history-title">
-        <h2 id="history-title">Riwayat permohonan</h2>
-        @if (loading()) {
-          <mat-spinner diameter="28" aria-label="Memuat permohonan" />
-        } @else if (requests().length === 0) {
-          <p>Belum ada permohonan pulang awal.</p>
-        } @else {
-          <div class="request-list">
-            @for (request of requests(); track request.id) {
-              <article>
-                <strong>{{ dateTimeLabel(request.requestedAt) }}</strong>
-                <span>{{ statusLabel(request.status) }}</span>
-                <p>{{ request.reason }}</p>
-                @if (request.attachment) { <a [href]="'/api/early-departure-requests/' + request.id + '/attachment'">Unduh lampiran: {{ request.attachment.originalName }}</a> }
-                @if (request.decisionNote) { <small>Catatan admin: {{ request.decisionNote }}</small> }
-              </article>
-            }
-          </div>
-        }
-      </section>
-    </section>
-  `,
-  styles: `
-    .page-shell { width: min(100% - 2rem, 54rem); margin: 0 auto; padding: 2rem 0 4rem; }
-    header { margin: 1.5rem 0; } header p:first-child { color: #315ea8; font-weight: 700; }
-    h1, h2, p { margin-top: 0; } form { display: grid; gap: .75rem; padding: 1.25rem; border: 1px solid #ccd6e4; border-radius: .75rem; }
-    mat-form-field { width: 100%; } form button { justify-self: start; } .attachment-field { display: grid; gap: .4rem; color: #58677d; font-size: .82rem; } .attachment-field input { padding: .65rem; border: 1px dashed #aeb9c8; border-radius: .45rem; }
-    section[aria-labelledby] { margin-top: 2rem; } .request-list { display: grid; gap: .75rem; }
-    article { border: 1px solid #d6deea; border-radius: .65rem; padding: 1rem; }
-    article span { float: right; color: #315ea8; font-weight: 600; } article p { margin: .65rem 0; }
-    .feedback { padding: .75rem 1rem; border-radius: .5rem; } .error { background: #fff0f0; color: #8c1d18; } .success { background: #edf8f0; color: #236b38; }
-  `,
+  templateUrl: './early-departure-requests-page.html',
+  styleUrl: './early-departure-requests-page.scss',
 })
 export class EarlyDepartureRequestsPage implements OnInit {
   private readonly service = inject(EarlyDepartureRequestsService);

@@ -46,8 +46,8 @@ describe('ChangePasswordPage auth completion', () => {
   it('rejects a confirmation that differs from the new password', async () => {
     fixture.componentInstance.form.setValue({
       currentPassword: 'password-awal',
-      newPassword: 'password-baru',
-      confirmPassword: 'password-lain',
+      newPassword: 'Aa123456',
+      confirmPassword: 'Bb123456',
     });
 
     await fixture.componentInstance.submit();
@@ -56,6 +56,22 @@ describe('ChangePasswordPage auth completion', () => {
     expect(changePassword).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain(
       'Konfirmasi password tidak sama',
+    );
+  });
+
+  it('requires exactly eight alphanumeric characters with mixed case and a number', async () => {
+    fixture.componentInstance.form.setValue({
+      currentPassword: 'password-awal',
+      newPassword: 'semuakecil',
+      confirmPassword: 'semuakecil',
+    });
+
+    await fixture.componentInstance.submit();
+    fixture.detectChanges();
+
+    expect(changePassword).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Gunakan tepat 8 karakter dengan huruf besar, huruf kecil, dan angka.',
     );
   });
 
@@ -79,15 +95,15 @@ describe('ChangePasswordPage auth completion', () => {
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.componentInstance.form.setValue({
       currentPassword: 'password-awal',
-      newPassword: 'password-baru',
-      confirmPassword: 'password-baru',
+      newPassword: 'Aa123456',
+      confirmPassword: 'Aa123456',
     });
 
     await fixture.componentInstance.submit();
 
     expect(changePassword).toHaveBeenCalledWith({
       currentPassword: 'password-awal',
-      newPassword: 'password-baru',
+      newPassword: 'Aa123456',
     });
     expect(navigate).toHaveBeenCalledWith('/guru');
   });

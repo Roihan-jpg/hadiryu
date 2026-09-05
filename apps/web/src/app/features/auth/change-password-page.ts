@@ -34,6 +34,8 @@ function matchingPasswords(control: AbstractControl): ValidationErrors | null {
   return null;
 }
 
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8}$/;
+
 @Component({
   imports: [
     MatButtonModule,
@@ -46,11 +48,13 @@ function matchingPasswords(control: AbstractControl): ValidationErrors | null {
   templateUrl: './change-password-page.html',
 })
 export class ChangePasswordPage {
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
 
   readonly isSubmitting = signal(false);
+  readonly currentPasswordVisible = signal(false);
+  readonly newPasswordVisible = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly form = new FormGroup(
     {
@@ -60,7 +64,7 @@ export class ChangePasswordPage {
       }),
       newPassword: new FormControl('', {
         nonNullable: true,
-        validators: [Validators.required, Validators.minLength(8)],
+        validators: [Validators.required, Validators.pattern(PASSWORD_PATTERN)],
       }),
       confirmPassword: new FormControl('', {
         nonNullable: true,
@@ -69,6 +73,24 @@ export class ChangePasswordPage {
     },
     { validators: matchingPasswords },
   );
+
+  toggleCurrentPasswordVisibility(): void {
+    this.currentPasswordVisible.update((visible) => !visible);
+  }
+
+  toggleNewPasswordVisibility(): void {
+    this.newPasswordVisible.update((visible) => !visible);
+  }
+
+  hasMixedCaseAndNumber(): boolean {
+    const value = this.form.controls.newPassword.value;
+    return /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value);
+  }
+
+  isAlphanumeric(): boolean {
+    const value = this.form.controls.newPassword.value;
+    return value.length > 0 && /^[A-Za-z\d]+$/.test(value);
+  }
 
   async submit(): Promise<void> {
     if (this.isSubmitting()) return;

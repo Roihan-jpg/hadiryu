@@ -62,4 +62,16 @@ describe('LoginPage', () => {
     expect(login).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith('/change-password');
   });
+
+  it('lets the user reveal and hide the password accessibly', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const input = element.querySelector<HTMLInputElement>('input[formControlName="password"]');
+    const toggle = element.querySelector<HTMLButtonElement>('[data-action="toggle-password"]');
+
+    expect(input?.type).toBe('password');
+    toggle?.click();
+    fixture.detectChanges();
+    expect(input?.type).toBe('text');
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+  });
 });
