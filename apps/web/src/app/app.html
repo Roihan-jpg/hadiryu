@@ -1,5 +1,9 @@
 <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
 
+@if (openingPhase() !== 'idle') {
+  <app-opening-screen [phase]="openingPhase()" />
+}
+
 @if (user(); as currentUser) {
   @if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
     <div class="admin-shell" [class.drawer-open]="adminMenuOpen()" [class.sidebar-collapsed]="sidebarCollapsed()">

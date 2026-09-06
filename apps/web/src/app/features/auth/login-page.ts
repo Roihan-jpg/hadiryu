@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { OpeningTransitionService } from '../../core/opening/opening-transition.service';
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
 
 @Component({
@@ -28,6 +29,7 @@ import { focusFirstInvalidControl } from '../../core/ui/form-focus';
 export class LoginPage {
   private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly opening = inject(OpeningTransitionService);
   private readonly router = inject(Router);
 
   readonly isSubmitting = signal(false);
@@ -65,7 +67,10 @@ export class LoginPage {
         : user.role === 'SUPER_ADMIN'
           ? '/admin'
           : '/guru';
-      await this.router.navigateByUrl(destination);
+      await Promise.all([
+        this.router.navigateByUrl(destination),
+        this.opening.play(user),
+      ]);
     } catch (error) {
       this.errorMessage.set(this.messageFor(error));
     } finally {

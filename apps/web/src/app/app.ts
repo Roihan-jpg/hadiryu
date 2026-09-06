@@ -5,19 +5,23 @@ import { AuthService } from './core/auth/auth.service';
 import { injectMutation } from '@tanstack/angular-query-experimental';
 import { AppMobileHeader } from './core/layout/app-mobile-header';
 import { AppSidebar, SidebarNavigationItem } from './core/layout/app-sidebar';
+import { OpeningScreen } from './core/opening/opening-screen';
+import { OpeningTransitionService } from './core/opening/opening-transition.service';
 
 @Component({
-  imports: [AppMobileHeader, AppSidebar, RouterOutlet],
+  imports: [AppMobileHeader, AppSidebar, OpeningScreen, RouterOutlet],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',
 })
 export class App {
   private readonly auth = inject(AuthService);
+  private readonly opening = inject(OpeningTransitionService);
   private readonly router = inject(Router);
 
   protected readonly appName = 'Absensi';
   protected readonly user = this.auth.user;
+  protected readonly openingPhase = this.opening.phase;
   protected readonly adminMenuOpen = signal(false);
   protected readonly teacherMenuOpen = signal(false);
   protected readonly sidebarCollapsed = signal(this.savedSidebarState());
@@ -44,6 +48,10 @@ export class App {
     mutationFn: () => this.auth.logout(),
     onSuccess: () => this.router.navigateByUrl('/login'),
   }));
+
+  constructor() {
+    void this.opening.playInitialLoad();
+  }
 
   protected logout(): void { this.logoutMutation.mutate(); }
 

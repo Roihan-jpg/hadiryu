@@ -5,6 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { OpeningTransitionService } from '../../core/opening/opening-transition.service';
 import { LoginPage } from './login-page';
 
 const firstLoginUser: AuthUser = {
@@ -19,6 +20,7 @@ const firstLoginUser: AuthUser = {
 describe('LoginPage', () => {
   let fixture: ComponentFixture<LoginPage>;
   const login = vi.fn(async () => firstLoginUser);
+  const playOpening = vi.fn(async () => undefined);
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -29,11 +31,16 @@ describe('LoginPage', () => {
           provide: AuthService,
           useValue: { user: signal(null).asReadonly(), login },
         },
+        {
+          provide: OpeningTransitionService,
+          useValue: { play: playOpening },
+        },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(LoginPage);
     fixture.detectChanges();
     login.mockClear();
+    playOpening.mockClear();
   });
 
   it('does not submit an invalid or empty login form', async () => {
@@ -60,6 +67,7 @@ describe('LoginPage', () => {
     await Promise.all([first, second]);
 
     expect(login).toHaveBeenCalledTimes(1);
+    expect(playOpening).toHaveBeenCalledWith(firstLoginUser);
     expect(navigate).toHaveBeenCalledWith('/change-password');
   });
 

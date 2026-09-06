@@ -18,7 +18,12 @@ export class AdminDashboardService {
   async list(
     input: ListAdminAttendanceQuery,
   ): Promise<AdminAttendanceListResponse> {
-    return this.queries.get(queryKeys.monitoring(input), async () => {
+    return this.queries.get(queryKeys.monitoring(input), () => this.fetchList(input));
+  }
+
+  async fetchList(
+    input: ListAdminAttendanceQuery,
+  ): Promise<AdminAttendanceListResponse> {
     let params = new HttpParams()
       .set('page', input.page)
       .set('pageSize', input.pageSize);
@@ -35,7 +40,6 @@ export class AdminDashboardService {
       '@absensi/contracts'
     );
     return AdminAttendanceListResponseSchema.parse(value);
-    });
   }
 
   async addNote(

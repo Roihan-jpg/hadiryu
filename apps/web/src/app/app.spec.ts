@@ -2,9 +2,11 @@ import { signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 import { AuthService } from './core/auth/auth.service';
+import { LOTTIE_MODULE_LOADER } from './core/opening/opening-screen';
+import { OpeningTransitionService, type OpeningPhase } from './core/opening/opening-transition.service';
 import { App } from './app';
 
 describe('App', () => {
@@ -17,10 +19,14 @@ describe('App', () => {
     mustChangePassword: boolean;
     photo: null;
   } | null>;
+  let openingPhase: WritableSignal<OpeningPhase>;
+  const playInitialLoad = vi.fn(async () => undefined);
 
   beforeEach(async () => {
     localStorage.removeItem('admin-sidebar-collapsed');
     user = signal(null);
+    openingPhase = signal<OpeningPhase>('idle');
+    playInitialLoad.mockClear();
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
@@ -29,6 +35,14 @@ describe('App', () => {
         {
           provide: AuthService,
           useValue: { user: user.asReadonly(), logout: async () => undefined },
+        },
+        {
+          provide: OpeningTransitionService,
+          useValue: { phase: openingPhase.asReadonly(), playInitialLoad },
+        },
+        {
+          provide: LOTTIE_MODULE_LOADER,
+          useValue: async () => { throw new Error('fallback for root test'); },
         },
       ],
     }).compileComponents();
@@ -40,6 +54,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
     expect(app).toBeTruthy();
+    expect(playInitialLoad).toHaveBeenCalledTimes(1);
   });
 
   it('renders the guest brand without an application toolbar', async () => {
@@ -49,6 +64,20 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('mat-toolbar')).toBeNull();
     expect(compiled.querySelector('main')?.classList).toContain('guest-main');
+  });
+
+  it('covers the app only while the post-login opening is active', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-opening-screen')).toBeNull();
+
+    openingPhase.set('showing');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.opening-screen')).not.toBeNull();
+
+    openingPhase.set('idle');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-opening-screen')).toBeNull();
   });
 
   it('renders the dedicated Guru shell and opens its navigation drawer', async () => {
