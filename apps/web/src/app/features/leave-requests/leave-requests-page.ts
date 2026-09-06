@@ -1,6 +1,7 @@
 import type { LeaveRequest, LeaveStatus, LeaveType } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators, type ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,7 +9,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
+import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { AttendanceService } from '../attendance/attendance.service';
+import { queryKeys } from '../../core/query/query-keys';
 import { LeaveRequestsService } from './leave-requests.service';
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
 import { createIndonesianPaginatorIntl } from '../../core/ui/paginator-intl';
@@ -31,8 +35,9 @@ function dateNotBefore(minimumDate: string): ValidatorFn {
   providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   selector: 'app-leave-requests-page', styleUrl: './leave-requests-page.scss', templateUrl: './leave-requests-page.html',
 })
-export class LeaveRequestsPage implements OnInit {
+export class LeaveRequestsPage {
   private readonly service = inject(LeaveRequestsService);
+  private readonly attendanceService = inject(AttendanceService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly minDate = todayJakarta();
   readonly form = new FormGroup({
@@ -40,28 +45,49 @@ export class LeaveRequestsPage implements OnInit {
     leaveType: new FormControl<LeaveType>('SICK', { nonNullable: true, validators: [Validators.required] }),
     reason: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(1000)] }),
   });
-  readonly requests = signal<LeaveRequest[]>([]);
-  readonly loading = signal(true);
+  readonly selectedLeaveDate = toSignal(this.form.controls.leaveDate.valueChanges, {
+    initialValue: this.form.controls.leaveDate.value,
+  });
   readonly actionInProgress = signal<string | null>(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
   readonly attachment = signal<File | undefined>(undefined);
-  readonly pagination = signal({ page: 1, pageSize: 10, totalItems: 0, totalPages: 0 });
+  readonly requestFilters = signal({ page: 1, pageSize: 10 });
+  readonly requestsQuery = injectQuery(() => ({
+    queryKey: queryKeys.leaveRequests('own', this.requestFilters()),
+    queryFn: () => this.service.fetchOwn(this.requestFilters()),
+  }));
+  readonly todayQuery = injectQuery(() => ({
+    queryKey: queryKeys.attendance('today'),
+    queryFn: () => this.attendanceService.fetchToday(),
+  }));
+  readonly requests = computed<LeaveRequest[]>(() => this.requestsQuery.data()?.data ?? []);
+  readonly loading = computed(() => this.requestsQuery.isPending());
+  readonly pagination = computed(() => this.requestsQuery.data()?.pagination ?? ({
+    page: this.requestFilters().page,
+    pageSize: this.requestFilters().pageSize,
+    totalItems: 0,
+    totalPages: 0,
+  }));
+  readonly isTodayLeaveBlocked = computed(() => {
+    const today = this.todayQuery.data();
+    return today?.workDate === this.selectedLeaveDate() &&
+      (today.state === 'CHECKED_IN' || today.state === 'COMPLETED' || today.state === 'INCOMPLETE');
+  });
+  readonly submitDisabled = computed(() =>
+    this.actionInProgress() !== null || this.todayQuery.isPending() || this.isTodayLeaveBlocked(),
+  );
+  readonly leaveBlockMessage = computed(() => this.isTodayLeaveBlocked()
+    ? 'Izin untuk hari ini tidak dapat diajukan karena absensi check-in sudah tercatat.'
+    : '');
+  readonly displayErrorMessage = computed(() => this.errorMessage() || (this.requestsQuery.isError()
+    ? 'Daftar izin tidak dapat dimuat. Periksa koneksi lalu coba lagi.'
+    : ''));
 
-  ngOnInit(): void { void this.load(); }
-
-  async load(): Promise<void> {
-    this.loading.set(true); this.errorMessage.set('');
-    try {
-      const page = this.pagination();
-      const result = await this.service.listOwn({ page: page.page, pageSize: page.pageSize });
-      this.requests.set(result.data); this.pagination.set(result.pagination);
-    } catch (error) { this.errorMessage.set(await this.errorText(error, 'Daftar izin tidak dapat dimuat.')); }
-    finally { this.loading.set(false); }
-  }
+  load(): void { void this.requestsQuery.refetch(); }
 
   async submit(): Promise<void> {
-    if (this.actionInProgress()) return;
+    if (this.submitDisabled()) return;
     if (this.form.invalid) { this.form.markAllAsTouched(); focusFirstInvalidControl(this.host.nativeElement); return; }
     this.actionInProgress.set('create'); this.errorMessage.set(''); this.successMessage.set('');
     try {
@@ -73,8 +99,7 @@ export class LeaveRequestsPage implements OnInit {
       this.successMessage.set('Pengajuan izin berhasil dikirim dan menunggu keputusan SuperAdmin.');
       this.form.controls.reason.setValue('');
       this.attachment.set(undefined);
-      this.pagination.update((page) => ({ ...page, page: 1 }));
-      await this.load();
+      this.requestFilters.update((page) => ({ ...page, page: 1 }));
     } catch (error) { this.errorMessage.set(await this.errorText(error, 'Pengajuan izin tidak dapat dikirim.')); }
     finally { this.actionInProgress.set(null); }
   }
@@ -89,14 +114,12 @@ export class LeaveRequestsPage implements OnInit {
     try {
       await this.service.cancel(request.id);
       this.successMessage.set('Pengajuan izin berhasil dibatalkan.');
-      await this.load();
     } catch (error) { this.errorMessage.set(await this.errorText(error, 'Izin tidak dapat dibatalkan.')); }
     finally { this.actionInProgress.set(null); }
   }
 
-  async pageChanged(event: PageEvent): Promise<void> {
-    this.pagination.update((page) => ({ ...page, page: event.pageIndex + 1, pageSize: event.pageSize }));
-    await this.load();
+  pageChanged(event: PageEvent): void {
+    this.requestFilters.update((page) => ({ ...page, page: event.pageIndex + 1, pageSize: event.pageSize }));
   }
 
   typeLabel(type: LeaveType): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya' })[type]; }

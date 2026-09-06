@@ -6,6 +6,7 @@ import type {
 } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { vi } from 'vitest';
 
 import { AttendanceService } from './attendance.service';
@@ -58,20 +59,21 @@ const response: AttendanceHistoryResponse = {
 
 describe('AttendanceHistoryPage', () => {
   let fixture: ComponentFixture<AttendanceHistoryPage>;
-  let getHistory: ReturnType<typeof vi.fn>;
+  let fetchHistory: ReturnType<typeof vi.fn>;
 
   async function setup(result: AttendanceHistoryResponse = response): Promise<void> {
-    getHistory = vi.fn(async () => result);
+    fetchHistory = vi.fn(async () => result);
     await TestBed.configureTestingModule({
       imports: [AttendanceHistoryPage],
       providers: [
         provideRouter([]),
-        { provide: AttendanceService, useValue: { getHistory } },
+        provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
+        { provide: AttendanceService, useValue: { fetchHistory } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(AttendanceHistoryPage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await vi.waitFor(() => expect(fixture.componentInstance.loading()).toBe(false));
     fixture.detectChanges();
   }
 
@@ -80,7 +82,7 @@ describe('AttendanceHistoryPage', () => {
   it('loads the current month and renders completed and incomplete calculations', async () => {
     await setup();
 
-    expect(getHistory).toHaveBeenCalledWith({
+    expect(fetchHistory).toHaveBeenCalledWith({
       page: 1,
       pageSize: 10,
       month: expect.stringMatching(/^\d{4}-\d{2}$/),
@@ -97,20 +99,22 @@ describe('AttendanceHistoryPage', () => {
   it('resets pagination for a month change and requests the selected page', async () => {
     await setup();
     fixture.componentInstance.monthControl.setValue('2026-07');
-    await fixture.componentInstance.applyMonth();
-    await fixture.componentInstance.pageChanged({
+    fixture.componentInstance.applyMonth();
+    await vi.waitFor(() => expect(fetchHistory).toHaveBeenCalledTimes(2));
+    fixture.componentInstance.pageChanged({
       pageIndex: 1,
       pageSize: 10,
       length: 12,
       previousPageIndex: 0,
     });
 
-    expect(getHistory).toHaveBeenNthCalledWith(2, {
+    await vi.waitFor(() => expect(fetchHistory).toHaveBeenCalledTimes(3));
+    expect(fetchHistory).toHaveBeenNthCalledWith(2, {
       page: 1,
       pageSize: 10,
       month: '2026-07',
     });
-    expect(getHistory).toHaveBeenLastCalledWith({
+    expect(fetchHistory).toHaveBeenLastCalledWith({
       page: 2,
       pageSize: 10,
       month: '2026-07',
@@ -140,7 +144,7 @@ describe('AttendanceHistoryPage', () => {
     await fixture.componentInstance.applyMonth();
     fixture.detectChanges();
 
-    expect(getHistory).toHaveBeenCalledTimes(1);
+    expect(fetchHistory).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(
       fixture.nativeElement.querySelector('#history-month'),
     );

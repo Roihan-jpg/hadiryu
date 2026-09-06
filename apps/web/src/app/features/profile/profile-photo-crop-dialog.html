@@ -1,0 +1,22 @@
+<h2 mat-dialog-title>Sesuaikan foto profil</h2>
+<mat-dialog-content>
+  <p class="dialog-copy">Geser foto dan atur zoom. Area lingkaran ini yang akan dipakai sebagai foto profil.</p>
+  <div
+    class="crop-stage"
+    [class.crop-stage--ready]="isReady()"
+    (pointerdown)="startDragging($event)"
+    (pointermove)="drag($event)"
+    (pointerup)="stopDragging()"
+    (pointercancel)="stopDragging()"
+  >
+    <img #sourceImage [src]="objectUrl" [style]="imageStyle()" alt="Pratinjau foto profil" (load)="imageLoaded($event)" />
+  </div>
+  <label class="zoom-control" for="profile-photo-zoom">
+    <span>Zoom</span>
+    <input id="profile-photo-zoom" type="range" min="1" max="3" step="0.01" [value]="zoom()" [disabled]="!isReady()" (input)="zoomChanged($event)" />
+  </label>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button type="button" mat-button (click)="cancel()">Batal</button>
+  <button type="button" mat-flat-button [disabled]="!isReady()" (click)="confirm()">Gunakan foto</button>
+</mat-dialog-actions>

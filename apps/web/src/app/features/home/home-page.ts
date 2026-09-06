@@ -3,12 +3,14 @@ import type {
   TodayAttendanceResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
+import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { queryKeys } from '../../core/query/query-keys';
 import { AttendanceService } from '../attendance/attendance.service';
 import {
   acquireLocationPreview,
@@ -50,7 +52,7 @@ class LocationRequestError extends Error {
   styleUrl: './home-page.scss',
   templateUrl: './home-page.html',
 })
-export class HomePage implements OnInit {
+export class HomePage {
   private readonly auth = inject(AuthService);
   private readonly attendanceService = inject(AttendanceService);
   private readonly geolocation = inject(GEOLOCATION);
@@ -61,8 +63,13 @@ export class HomePage implements OnInit {
   readonly roleLabel = computed(() =>
     this.user()?.role === 'SUPER_ADMIN' ? 'SuperAdmin' : 'Guru',
   );
-  readonly today = signal<TodayAttendanceResponse | null>(null);
-  readonly loadingToday = signal(false);
+  readonly todayQuery = injectQuery(() => ({
+    queryKey: queryKeys.attendance('today'),
+    queryFn: () => this.attendanceService.fetchToday(),
+    enabled: this.user()?.role === 'USER',
+  }));
+  readonly today = computed<TodayAttendanceResponse | null>(() => this.todayQuery.data() ?? null);
+  readonly loadingToday = computed(() => this.todayQuery.isPending());
   readonly actionInProgress = signal(false);
   readonly locationPreviewInProgress = signal(false);
   readonly locationRequestInProgress = computed(
@@ -83,23 +90,12 @@ export class HomePage implements OnInit {
     }).format(new Date(`${workDate}T00:00:00.000Z`));
   });
 
-  ngOnInit(): void {
-    if (this.user()?.role === 'USER') void this.loadToday();
-  }
+  readonly todayErrorMessage = computed(() => this.todayQuery.isError()
+    ? 'Status absensi hari ini tidak dapat dimuat. Periksa koneksi lalu coba lagi.'
+    : null);
 
-  async loadToday(): Promise<void> {
-    if (this.loadingToday()) return;
-    this.loadingToday.set(true);
-    this.errorMessage.set(null);
-    try {
-      this.today.set(await this.attendanceService.getToday());
-    } catch {
-      this.errorMessage.set(
-        'Status absensi hari ini tidak dapat dimuat. Periksa koneksi lalu coba lagi.',
-      );
-    } finally {
-      this.loadingToday.set(false);
-    }
+  loadToday(): void {
+    void this.todayQuery.refetch();
   }
 
   async checkIn(): Promise<void> {
@@ -116,14 +112,7 @@ export class HomePage implements OnInit {
       this.permissionState.set('GRANTED');
       this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkIn(location);
-      this.today.set({
-        serverNow: attendance.checkInAt,
-        workDate: attendance.workDate,
-        state: 'CHECKED_IN',
-        schedule: this.today()?.schedule ?? null,
-        attendance,
-        locationRequirement: this.today()?.locationRequirement ?? null,
-      });
+      await this.todayQuery.refetch();
       this.successMessage.set(
         `Check-in berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}.`,
       );
@@ -156,14 +145,7 @@ export class HomePage implements OnInit {
       this.permissionState.set('GRANTED');
       this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkout(location);
-      this.today.set({
-        serverNow: attendance.checkOutAt,
-        workDate: attendance.workDate,
-        state: 'COMPLETED',
-        schedule: this.today()?.schedule ?? null,
-        attendance,
-        locationRequirement: this.today()?.locationRequirement ?? null,
-      });
+      await this.todayQuery.refetch();
       this.successMessage.set(
         `Checkout berhasil dicatat pukul ${this.jakartaTime(attendance.checkOutAt)}.`,
       );

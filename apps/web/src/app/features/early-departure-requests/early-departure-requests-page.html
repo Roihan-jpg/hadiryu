@@ -6,7 +6,7 @@
     <p>Ajukan kepulangan sebelum jadwal selesai. Waktu dan lokasi dicatat oleh server saat permohonan dikirim.</p>
   </header>
 
-  @if (errorMessage()) { <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p> }
+  @if (displayErrorMessage()) { <p class="feedback feedback--error" role="alert">{{ displayErrorMessage() }}</p> }
   @if (successMessage()) { <p class="feedback feedback--success" role="status">{{ successMessage() }}</p> }
 
   <div class="early-layout">
@@ -30,7 +30,8 @@
         @if (submitting() && locationProgress(); as progress) {
           <div class="location-progress" aria-live="polite"><span class="location-dot" aria-hidden="true"></span><span>Mencari lokasi presisi · akurasi terbaik {{ rounded(progress.bestAccuracyMeters) }} m dari batas {{ progress.maxAccuracyMeters }} m</span></div>
         }
-        <button mat-flat-button type="submit" [disabled]="submitting()">{{ submitting() ? 'Mengirim…' : 'Kirim permohonan dan catat pulang' }}</button>
+        <button mat-flat-button type="submit" [disabled]="submissionDisabled()">{{ submitting() ? 'Mengirim…' : 'Kirim permohonan dan catat pulang' }}</button>
+        @if (submissionHelp()) { <p class="submission-help" role="status">{{ submissionHelp() }}</p> }
       </form>
     </section>
 
@@ -49,10 +50,10 @@
         <div class="request-list">
           @for (request of requests(); track request.id) {
             <article>
-              <div class="request-meta"><strong>{{ dateTimeLabel(request.requestedAt) }}</strong><span class="status-chip" [class.status-chip--success]="request.status === 'APPROVED'" [class.status-chip--danger]="request.status === 'REJECTED'">{{ statusLabel(request.status) }}</span></div>
+              <div class="request-meta"><strong>{{ dateTimeLabel(request.requestedAt) }}</strong><span class="request-status" [class.request-status--approved]="request.status === 'APPROVED'" [class.request-status--rejected]="request.status === 'REJECTED'"><small>Status permohonan</small><strong>{{ statusLabel(request.status) }}</strong></span></div>
               <p>{{ request.reason }}</p>
               @if (request.attachment) { <a class="attachment-link" [href]="'/api/early-departure-requests/' + request.id + '/attachment'">Unduh lampiran · {{ request.attachment.originalName }}</a> }
-              @if (request.decisionNote) { <small class="admin-note"><strong>Catatan admin</strong>{{ request.decisionNote }}</small> }
+              @if (request.decisionNote) { <aside class="admin-note"><strong>Catatan keputusan admin</strong><span>{{ request.decisionNote }}</span></aside> }
             </article>
           }
         </div>

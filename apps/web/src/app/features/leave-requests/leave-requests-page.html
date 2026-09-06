@@ -14,17 +14,18 @@
     </div>
     <mat-form-field appearance="outline"><mat-label>Alasan</mat-label><textarea matInput rows="4" formControlName="reason" name="reason" maxlength="1000" autocomplete="off"></textarea><mat-hint>Maksimal 1.000 karakter.</mat-hint>@if (form.controls.reason.invalid) { <mat-error>Alasan wajib diisi.</mat-error> }</mat-form-field>
     <label class="attachment-field"><span><strong>Lampiran pendukung</strong><small>Opsional · PDF, JPEG, atau PNG · maksimal 5 MB</small></span><input type="file" accept="application/pdf,image/jpeg,image/png" (change)="attachmentChanged($event)" /></label>
-    <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">{{ actionInProgress() === 'create' ? 'Mengirim pengajuan…' : 'Kirim pengajuan' }}</button>
+    <button mat-flat-button type="submit" [disabled]="submitDisabled()">{{ actionInProgress() === 'create' ? 'Mengirim pengajuan…' : 'Kirim pengajuan' }}</button>
+    @if (leaveBlockMessage()) { <p class="form-blocked" role="status">{{ leaveBlockMessage() }}</p> }
   </form>
 
   @if (successMessage()) { <p class="feedback success" role="status" aria-live="polite">{{ successMessage() }}</p> }
-  @if (errorMessage()) { <div class="feedback error" role="alert"><span>{{ errorMessage() }}</span><button mat-button type="button" (click)="load()">Coba lagi</button></div> }
+  @if (displayErrorMessage()) { <div class="feedback error" role="alert"><span>{{ displayErrorMessage() }}</span><button mat-button type="button" (click)="load()">Coba lagi</button></div> }
 
   <section class="request-section" aria-labelledby="request-list-title">
     <header><div><p class="section-kicker">Status pengajuan</p><h2 id="request-list-title">Riwayat pengajuan</h2></div></header>
     @if (loading()) {
       <div class="request-skeleton ledger-panel" role="status" aria-live="polite"><span class="visually-hidden">Memuat pengajuan izin…</span>@for (item of [1, 2]; track item) { <div><span class="skeleton-line short"></span><span class="skeleton-line"></span><span class="skeleton-block"></span></div> }</div>
-    } @else if (errorMessage()) {
+    } @else if (displayErrorMessage()) {
     } @else if (requests().length === 0) {
       <div class="state empty-state ledger-panel" role="status"><span aria-hidden="true">▣</span><div><strong>Belum ada pengajuan izin</strong><p>Pengajuan yang Anda kirim akan tampil di sini.</p></div></div>
     } @else {

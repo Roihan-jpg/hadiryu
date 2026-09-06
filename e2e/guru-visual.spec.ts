@@ -129,3 +129,15 @@ test('open Guru drawer stays above the Leaflet map', async ({ page }) => {
 
   expect(overlapIsCoveredByDrawer).toBe(true);
 });
+
+test('Guru dashboard uses a circular profile avatar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTeacherApi(page);
+  await page.goto('/guru');
+
+  const avatar = page.locator('.identity-avatar');
+  await expect(avatar).toBeVisible();
+  await expect(avatar).toHaveCSS('border-radius', '50%');
+  const bounds = await avatar.boundingBox();
+  expect(bounds?.width).toBe(bounds?.height);
+});

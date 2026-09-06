@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
@@ -9,16 +10,18 @@ import { injectMutation, injectQueryClient } from '@tanstack/angular-query-exper
 import { AuthService } from '../../core/auth/auth.service';
 import { queryKeys } from '../../core/query/query-keys';
 import { ProfileService } from './profile.service';
+import { ProfilePhotoCropDialog } from './profile-photo-crop-dialog';
 
 @Component({
   selector: 'app-profile-page',
-  imports: [MatButtonModule, MatFormFieldModule, MatInputModule, ReactiveFormsModule, RouterLink],
+  imports: [MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, ReactiveFormsModule, RouterLink],
   templateUrl: './profile-page.html',
   styleUrl: './profile-page.scss',
 })
 export class ProfilePage {
   private readonly auth = inject(AuthService);
   private readonly service = inject(ProfileService);
+  private readonly dialog = inject(MatDialog);
   private readonly queryClient = injectQueryClient();
   protected readonly user = this.auth.user;
   protected readonly fullName = new FormControl(this.user()?.fullName ?? '', {
@@ -60,8 +63,24 @@ export class ProfilePage {
   protected selectPhoto(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (file) this.uploadPhoto.mutate(file);
+    if (!file) return;
     input.value = '';
+    if (!this.isAcceptedPhoto(file)) {
+      this.errorMessage.set('Pilih foto JPEG, PNG, atau WebP dengan ukuran maksimal 2 MB.');
+      return;
+    }
+    if (this.user()?.role !== 'USER') {
+      this.uploadPhoto.mutate(file);
+      return;
+    }
+    this.dialog.open(ProfilePhotoCropDialog, {
+      data: { file },
+      width: '420px',
+      maxWidth: 'calc(100vw - 32px)',
+      autoFocus: false,
+    }).afterClosed().subscribe((croppedPhoto) => {
+      if (croppedPhoto) this.uploadPhoto.mutate(croppedPhoto);
+    });
   }
 
   protected initials(name: string): string {
@@ -71,6 +90,10 @@ export class ProfilePage {
   private clearFeedback(): void {
     this.message.set('');
     this.errorMessage.set('');
+  }
+
+  private isAcceptedPhoto(file: File): boolean {
+    return ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 2 * 1024 * 1024;
   }
 
   private accept(user: Parameters<AuthService['acceptUser']>[0], message: string): void {

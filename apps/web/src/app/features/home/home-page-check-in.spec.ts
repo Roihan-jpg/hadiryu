@@ -7,6 +7,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../core/auth/auth.service';
@@ -81,19 +82,20 @@ class FakeGeolocation {
 describe('HomePage check-in', () => {
   let fixture: ComponentFixture<HomePage>;
   let geolocation: FakeGeolocation;
-  let getToday: ReturnType<typeof vi.fn>;
+  let fetchToday: ReturnType<typeof vi.fn>;
   let checkIn: ReturnType<typeof vi.fn>;
   let queryPermission: ReturnType<typeof vi.fn>;
 
   async function setup(today = ready): Promise<void> {
     geolocation = new FakeGeolocation();
-    getToday = vi.fn(async () => today);
+    fetchToday = vi.fn(async () => today);
     checkIn = vi.fn(async () => checkedIn);
     queryPermission = vi.fn(async () => ({ state: 'prompt' as PermissionState }));
     await TestBed.configureTestingModule({
       imports: [HomePage],
       providers: [
         provideRouter([]),
+        provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
         {
           provide: AuthService,
           useValue: {
@@ -101,7 +103,7 @@ describe('HomePage check-in', () => {
             logout: vi.fn(async () => undefined),
           },
         },
-        { provide: AttendanceService, useValue: { getToday, checkIn } },
+        { provide: AttendanceService, useValue: { fetchToday, checkIn } },
         { provide: GEOLOCATION, useValue: geolocation },
         {
           provide: GEOLOCATION_PERMISSIONS,
@@ -111,7 +113,7 @@ describe('HomePage check-in', () => {
     }).compileComponents();
     fixture = TestBed.createComponent(HomePage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await vi.waitFor(() => expect(fixture.componentInstance.loadingToday()).toBe(false));
     fixture.detectChanges();
   }
 
@@ -120,7 +122,7 @@ describe('HomePage check-in', () => {
   it('loads today without requesting location when the page opens', async () => {
     await setup();
 
-    expect(getToday).toHaveBeenCalledTimes(1);
+    expect(fetchToday).toHaveBeenCalledTimes(1);
     expect(geolocation.getCurrentPosition).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Belum check-in');
     expect(fixture.nativeElement.textContent).toContain('Dibuka05:30');
@@ -240,6 +242,7 @@ describe('HomePage check-in', () => {
 
   it('requests precise current location from the button and prevents double submit', async () => {
     await setup();
+    fetchToday.mockResolvedValue({ ...ready, state: 'CHECKED_IN', attendance: checkedIn });
 
     const first = fixture.componentInstance.checkIn();
     const repeated = fixture.componentInstance.checkIn();
@@ -264,6 +267,7 @@ describe('HomePage check-in', () => {
       },
     } as GeolocationPosition);
     await Promise.all([first, repeated]);
+    await vi.waitFor(() => expect(fixture.componentInstance.today()?.state).toBe('CHECKED_IN'));
     fixture.detectChanges();
 
     expect(checkIn).toHaveBeenCalledTimes(1);

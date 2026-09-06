@@ -18,7 +18,10 @@ export class AttendanceService {
   private readonly queries = inject(QueryGateway);
 
   async getToday(): Promise<TodayAttendanceResponse> {
-    return this.queries.get(queryKeys.attendance('today'), async () => {
+    return this.queries.get(queryKeys.attendance('today'), () => this.fetchToday());
+  }
+
+  async fetchToday(): Promise<TodayAttendanceResponse> {
     const value = await firstValueFrom(
       this.http.get<unknown>('/api/attendance/today', {
         withCredentials: true,
@@ -26,7 +29,6 @@ export class AttendanceService {
     );
     const { TodayAttendanceResponseSchema } = await import('@absensi/contracts');
     return TodayAttendanceResponseSchema.parse(value);
-    });
   }
 
   async checkIn(location: LocationInput): Promise<CheckInRecord> {
@@ -58,7 +60,15 @@ export class AttendanceService {
   async getHistory(
     query: ListAttendanceHistoryQuery,
   ): Promise<AttendanceHistoryResponse> {
-    return this.queries.get(queryKeys.attendance('history', query), async () => {
+    return this.queries.get(
+      queryKeys.attendance('history', query),
+      () => this.fetchHistory(query),
+    );
+  }
+
+  async fetchHistory(
+    query: ListAttendanceHistoryQuery,
+  ): Promise<AttendanceHistoryResponse> {
     let params = new HttpParams()
       .set('page', query.page)
       .set('pageSize', query.pageSize);
@@ -73,6 +83,5 @@ export class AttendanceService {
       '@absensi/contracts'
     );
     return AttendanceHistoryResponseSchema.parse(value);
-    });
   }
 }

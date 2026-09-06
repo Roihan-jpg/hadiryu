@@ -8,6 +8,7 @@ import type {
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../core/auth/auth.service';
@@ -78,6 +79,7 @@ describe('HomePage checkout states', () => {
   let fixture: ComponentFixture<HomePage>;
   let geolocation: FakeGeolocation;
   let checkout: ReturnType<typeof vi.fn>;
+  let fetchToday: ReturnType<typeof vi.fn>;
 
   async function setup(today: TodayAttendanceResponse): Promise<void> {
     geolocation = new FakeGeolocation();
@@ -86,6 +88,7 @@ describe('HomePage checkout states', () => {
       imports: [HomePage],
       providers: [
         provideRouter([]),
+        provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
         {
           provide: AuthService,
           useValue: {
@@ -96,7 +99,7 @@ describe('HomePage checkout states', () => {
         {
           provide: AttendanceService,
           useValue: {
-            getToday: vi.fn(async () => today),
+            fetchToday: (fetchToday = vi.fn(async () => today)),
             checkIn: vi.fn(),
             checkout,
           },
@@ -106,7 +109,7 @@ describe('HomePage checkout states', () => {
     }).compileComponents();
     fixture = TestBed.createComponent(HomePage);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await vi.waitFor(() => expect(fixture.componentInstance.loadingToday()).toBe(false));
     fixture.detectChanges();
   }
 
@@ -119,6 +122,13 @@ describe('HomePage checkout states', () => {
       state: 'CHECKED_IN',
       schedule,
       attendance: checkedIn,
+    });
+    fetchToday.mockResolvedValue({
+      serverNow: completed.checkOutAt,
+      workDate: completed.workDate,
+      state: 'COMPLETED',
+      schedule,
+      attendance: completed,
     });
 
     expect(fixture.nativeElement.textContent).toContain('Checkout sekarang');
@@ -134,6 +144,7 @@ describe('HomePage checkout states', () => {
       coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
     } as GeolocationPosition);
     await Promise.all([first, repeated]);
+    await vi.waitFor(() => expect(fixture.componentInstance.today()?.state).toBe('COMPLETED'));
     fixture.detectChanges();
 
     expect(checkout).toHaveBeenCalledTimes(1);

@@ -20,13 +20,18 @@ export class LeaveRequestsService {
   private readonly queries = inject(QueryGateway);
 
   async listOwn(input: ListLeaveRequestsQuery): Promise<LeaveRequestListResponse> {
-    return this.queries.get(queryKeys.leaveRequests('own', input), async () => {
+    return this.queries.get(
+      queryKeys.leaveRequests('own', input),
+      () => this.fetchOwn(input),
+    );
+  }
+
+  async fetchOwn(input: ListLeaveRequestsQuery): Promise<LeaveRequestListResponse> {
     let params = new HttpParams().set('page', input.page).set('pageSize', input.pageSize);
     if (input.status) params = params.set('status', input.status);
     const value = await firstValueFrom(this.http.get<unknown>('/api/leave-requests', { params, withCredentials: true }));
     const { LeaveRequestListResponseSchema } = await import('@absensi/contracts');
     return LeaveRequestListResponseSchema.parse(value);
-    });
   }
 
   async create(input: CreateLeaveRequest, attachment?: File): Promise<LeaveRequest> {

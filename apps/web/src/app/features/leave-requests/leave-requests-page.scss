@@ -11,6 +11,8 @@ mat-form-field { width: 100%; }
 .attachment-field small { color: var(--ag-muted); font-size: 9px; }
 .attachment-field input { min-width: 0; color: var(--ag-muted); font: inherit; font-size: 10px; }
 .leave-form > button { width: 100%; min-height: 48px; }
+.leave-form > button:disabled { color: #7d8784; background: #dfe3e1; }
+.form-blocked { margin: -4px 0 0; color: var(--ag-muted); font-size: 11px; line-height: 1.5; }
 .feedback { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 0; padding: 10px 12px; border: 1px solid; border-radius: 4px; font-size: 12px; }
 .feedback.success { color: var(--ag-success); background: var(--ag-success-bg); border-color: #cce3d8; }
 .feedback.error { color: var(--ag-danger); background: var(--ag-danger-bg); border-color: #edc9c9; }

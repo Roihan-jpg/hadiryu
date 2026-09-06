@@ -4,14 +4,16 @@ import type {
   LocationInput,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
+import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
+import { queryKeys } from '../../core/query/query-keys';
 import { AttendanceService } from '../attendance/attendance.service';
 import {
   acquirePreciseLocation,
@@ -33,7 +35,7 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
   templateUrl: './early-departure-requests-page.html',
   styleUrl: './early-departure-requests-page.scss',
 })
-export class EarlyDepartureRequestsPage implements OnInit {
+export class EarlyDepartureRequestsPage {
   private readonly service = inject(EarlyDepartureRequestsService);
   private readonly attendanceService = inject(AttendanceService);
   private readonly geolocation = inject(GEOLOCATION);
@@ -44,29 +46,41 @@ export class EarlyDepartureRequestsPage implements OnInit {
       validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(1000)],
     }),
   });
-  readonly requests = signal<EarlyDepartureRequest[]>([]);
-  readonly loading = signal(true);
   readonly submitting = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
   readonly attachment = signal<File | undefined>(undefined);
   readonly locationProgress = signal<LocationAccuracyProgress | null>(null);
   readonly locationMaxAccuracyMeters = signal(15);
+  readonly requestsQuery = injectQuery(() => ({
+    queryKey: queryKeys.earlyDepartureRequests('own', { page: 1, pageSize: 20 }),
+    queryFn: () => this.service.fetchOwn({ page: 1, pageSize: 20 }),
+  }));
+  readonly todayQuery = injectQuery(() => ({
+    queryKey: queryKeys.attendance('today'),
+    queryFn: () => this.attendanceService.fetchToday(),
+  }));
+  readonly requests = computed<EarlyDepartureRequest[]>(() => this.requestsQuery.data()?.data ?? []);
+  readonly loading = computed(() => this.requestsQuery.isPending());
+  readonly submissionDisabled = computed(() =>
+    this.submitting() || this.todayQuery.isPending() || this.todayQuery.data()?.state !== 'CHECKED_IN',
+  );
+  readonly submissionHelp = computed(() => {
+    const state = this.todayQuery.data()?.state;
+    if (this.todayQuery.isPending()) return 'Memeriksa status absensi hari ini…';
+    if (state === 'CHECKED_IN') return '';
+    if (state === 'COMPLETED') return 'Checkout sudah tercatat. Permohonan pulang awal tidak dapat dikirim.';
+    if (state === 'READY_TO_CHECK_IN') return 'Lakukan check-in terlebih dahulu sebelum mengajukan pulang awal.';
+    return 'Permohonan pulang awal tidak tersedia untuk status absensi hari ini.';
+  });
+  readonly displayErrorMessage = computed(() => this.errorMessage() || (this.requestsQuery.isError()
+    ? 'Daftar pulang awal tidak dapat dimuat. Periksa koneksi lalu coba lagi.'
+    : ''));
 
-  ngOnInit(): void { void this.load(); }
-
-  async load(): Promise<void> {
-    this.loading.set(true);
-    try {
-      const result = await this.service.listOwn({ page: 1, pageSize: 20 });
-      this.requests.set(result.data);
-    } catch (error) {
-      this.errorMessage.set(await this.errorText(error, 'Daftar pulang awal tidak dapat dimuat.'));
-    } finally { this.loading.set(false); }
-  }
+  load(): void { void this.requestsQuery.refetch(); }
 
   async submit(): Promise<void> {
-    if (this.submitting()) return;
+    if (this.submissionDisabled()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       focusFirstInvalidControl(this.host.nativeElement);
@@ -88,14 +102,13 @@ export class EarlyDepartureRequestsPage implements OnInit {
       this.form.reset({ reason: '' });
       this.attachment.set(undefined);
       this.successMessage.set('Permohonan terkirim. Absensi pulang dicatat dan menunggu keputusan admin.');
-      await this.load();
     } catch (error) {
       this.errorMessage.set(await this.errorText(error, 'Permohonan pulang awal tidak dapat dikirim.'));
     } finally { this.submitting.set(false); }
   }
 
   statusLabel(status: EarlyDepartureStatus): string {
-    return ({ PENDING: 'Pending', APPROVED: 'Disetujui', REJECTED: 'Ditolak' })[status];
+    return ({ PENDING: 'Menunggu keputusan admin', APPROVED: 'Disetujui', REJECTED: 'Ditolak' })[status];
   }
 
   dateTimeLabel(value: string): string {
@@ -110,7 +123,8 @@ export class EarlyDepartureRequestsPage implements OnInit {
 
   private async currentLocation(): Promise<LocationInput> {
     if (!this.geolocation) return Promise.reject(new Error('Lokasi tidak tersedia'));
-    const today = await this.attendanceService.getToday();
+    const today = this.todayQuery.data();
+    if (!today) return Promise.reject(new Error('Status absensi belum tersedia'));
     const maxAccuracyMeters = today.locationRequirement?.maxAccuracyMeters ?? 15;
     this.locationMaxAccuracyMeters.set(maxAccuracyMeters);
     return acquirePreciseLocation(

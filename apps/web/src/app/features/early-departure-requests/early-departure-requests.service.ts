@@ -22,7 +22,15 @@ export class EarlyDepartureRequestsService {
   async listOwn(
     input: ListEarlyDepartureRequestsQuery,
   ): Promise<EarlyDepartureRequestListResponse> {
-    return this.queries.get(queryKeys.earlyDepartureRequests('own', input), async () => {
+    return this.queries.get(
+      queryKeys.earlyDepartureRequests('own', input),
+      () => this.fetchOwn(input),
+    );
+  }
+
+  async fetchOwn(
+    input: ListEarlyDepartureRequestsQuery,
+  ): Promise<EarlyDepartureRequestListResponse> {
     let params = new HttpParams()
       .set('page', input.page)
       .set('pageSize', input.pageSize);
@@ -37,7 +45,6 @@ export class EarlyDepartureRequestsService {
       '@absensi/contracts'
     );
     return EarlyDepartureRequestListResponseSchema.parse(value);
-    });
   }
 
   async create(input: CreateEarlyDepartureRequest, attachment?: File): Promise<EarlyDepartureRequest> {

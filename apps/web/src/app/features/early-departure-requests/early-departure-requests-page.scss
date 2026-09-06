@@ -12,6 +12,8 @@
 form { display: grid; gap: 14px; }
 mat-form-field { width: 100%; }
 form > button { justify-self: start; min-height: 42px; }
+form > button:disabled { color: #7d8784; background: #dfe3e1; }
+.submission-help { margin: -4px 0 0; color: var(--ag-muted); font-size: 11px; line-height: 1.5; }
 .attachment-field { display: grid; gap: 9px; color: var(--ag-muted); font-size: 11px; line-height: 1.5; }
 .attachment-field strong { display: block; color: var(--ag-text); font-size: 13px; }
 .attachment-field input { width: 100%; box-sizing: border-box; padding: 12px; color: var(--ag-text); background: var(--ag-surface); border: 1px dashed var(--ag-border); border-radius: 4px; }
@@ -23,12 +25,17 @@ form > button { justify-self: start; min-height: 42px; }
 .skeleton-list, .request-list { display: grid; gap: 12px; padding-top: 18px; }
 .request-skeleton { height: 104px; border-radius: 4px; }
 .request-list article { padding: 15px; background: var(--ag-bg); border: 1px solid var(--ag-border); border-radius: 5px; }
-.request-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.request-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .request-meta strong { color: var(--ag-text); font-size: 12px; }
+.request-status { display: grid; min-width: 142px; gap: 2px; padding: 8px 10px; color: #916015; background: var(--ag-warning-bg); border: 1px solid #edd8b9; border-left: 4px solid #c98a2d; border-radius: 4px; }
+.request-status small { color: inherit; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.request-status strong { color: inherit; font-size: 10px; line-height: 1.35; }
+.request-status--approved { color: var(--ag-success); background: var(--ag-success-bg); border-color: #cce3d8; border-left-color: var(--ag-success); }
+.request-status--rejected { color: var(--ag-danger); background: var(--ag-danger-bg); border-color: #edc9c9; border-left-color: var(--ag-danger); }
 .request-list article > p { margin: 12px 0; color: var(--ag-text); font-size: 13px; line-height: 1.6; }
 .attachment-link { color: var(--ag-primary); font-size: 11px; font-weight: 700; }
-.admin-note { display: grid; gap: 3px; margin-top: 12px; padding-top: 10px; color: var(--ag-muted); border-top: 1px solid var(--ag-border); line-height: 1.5; }
-.admin-note strong { color: var(--ag-text); }
+.admin-note { display: grid; gap: 4px; margin-top: 12px; padding: 10px 12px; color: var(--ag-muted); background: var(--ag-surface-soft); border-left: 3px solid var(--ag-primary); border-radius: 4px; font-size: 11px; line-height: 1.5; }
+.admin-note strong { color: var(--ag-text); font-size: 10px; }
 .empty-state { padding: 38px 14px; text-align: center; }
 .empty-state strong { color: var(--ag-text); }
 .empty-state p { margin: 7px 0 0; color: var(--ag-muted); font-size: 12px; }

@@ -109,6 +109,9 @@
         @if (errorMessage()) {
           <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
         }
+        @if (todayErrorMessage()) {
+          <p class="feedback feedback--error" role="alert">{{ todayErrorMessage() }}</p>
+        }
         @if (actionInProgress() && locationAccuracyProgress(); as progress) {
           <div class="gps-progress" aria-live="polite">
             <span class="gps-pulse" aria-hidden="true"></span>
@@ -119,7 +122,7 @@
           <p class="feedback feedback--success" role="status" aria-live="polite">{{ successMessage() }}</p>
         }
 
-        @if (!today() && errorMessage()) {
+        @if (!today() && todayErrorMessage()) {
           <button mat-stroked-button type="button" (click)="loadToday()">Coba lagi</button>
         } @else if (today()?.state === 'READY_TO_CHECK_IN') {
           <button mat-flat-button class="primary-action" data-action="check-in" type="button" [disabled]="locationRequestInProgress()" (click)="checkIn()">

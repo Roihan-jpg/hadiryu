@@ -1,8 +1,10 @@
 import type { LeaveRequest, LeaveRequestListResponse } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { vi } from 'vitest';
 
+import { AttendanceService } from '../attendance/attendance.service';
 import { LeaveRequestsPage } from './leave-requests-page';
 import { LeaveRequestsService } from './leave-requests.service';
 
@@ -13,16 +15,38 @@ describe('LeaveRequestsPage', () => {
   let fixture: ComponentFixture<LeaveRequestsPage>;
   let create: ReturnType<typeof vi.fn>;
   let cancel: ReturnType<typeof vi.fn>;
+  let fetchOwn: ReturnType<typeof vi.fn>;
+  let fetchToday: ReturnType<typeof vi.fn>;
   async function setup(result: LeaveRequestListResponse = { data: [pending], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 } }) {
     create = vi.fn(async () => pending);
     cancel = vi.fn(async () => ({ ...pending, status: 'CANCELLED' as const }));
+    fetchOwn = vi.fn(async () => result);
+    fetchToday = vi.fn(async () => ({
+      serverNow: '2026-09-06T00:00:00.000Z',
+      workDate: '2026-09-06',
+      state: 'CHECKED_IN',
+      schedule: null,
+      attendance: null,
+      locationRequirement: { maxAccuracyMeters: 15 },
+    }));
     await TestBed.configureTestingModule({
-      imports: [LeaveRequestsPage], providers: [provideRouter([]), {
-        provide: LeaveRequestsService, useValue: { listOwn: vi.fn(async () => result), create, cancel },
-      }],
+      imports: [LeaveRequestsPage], providers: [
+        provideRouter([]),
+        provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })),
+        { provide: LeaveRequestsService, useValue: { fetchOwn, create, cancel } },
+        {
+          provide: AttendanceService,
+          useValue: {
+            fetchToday,
+          },
+        },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(LeaveRequestsPage);
-    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    fixture.detectChanges();
+    await vi.waitFor(() => expect(fixture.componentInstance.loading()).toBe(false));
+    await vi.waitFor(() => expect(fixture.componentInstance.todayQuery.isPending()).toBe(false));
+    fixture.detectChanges();
   }
   afterEach(() => TestBed.resetTestingModule());
   it('renders the request form and existing statuses', async () => {
@@ -36,12 +60,12 @@ describe('LeaveRequestsPage', () => {
   it('submits a single-date request and prevents duplicate submission', async () => {
     await setup();
     const page = fixture.componentInstance;
-    page.form.controls.leaveDate.setValue(page.minDate);
+    page.form.controls.leaveDate.setValue('2099-01-01');
     page.form.controls.leaveType.setValue('FAMILY');
     page.form.controls.reason.setValue('Acara keluarga');
     await Promise.all([page.submit(), page.submit()]);
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith({ leaveDate: page.minDate, leaveType: 'FAMILY', reason: 'Acara keluarga' });
+    expect(create).toHaveBeenCalledWith({ leaveDate: '2099-01-01', leaveType: 'FAMILY', reason: 'Acara keluarga' });
   });
   it('rejects a whitespace-only reason before calling the API', async () => {
     await setup();
@@ -70,5 +94,14 @@ describe('LeaveRequestsPage', () => {
     await setup();
     await fixture.componentInstance.cancel(pending);
     expect(cancel).toHaveBeenCalledWith(pending.id);
+  });
+
+  it('disables an application for today after the teacher has checked in', async () => {
+    await setup();
+    fixture.componentInstance.form.controls.leaveDate.setValue('2026-09-06');
+    fixture.detectChanges();
+
+    const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
   });
 });
