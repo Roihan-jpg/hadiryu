@@ -59,6 +59,16 @@
   to { transform: rotate(1turn); }
 }
 
+@media (max-width: 760px) {
+  .opening-screen {
+    padding: 1rem;
+  }
+
+  .opening-screen__stage {
+    width: min(calc(100vw - 2rem), 24rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .opening-screen { transition: none; }
   .opening-screen__fallback { animation: none; }
