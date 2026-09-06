@@ -2,6 +2,7 @@ import { signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
+import { afterEach } from 'vitest';
 
 import { AuthService } from './core/auth/auth.service';
 import { App } from './app';
@@ -18,6 +19,7 @@ describe('App', () => {
   } | null>;
 
   beforeEach(async () => {
+    localStorage.removeItem('admin-sidebar-collapsed');
     user = signal(null);
     await TestBed.configureTestingModule({
       imports: [App],
@@ -31,6 +33,8 @@ describe('App', () => {
       ],
     }).compileComponents();
   });
+
+  afterEach(() => localStorage.removeItem('admin-sidebar-collapsed'));
 
   it('should create the app', () => {
     const fixture = TestBed.createComponent(App);
@@ -71,6 +75,83 @@ describe('App', () => {
 
     expect(compiled.querySelector('.teacher-app-shell')?.classList).toContain('drawer-open');
     expect(menuButton?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('uses the shared profile mobile header to open the matching role drawer', () => {
+    user.set({
+      id: '10000000-0000-4000-8000-000000000004',
+      nip: '198503242010011015',
+      fullName: 'Admin Contoh',
+      role: 'SUPER_ADMIN',
+      isActive: true,
+      mustChangePassword: false,
+      photo: null,
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header__brand')?.getAttribute('href')).toBe('/admin');
+    expect(compiled.querySelector('.app-mobile-header__brand')?.textContent).toContain('SD Islam Tompokersan');
+    expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header a[href="/profile"]')?.getAttribute('aria-label')).toBe('Buka profil Admin Contoh');
+    const adminButton = compiled.querySelector<HTMLButtonElement>('[aria-label="Buka menu Super Admin"]');
+    adminButton?.click();
+    fixture.detectChanges();
+    expect(compiled.querySelector('.admin-shell')?.classList).toContain('drawer-open');
+
+    user.set({ ...user()!, role: 'USER' });
+    fixture.detectChanges();
+    expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header__brand')?.getAttribute('href')).toBe('/guru');
+    expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header a[href="/profile"]')?.getAttribute('aria-label')).toBe('Buka profil Admin Contoh');
+    const teacherButton = compiled.querySelector<HTMLButtonElement>('[aria-label="Buka menu Guru"]');
+    teacherButton?.click();
+    fixture.detectChanges();
+    expect(compiled.querySelector('.teacher-app-shell')?.classList).toContain('drawer-open');
+  });
+
+  it('shares the compact-sidebar preference with the Guru sidebar', () => {
+    user.set({
+      id: '10000000-0000-4000-8000-000000000003',
+      nip: '198503242010011014',
+      fullName: 'Guru Contoh',
+      role: 'USER',
+      isActive: true,
+      mustChangePassword: false,
+      photo: null,
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    compiled.querySelector<HTMLButtonElement>('[aria-label="Ringkas sidebar"]')?.click();
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('.teacher-app-shell')?.classList).toContain('sidebar-collapsed');
+    expect(compiled.querySelector<HTMLAnchorElement>('.app-sidebar__nav a')?.getAttribute('title')).toBeTruthy();
+  });
+
+  it('uses the same account-card structure for Super Admin and Guru sidebars', () => {
+    user.set({
+      id: '10000000-0000-4000-8000-000000000002',
+      nip: '198503242010011013',
+      fullName: 'Admin Contoh',
+      role: 'SUPER_ADMIN',
+      isActive: true,
+      mustChangePassword: false,
+      photo: null,
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const compactButton = compiled.querySelector<HTMLButtonElement>('[aria-label="Ringkas sidebar"]');
+
+    expect(compiled.querySelector('.app-sidebar--admin .app-sidebar__account-card')).not.toBeNull();
+    expect(compiled.querySelector('.app-sidebar--admin .app-sidebar__school')).toBeNull();
+    compactButton?.click();
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('.admin-shell')?.classList).toContain('sidebar-collapsed');
+    expect(compiled.querySelector<HTMLAnchorElement>('.app-sidebar__nav a')?.getAttribute('title')).toBeTruthy();
   });
 
   it('provides a keyboard skip link to the main content', async () => {

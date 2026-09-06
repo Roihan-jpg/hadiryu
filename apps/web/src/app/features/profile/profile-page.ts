@@ -28,15 +28,19 @@ export class ProfilePage {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(200)],
   });
+  protected readonly whatsappNumber = new FormControl(this.user()?.whatsappNumber ?? '', {
+    nonNullable: true,
+    validators: [Validators.pattern(/^\s*$|^\s*\+[1-9]\d{7,14}\s*$/)],
+  });
   protected readonly message = signal('');
   protected readonly errorMessage = signal('');
   protected readonly photoUrl = computed(() => `/api/profile/photo?v=${encodeURIComponent(this.user()?.photo?.updatedAt ?? '')}`);
 
-  protected readonly updateName = injectMutation(() => ({
-    mutationFn: (name: string) => this.service.updateName(name),
+  protected readonly updateProfile = injectMutation(() => ({
+    mutationFn: (input: { fullName: string; whatsappNumber: string | null }) => this.service.updateProfile(input),
     onMutate: () => this.clearFeedback(),
-    onSuccess: (user) => this.accept(user, 'Nama berhasil diperbarui.'),
-    onError: () => this.errorMessage.set('Nama tidak dapat diperbarui. Coba lagi.'),
+    onSuccess: (user) => this.accept(user, 'Profil berhasil diperbarui.'),
+    onError: () => this.errorMessage.set('Profil tidak dapat diperbarui. Coba lagi.'),
   }));
   protected readonly uploadPhoto = injectMutation(() => ({
     mutationFn: (file: File) => this.service.uploadPhoto(file),
@@ -51,13 +55,17 @@ export class ProfilePage {
     onError: () => this.errorMessage.set('Foto tidak dapat dihapus. Coba lagi.'),
   }));
 
-  protected saveName(event: Event): void {
+  protected saveProfile(event: Event): void {
     event.preventDefault();
-    if (this.fullName.invalid) {
+    if (this.fullName.invalid || this.whatsappNumber.invalid) {
       this.fullName.markAsTouched();
+      this.whatsappNumber.markAsTouched();
       return;
     }
-    this.updateName.mutate(this.fullName.value.trim());
+    this.updateProfile.mutate({
+      fullName: this.fullName.value.trim(),
+      whatsappNumber: this.whatsappNumber.value.trim() || null,
+    });
   }
 
   protected selectPhoto(event: Event): void {
@@ -67,10 +75,6 @@ export class ProfilePage {
     input.value = '';
     if (!this.isAcceptedPhoto(file)) {
       this.errorMessage.set('Pilih foto JPEG, PNG, atau WebP dengan ukuran maksimal 2 MB.');
-      return;
-    }
-    if (this.user()?.role !== 'USER') {
-      this.uploadPhoto.mutate(file);
       return;
     }
     this.dialog.open(ProfilePhotoCropDialog, {

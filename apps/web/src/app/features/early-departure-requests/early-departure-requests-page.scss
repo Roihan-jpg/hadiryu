@@ -1,5 +1,6 @@
 :host { display: block; }
 .early-page { max-width: 1080px; }
+@media (min-width: 1024px) { .early-page { max-width: none; } }
 .back-link { display: inline-flex; margin-bottom: 22px; color: var(--ag-primary); font-size: 13px; font-weight: 750; text-decoration: none; }
 .early-layout { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr); gap: 18px; align-items: start; }
 .ledger-panel { padding: 24px; }

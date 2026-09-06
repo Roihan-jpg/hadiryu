@@ -51,14 +51,19 @@ for (const viewport of [
     await expect(page.getByRole('heading', { name: 'Monitoring kehadiran' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (viewport.width <= 820) {
-      const menuButton = page.getByRole('button', { name: 'Buka menu' });
+      const header = page.locator('.app-mobile-header');
+      const menuButton = page.getByRole('button', { name: 'Buka menu Super Admin' });
+      await expect(header).toBeVisible();
+      await expect(header.getByRole('link', { name: 'SD Islam Tompokersan, halaman utama' })).toBeVisible();
+      await expect(header.getByRole('link', { name: 'Buka profil Admin Sekolah' })).toBeVisible();
       await expect(menuButton).toBeVisible();
       await menuButton.focus();
       await expect(menuButton).toBeFocused();
       await menuButton.press('Enter');
       await expect(page.getByRole('complementary', { name: 'Navigasi Super Admin' })).toBeVisible();
     } else {
-      await expect(page.getByText('SD Islam Tompokersan', { exact: true })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Akun aktif' })).toBeVisible();
+      await expect(page.getByText('Admin Sekolah', { exact: true })).toBeVisible();
     }
   });
 }

@@ -1,4 +1,4 @@
-import { Component, ElementRef, Inject, OnDestroy, ViewChild, computed, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 
 export interface ProfilePhotoCropDialogData {
@@ -22,6 +22,8 @@ const outputSize = 512;
 export class ProfilePhotoCropDialog implements OnDestroy {
   @ViewChild('sourceImage') private sourceImage?: ElementRef<HTMLImageElement>;
 
+  readonly data = inject<ProfilePhotoCropDialogData>(MAT_DIALOG_DATA);
+  private readonly dialogRef = inject<MatDialogRef<ProfilePhotoCropDialog, File>>(MatDialogRef);
   readonly objectUrl: string;
   private dragStart: { clientX: number; clientY: number; position: CropPosition } | null = null;
   readonly imageSize = signal<{ width: number; height: number } | null>(null);
@@ -46,11 +48,8 @@ export class ProfilePhotoCropDialog implements OnDestroy {
     };
   });
 
-  constructor(
-    @Inject(MAT_DIALOG_DATA) readonly data: ProfilePhotoCropDialogData,
-    private readonly dialogRef: MatDialogRef<ProfilePhotoCropDialog, File>,
-  ) {
-    this.objectUrl = URL.createObjectURL(data.file);
+  constructor() {
+    this.objectUrl = URL.createObjectURL(this.data.file);
   }
 
   imageLoaded(event: Event): void {

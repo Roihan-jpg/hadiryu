@@ -13,6 +13,11 @@ export const NipSchema = z
     'NIP hanya boleh berisi huruf, angka, titik, garis bawah, atau tanda hubung',
   );
 
+export const WhatsappNumberSchema = z
+  .string()
+  .trim()
+  .regex(/^\+[1-9]\d{7,14}$/, 'Nomor WhatsApp wajib memakai format internasional E.164');
+
 export const PasswordSchema = z
   .string()
   .length(8, 'Password wajib tepat 8 karakter')
@@ -48,6 +53,7 @@ export const AuthUserSchema = z.strictObject({
   id: z.uuid(),
   nip: NipSchema,
   fullName: z.string().trim().min(1).max(200),
+  whatsappNumber: WhatsappNumberSchema.nullable().optional(),
   role: UserRoleSchema,
   isActive: z.boolean(),
   photo: ProfilePhotoMetadataSchema.nullable().optional(),

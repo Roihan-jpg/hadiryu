@@ -1,11 +1,6 @@
 import { z } from 'zod';
 
-import { NewPasswordSchema, NipSchema } from './auth.js';
-
-export const WhatsappNumberSchema = z
-  .string()
-  .trim()
-  .regex(/^\+[1-9]\d{7,14}$/, 'Nomor WhatsApp wajib memakai format internasional E.164');
+import { NewPasswordSchema, NipSchema, WhatsappNumberSchema } from './auth.js';
 
 const BooleanQuerySchema = z.union([
   z.boolean(),

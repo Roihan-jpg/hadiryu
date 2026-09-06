@@ -18,6 +18,7 @@
         <p class="eyebrow">Dashboard Guru</p>
         <h1 id="home-title">Hari ini, {{ user()?.fullName }}</h1>
         <span>NIP {{ user()?.nip }}</span>
+        @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
       </div>
       @if (workDateLabel()) {
         <time class="identity-date">{{ workDateLabel() }}</time>
@@ -176,6 +177,6 @@
       <a class="ledger-panel" routerLink="/guru/pulang-awal"><span aria-hidden="true">◷</span><strong>Pulang awal</strong><small>Dengan persetujuan</small></a>
     </nav>
 
-    <footer class="teacher-footer"><span>Data resmi mengikuti waktu server</span><span>NIP {{ user()?.nip }}</span></footer>
+    <footer class="teacher-footer"><span>Data resmi mengikuti waktu server</span></footer>
   </section>
 }

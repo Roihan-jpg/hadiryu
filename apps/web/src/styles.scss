@@ -112,8 +112,6 @@ p {
   background: var(--ag-bg);
 }
 
-.teacher-mobile-header { display: none; }
-
 .teacher-brand {
   display: inline-flex;
   min-width: 0;
@@ -170,37 +168,6 @@ p {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.teacher-menu-button,
-.teacher-drawer-header > button {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  padding: 0;
-  color: var(--ag-text);
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.teacher-menu-button {
-  display: none;
-}
-
-.teacher-drawer-header > button { display: none; }
-
-.teacher-menu-button svg,
-.teacher-drawer nav svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .teacher-drawer-backdrop { display: none; }
@@ -301,6 +268,8 @@ p {
   margin-left: 264px;
 }
 
+.teacher-app-shell.sidebar-collapsed .teacher-main { margin-left: 76px; }
+
 .teacher-app-shell :is(.mat-mdc-unelevated-button, .mat-mdc-outlined-button, .mat-mdc-button) {
   min-height: 44px;
   border-radius: 4px;
@@ -331,6 +300,10 @@ p {
   width: min(100% - 32px, 780px);
   margin: 0 auto;
   padding: 28px 0 64px;
+}
+
+@media (min-width: 1024px) {
+  .teacher-app-shell .teacher-page { width: calc(100% - 128px); }
 }
 
 .teacher-app-shell .teacher-page-header {
@@ -415,16 +388,11 @@ p {
 }
 
 @media (max-width: 760px) {
-  .teacher-mobile-header { position: sticky; top: 0; z-index: 20; display: block; background: rgb(255 253 249 / 96%); border-bottom: 1px solid var(--ag-border); }
-  .teacher-mobile-header-inner { display: flex; width: min(100% - 24px, 780px); min-height: 56px; align-items: center; gap: 12px; margin: 0 auto; }
-  .teacher-mobile-header .teacher-brand { flex: 1; }
-  .teacher-menu-button { display: grid; }
   .teacher-drawer-backdrop { position: fixed; inset: 0; z-index: 35; padding: 0; background: rgb(52 65 62 / 34%); border: 0; }
   .teacher-drawer { z-index: 40; width: min(320px, 88vw); padding: 18px 16px; visibility: hidden; box-shadow: 16px 0 36px rgb(52 65 62 / 14%); transform: translateX(-105%); transition: transform .2s ease, visibility 0s linear .2s; }
   .drawer-open .teacher-drawer-backdrop { display: block; }
   .drawer-open .teacher-drawer { visibility: visible; transform: translateX(0); transition-delay: 0s; }
-  .teacher-drawer-header > button { display: grid; font-size: 25px; }
-  .teacher-main { min-height: calc(100dvh - 57px); margin-left: 0; }
+  .teacher-main { min-height: calc(100dvh - 61px); margin-left: 0; }
   .teacher-app-shell .teacher-page { width: min(100% - 24px, 780px); padding-top: 20px; }
 }
 
@@ -437,6 +405,15 @@ p {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-app-shell.drawer-open .app-sidebar.teacher-drawer {
+    z-index: 60 !important;
+    visibility: visible !important;
+    transform: translateX(0) !important;
+    transition: none !important;
   }
 }
 

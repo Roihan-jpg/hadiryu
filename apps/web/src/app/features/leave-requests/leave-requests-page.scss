@@ -1,5 +1,6 @@
 :host { display: block; min-height: 100%; background: var(--ag-bg); }
 .leave-page { max-width: 720px; }
+@media (min-width: 1024px) { .leave-page { max-width: none; } }
 .leave-form { display: grid; gap: 13px; padding: clamp(16px, 4vw, 22px); }
 .leave-form > header, .request-section > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .section-kicker { margin: 0 0 4px; color: var(--ag-primary); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }

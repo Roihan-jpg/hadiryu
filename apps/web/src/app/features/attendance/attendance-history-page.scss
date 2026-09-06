@@ -1,5 +1,6 @@
 :host { display: block; min-height: 100%; background: var(--ag-bg); }
 .history-page { max-width: 720px; }
+@media (min-width: 1024px) { .history-page { max-width: none; } }
 .month-filter { display: grid; gap: 7px; margin-bottom: 12px; padding: 14px; }
 .month-filter label { color: var(--ag-muted); font-size: 10px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
 .month-filter > div { display: flex; gap: 8px; }

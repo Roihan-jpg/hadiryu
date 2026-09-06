@@ -1,0 +1,12 @@
+<header class="app-mobile-header">
+  <button type="button" [attr.aria-label]="menuLabel" [attr.aria-expanded]="isOpen" (click)="openMenu.emit()">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+  </button>
+  <a class="app-mobile-header__brand" [routerLink]="brandHomePath" aria-label="SD Islam Tompokersan, halaman utama">
+    <img src="/assets/sdi-logo.svg" alt="Logo SD Islam Tompokersan" />
+    <span><strong>SD Islam Tompokersan</strong></span>
+  </a>
+  <a class="app-mobile-header__profile" routerLink="/profile" [attr.aria-label]="'Buka profil ' + user.fullName">
+    @if (user.photo) { <img [src]="photoUrl(user.photo.updatedAt)" alt="" /> } @else { <span aria-hidden="true">{{ initials(user.fullName) }}</span> }
+  </a>
+</header>

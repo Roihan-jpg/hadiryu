@@ -3,7 +3,6 @@ import { Component, computed, ElementRef, inject, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
-import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AttendanceService } from './attendance.service';
@@ -26,7 +25,6 @@ function currentJakartaMonth(): string {
     MatButtonModule,
     MatPaginatorModule,
     ReactiveFormsModule,
-    RouterLink,
   ],
   selector: 'app-attendance-history-page',
   providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],

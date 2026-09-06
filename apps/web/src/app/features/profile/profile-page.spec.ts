@@ -15,6 +15,7 @@ const teacher: AuthUser = {
   id: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
   nip: '001234567890',
   fullName: 'Guru Contoh',
+  whatsappNumber: '+628123456789',
   role: 'USER',
   isActive: true,
   mustChangePassword: false,
@@ -22,14 +23,16 @@ const teacher: AuthUser = {
 
 describe('ProfilePage', () => {
   let fixture: ComponentFixture<ProfilePage>;
+  let authUser: ReturnType<typeof signal<AuthUser>>;
   const acceptUser = vi.fn();
-  const updateName = vi.fn();
+  const updateProfile = vi.fn();
   const uploadPhoto = vi.fn();
   const deletePhoto = vi.fn();
   const openCropDialog = vi.fn();
 
   beforeEach(async () => {
-    updateName.mockReset();
+    authUser = signal(teacher);
+    updateProfile.mockReset();
     uploadPhoto.mockReset();
     deletePhoto.mockReset();
     openCropDialog.mockReset();
@@ -43,8 +46,8 @@ describe('ProfilePage', () => {
       providers: [
         provideRouter([]),
         provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })),
-        { provide: AuthService, useValue: { user: signal(teacher).asReadonly(), acceptUser } },
-        { provide: ProfileService, useValue: { updateName, uploadPhoto, deletePhoto } },
+        { provide: AuthService, useValue: { user: authUser.asReadonly(), acceptUser } },
+        { provide: ProfileService, useValue: { updateProfile, uploadPhoto, deletePhoto } },
       ],
     }).compileComponents();
 
@@ -53,7 +56,7 @@ describe('ProfilePage', () => {
   });
 
   it('shows a clear error when a profile update fails', async () => {
-    updateName.mockRejectedValue(new Error('network'));
+    updateProfile.mockRejectedValue(new Error('network'));
     const input = fixture.nativeElement.querySelector('input[autocomplete="name"]') as HTMLInputElement;
     input.value = 'Nama Baru';
     input.dispatchEvent(new Event('input'));
@@ -61,7 +64,7 @@ describe('ProfilePage', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain('Nama tidak dapat diperbarui. Coba lagi.');
+      expect(fixture.nativeElement.textContent).toContain('Profil tidak dapat diperbarui. Coba lagi.');
     });
   });
 
@@ -70,6 +73,30 @@ describe('ProfilePage', () => {
     expect(text).toContain('001234567890');
     expect(text).toContain('Status akun');
     expect(text).toContain('Ganti password');
+  });
+
+  it('shows the current WhatsApp number in an editable field', () => {
+    const input = fixture.nativeElement.querySelector('input[autocomplete="tel"]') as HTMLInputElement | null;
+
+    expect(input).not.toBeNull();
+    expect(input?.value).toBe('+628123456789');
+  });
+
+  it('saves the normalized WhatsApp number with the full name', async () => {
+    updateProfile.mockResolvedValue({ ...teacher, whatsappNumber: '+628123456789' });
+    const nameInput = fixture.nativeElement.querySelector('input[autocomplete="name"]') as HTMLInputElement;
+    const whatsappInput = fixture.nativeElement.querySelector('input[autocomplete="tel"]') as HTMLInputElement;
+    nameInput.value = 'Nama Baru';
+    nameInput.dispatchEvent(new Event('input'));
+    whatsappInput.value = ' +628123456789 ';
+    whatsappInput.dispatchEvent(new Event('input'));
+
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+
+    await vi.waitFor(() => expect(updateProfile).toHaveBeenCalledWith({
+      fullName: 'Nama Baru',
+      whatsappNumber: '+628123456789',
+    }));
   });
 
   it('crops a Teacher photo before sending the resulting File to the upload mutation', async () => {
@@ -84,6 +111,23 @@ describe('ProfilePage', () => {
 
     expect(openCropDialog).toHaveBeenCalledTimes(1);
     expect(uploadPhoto).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(uploadPhoto).toHaveBeenCalledWith(cropped));
+  });
+
+  it('crops a Super Admin photo before sending the resulting File to the upload mutation', async () => {
+    const admin: AuthUser = { ...teacher, role: 'SUPER_ADMIN' };
+    authUser.set(admin);
+    fixture.detectChanges();
+    const selected = new File(['original'], 'original.png', { type: 'image/png' });
+    const cropped = new File(['cropped'], 'profile.jpg', { type: 'image/jpeg' });
+    openCropDialog.mockReturnValue({ afterClosed: () => of(cropped) });
+    uploadPhoto.mockResolvedValue(admin);
+    const input = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { configurable: true, value: [selected] });
+
+    input.dispatchEvent(new Event('change'));
+
+    expect(openCropDialog).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => expect(uploadPhoto).toHaveBeenCalledWith(cropped));
   });
 

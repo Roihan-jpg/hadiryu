@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { UpdateOwnProfileRequestSchema } from '@absensi/contracts';
+
 import { validateProfilePhoto } from './profile.js';
 
 function file(buffer: Buffer, mimetype: string): Express.Multer.File {
@@ -19,5 +21,28 @@ describe('profile photo validation', () => {
   it('rejects a declared MIME type whose magic bytes do not match', () => {
     expect(() => validateProfilePhoto(file(Buffer.from('not-an-image'), 'image/png')))
       .toThrowError(expect.objectContaining({ code: 'PHOTO_TYPE_INVALID' }));
+  });
+});
+
+describe('own profile update input', () => {
+  it('accepts a nullable or E.164 WhatsApp number alongside the full name', () => {
+    expect(UpdateOwnProfileRequestSchema.parse({
+      fullName: 'Guru Contoh',
+      whatsappNumber: '+628123456789',
+    })).toEqual({ fullName: 'Guru Contoh', whatsappNumber: '+628123456789' });
+    expect(UpdateOwnProfileRequestSchema.parse({
+      fullName: 'Guru Contoh',
+      whatsappNumber: null,
+    })).toEqual({ fullName: 'Guru Contoh', whatsappNumber: null });
+    expect(UpdateOwnProfileRequestSchema.parse({
+      fullName: 'Guru Contoh',
+    })).toEqual({ fullName: 'Guru Contoh' });
+  });
+
+  it('rejects a WhatsApp number outside the E.164 format', () => {
+    expect(UpdateOwnProfileRequestSchema.safeParse({
+      fullName: 'Guru Contoh',
+      whatsappNumber: '08123456789',
+    }).success).toBe(false);
   });
 });

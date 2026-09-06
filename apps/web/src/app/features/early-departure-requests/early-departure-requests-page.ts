@@ -9,7 +9,6 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
@@ -29,7 +28,6 @@ import { EarlyDepartureRequestsService } from './early-departure-requests.servic
     MatFormFieldModule,
     MatInputModule,
     ReactiveFormsModule,
-    RouterLink,
   ],
   selector: 'app-early-departure-requests-page',
   templateUrl: './early-departure-requests-page.html',

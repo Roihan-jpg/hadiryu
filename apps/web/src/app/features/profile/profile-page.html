@@ -30,12 +30,17 @@
         </div>
       </div>
 
-      <form (submit)="saveName($event)" novalidate>
+      <form (submit)="saveProfile($event)" novalidate>
         <div class="form-heading"><p class="eyebrow">DATA AKUN</p><h2>Informasi personal</h2></div>
         <mat-form-field appearance="outline">
           <mat-label>Nama lengkap</mat-label>
           <input matInput [formControl]="fullName" autocomplete="name" />
           @if (fullName.invalid) { <mat-error>Nama wajib diisi, maksimal 200 karakter.</mat-error> }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Nomor WhatsApp</mat-label>
+          <input matInput [formControl]="whatsappNumber" autocomplete="tel" placeholder="+628123456789" />
+          @if (whatsappNumber.invalid) { <mat-error>Gunakan format internasional, contoh +628123456789.</mat-error> }
         </mat-form-field>
         <dl class="account-metadata">
           <div><dt>NIP</dt><dd>{{ currentUser.nip }}</dd></div>
@@ -47,7 +52,7 @@
           <a mat-button routerLink="/change-password">Ganti password</a>
         </div>
         <div class="form-actions">
-          <button mat-flat-button type="submit" [disabled]="fullName.invalid || updateName.isPending()">{{ updateName.isPending() ? 'Menyimpan…' : 'Simpan perubahan' }}</button>
+          <button mat-flat-button type="submit" [disabled]="fullName.invalid || whatsappNumber.invalid || updateProfile.isPending()">{{ updateProfile.isPending() ? 'Menyimpan…' : 'Simpan perubahan' }}</button>
         </div>
       </form>
     </section>

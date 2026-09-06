@@ -1,4 +1,5 @@
-import { MatDialogRef } from '@angular/material/dialog';
+import { TestBed } from '@angular/core/testing';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProfilePhotoCropDialog } from './profile-photo-crop-dialog';
@@ -17,10 +18,13 @@ describe('ProfilePhotoCropDialog', () => {
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:photo') });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
     const close = vi.fn();
-    const dialog = new ProfilePhotoCropDialog(
-      { file: new File(['image'], 'original.png', { type: 'image/png' }) },
-      { close } as unknown as MatDialogRef<ProfilePhotoCropDialog, File>,
-    );
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MAT_DIALOG_DATA, useValue: { file: new File(['image'], 'original.png', { type: 'image/png' }) } },
+        { provide: MatDialogRef, useValue: { close } },
+      ],
+    });
+    const dialog = TestBed.runInInjectionContext(() => new ProfilePhotoCropDialog());
     const sourceImage = document.createElement('img');
     (dialog as unknown as { sourceImage: { nativeElement: HTMLImageElement } }).sourceImage = { nativeElement: sourceImage };
     dialog.imageLoaded({ target: { naturalWidth: 800, naturalHeight: 600 } } as unknown as Event);

@@ -1,4 +1,4 @@
-import type { AuthUser } from '@absensi/contracts';
+import type { AuthUser, UpdateOwnProfileRequest } from '@absensi/contracts';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
@@ -7,9 +7,9 @@ import { firstValueFrom } from 'rxjs';
 export class ProfileService {
   private readonly http = inject(HttpClient);
 
-  async updateName(fullName: string): Promise<AuthUser> {
+  async updateProfile(input: UpdateOwnProfileRequest): Promise<AuthUser> {
     const response = await firstValueFrom(this.http.patch<{ profile: AuthUser }>(
-      '/api/profile', { fullName }, { withCredentials: true },
+      '/api/profile', input, { withCredentials: true },
     ));
     return response.profile;
   }

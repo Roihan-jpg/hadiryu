@@ -4,6 +4,7 @@ const teacher = {
   id: '50000000-0000-4000-8000-000000000007',
   nip: '1987007',
   fullName: 'Guru Tujuh',
+  whatsappNumber: '+628123456789',
   role: 'USER',
   isActive: true,
   mustChangePassword: false,
@@ -70,6 +71,7 @@ for (const viewport of [
     await page.goto('/guru');
 
     await expect(page.getByRole('heading', { name: 'Hari ini, Guru Tujuh' })).toBeVisible();
+    await expect(page.getByText('WhatsApp +628123456789')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Check-in sekarang' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
@@ -79,6 +81,10 @@ for (const viewport of [
     const menuButton = page.getByRole('button', { name: 'Buka menu Guru' });
 
     if (viewport.width <= 760) {
+      const mobileHeader = page.locator('.app-mobile-header');
+      await expect(mobileHeader).toBeVisible();
+      await expect(mobileHeader.getByRole('link', { name: 'SD Islam Tompokersan, halaman utama' })).toBeVisible();
+      await expect(mobileHeader.getByRole('link', { name: 'Buka profil Guru Tujuh' })).toBeVisible();
       await expect(menuButton).toBeVisible();
       await expect(drawer).toBeHidden();
       await menuButton.focus();
@@ -140,4 +146,63 @@ test('Guru dashboard uses a circular profile avatar', async ({ page }) => {
   await expect(avatar).toHaveCSS('border-radius', '50%');
   const bounds = await avatar.boundingBox();
   expect(bounds?.width).toBe(bounds?.height);
+});
+
+test('Guru desktop pages keep a 64px gutter inside the expanded sidebar workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await mockTeacherApi(page);
+
+  for (const [path, selector] of [
+    ['/guru', '.teacher-page'],
+    ['/guru/riwayat', '.teacher-page'],
+    ['/guru/izin', '.teacher-page'],
+    ['/guru/pulang-awal', '.teacher-page'],
+    ['/profile', '.profile-page'],
+  ]) {
+    await page.goto(path);
+
+    const gutter = await page.locator(selector).evaluate((element) => {
+      const content = element.getBoundingClientRect();
+      const workspace = document.querySelector<HTMLElement>('.teacher-main')?.getBoundingClientRect();
+      if (!workspace) return null;
+
+      return {
+        left: content.left - workspace.left,
+        right: workspace.right - content.right,
+      };
+    });
+
+    expect(gutter).not.toBeNull();
+    expect(gutter!.left).toBe(64);
+    expect(gutter!.right).toBe(64);
+  }
+});
+
+test('Guru dashboard starts the desktop gutter at 1024px and keeps the previous compact width below it', async ({ page }) => {
+  await mockTeacherApi(page);
+
+  for (const width of [1024, 1280, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/guru');
+
+    const gutter = await page.locator('.teacher-page').evaluate((element) => {
+      const content = element.getBoundingClientRect();
+      const workspace = document.querySelector<HTMLElement>('.teacher-main')?.getBoundingClientRect();
+      if (!workspace) return null;
+      return content.left - workspace.left;
+    });
+
+    expect(gutter).toBe(64);
+  }
+
+  await page.setViewportSize({ width: 1023, height: 900 });
+  await page.goto('/guru');
+  const compactGutter = await page.locator('.teacher-page').evaluate((element) => {
+    const content = element.getBoundingClientRect();
+    const workspace = document.querySelector<HTMLElement>('.teacher-main')?.getBoundingClientRect();
+    if (!workspace) return null;
+    return content.left - workspace.left;
+  });
+
+  expect(compactGutter).toBe(16);
 });

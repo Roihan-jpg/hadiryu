@@ -4,82 +4,18 @@
   @if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
     <div class="admin-shell" [class.drawer-open]="adminMenuOpen()" [class.sidebar-collapsed]="sidebarCollapsed()">
       <button class="drawer-backdrop" type="button" aria-label="Tutup menu" (click)="closeAdminMenu()"></button>
-      <aside class="admin-sidebar" aria-label="Navigasi Super Admin">
-        <div class="admin-brand">
-          <span class="admin-brand-mark" aria-hidden="true">AG</span>
-          <span class="collapsible-label"><strong>Absensi Guru</strong><small>Portal Super Admin</small></span>
-          <button class="sidebar-toggle" type="button" [attr.aria-label]="sidebarCollapsed() ? 'Perluas sidebar' : 'Ringkas sidebar'" [attr.aria-expanded]="!sidebarCollapsed()" (click)="toggleSidebar()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
-          <button class="drawer-close" type="button" aria-label="Tutup menu" (click)="closeAdminMenu()">×</button>
-        </div>
-        <div class="school-identity collapsible-label"><small>SEKOLAH</small><strong>SD Islam Tompokersan</strong><span>Lumajang</span></div>
-        <nav class="admin-nav">
-          @for (item of adminNavigation; track item.path) {
-            <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }" ariaCurrentWhenActive="page" [attr.aria-label]="item.label" [attr.title]="sidebarCollapsed() ? item.label : null" (click)="closeAdminMenu()">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="item.icon" /></svg><span class="collapsible-label">{{ item.label }}</span>
-            </a>
-          }
-        </nav>
-        <div class="admin-account">
-          <a class="avatar" routerLink="/profile" aria-label="Buka Profil Saya">@if (currentUser.photo) { <img [src]="photoUrl(currentUser.photo.updatedAt)" alt=""> } @else { {{ initials(currentUser.fullName) }} }</a>
-          <span class="collapsible-label"><strong>{{ currentUser.fullName }}</strong><small>Super Admin</small></span>
-          <button type="button" (click)="logout()" aria-label="Keluar dari aplikasi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3m12-9h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" /></svg></button>
-        </div>
-      </aside>
+      <app-sidebar [user]="currentUser" [navigation]="adminNavigation" [isOpen]="adminMenuOpen()" [isCollapsed]="sidebarCollapsed()" (closeMenu)="closeAdminMenu()" (toggleCompact)="toggleSidebar()" (logout)="logout()" />
       <div class="admin-workspace">
-        <header class="admin-mobile-header">
-          <button type="button" aria-label="Buka menu" [attr.aria-expanded]="adminMenuOpen()" (click)="toggleAdminMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
-          <strong>Absensi Guru</strong><a class="avatar" routerLink="/profile" aria-label="Buka Profil Saya">@if (currentUser.photo) { <img [src]="photoUrl(currentUser.photo.updatedAt)" alt=""> } @else { {{ initials(currentUser.fullName) }} }</a>
-        </header>
+        <app-mobile-header menuLabel="Buka menu Super Admin" brandHomePath="/admin" [user]="currentUser" [isOpen]="adminMenuOpen()" (openMenu)="toggleAdminMenu()" />
         <main id="main-content" class="admin-main" tabindex="-1"><router-outlet /></main>
       </div>
     </div>
   } @else if (currentUser.role === 'USER' && !currentUser.mustChangePassword) {
-    <div class="teacher-app-shell" [class.drawer-open]="teacherMenuOpen()">
+    <div class="teacher-app-shell" [class.drawer-open]="teacherMenuOpen()" [class.sidebar-collapsed]="sidebarCollapsed()">
       <button class="teacher-drawer-backdrop" type="button" aria-label="Tutup menu Guru" (click)="closeTeacherMenu()"></button>
-      <aside
-        class="teacher-drawer"
-        aria-label="Navigasi Guru"
-        [cdkTrapFocus]="teacherMenuOpen()"
-        [cdkTrapFocusAutoCapture]="teacherMenuOpen()"
-      >
-        <header class="teacher-drawer-header">
-          <a class="teacher-brand" routerLink="/guru" (click)="closeTeacherMenu()">
-            <img src="/assets/sdi-logo.svg" alt="Logo SD Islam Tompokersan" />
-            <span><strong>SD Islam Tompokersan</strong><small>Portal Absensi Guru</small></span>
-          </a>
-          <button type="button" aria-label="Tutup menu Guru" (click)="closeTeacherMenu()">×</button>
-        </header>
-        <section class="teacher-drawer-account" aria-label="Akun Guru">
-          <a class="teacher-avatar" routerLink="/profile" (click)="closeTeacherMenu()">
-            @if (currentUser.photo) { <img [src]="photoUrl(currentUser.photo.updatedAt)" alt="" /> } @else { {{ initials(currentUser.fullName) }} }
-          </a>
-          <span><strong>{{ currentUser.fullName }}</strong><small>NIP {{ currentUser.nip }}</small></span>
-        </section>
-        <nav aria-label="Navigasi Guru">
-          @for (item of teacherNavigation; track item.path) {
-            <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }" ariaCurrentWhenActive="page" (click)="closeTeacherMenu()">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="item.icon" /></svg>
-              <span>{{ item.label }}</span>
-            </a>
-          }
-        </nav>
-        <div class="teacher-drawer-footer">
-          <a routerLink="/change-password" (click)="closeTeacherMenu()">Ganti password</a>
-          <button type="button" [disabled]="logoutMutation.isPending()" (click)="logout()">{{ logoutMutation.isPending() ? 'Keluar…' : 'Keluar dari akun' }}</button>
-        </div>
-      </aside>
+      <app-sidebar [user]="currentUser" [navigation]="teacherNavigation" [isOpen]="teacherMenuOpen()" [isCollapsed]="sidebarCollapsed()" (closeMenu)="closeTeacherMenu()" (toggleCompact)="toggleSidebar()" (logout)="logout()" />
 
-      <header class="teacher-mobile-header">
-        <div class="teacher-mobile-header-inner">
-          <a class="teacher-brand" routerLink="/guru" aria-label="SD Islam Tompokersan, halaman Guru">
-            <img src="/assets/sdi-logo.svg" alt="" />
-            <span><strong>SD Islam Tompokersan</strong><small>{{ appName }} Guru</small></span>
-          </a>
-          <button class="teacher-menu-button" type="button" aria-label="Buka menu Guru" [attr.aria-expanded]="teacherMenuOpen()" (click)="toggleTeacherMenu()">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-          </button>
-        </div>
-      </header>
+      <app-mobile-header menuLabel="Buka menu Guru" brandHomePath="/guru" [user]="currentUser" [isOpen]="teacherMenuOpen()" (openMenu)="toggleTeacherMenu()" />
       <main id="main-content" class="teacher-main" tabindex="-1"><router-outlet /></main>
     </div>
   } @else {

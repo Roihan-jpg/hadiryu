@@ -1,5 +1,6 @@
 :host { display: block; }
 .profile-page { width: min(100% - 40px, 960px); margin: 0 auto; padding: 44px 0 72px; }
+@media (min-width: 1024px) { .profile-page { width: calc(100% - 128px); } }
 .eyebrow { margin: 0; color: var(--ag-primary); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
 .profile-ledger { display: grid; grid-template-columns: 280px minmax(0, 1fr); overflow: hidden; background: var(--ag-surface); border: 1px solid var(--ag-border); border-radius: 8px; }
 .identity-column { display: flex; align-items: center; flex-direction: column; padding: 34px 26px; text-align: center; background: var(--ag-surface-soft); border-right: 1px solid var(--ag-border); }

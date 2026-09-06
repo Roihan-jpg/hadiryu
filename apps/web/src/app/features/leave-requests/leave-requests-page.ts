@@ -8,7 +8,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
-import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AttendanceService } from '../attendance/attendance.service';
@@ -31,7 +30,7 @@ function dateNotBefore(minimumDate: string): ValidatorFn {
 }
 
 @Component({
-  imports: [MatButtonModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatSelectModule, ReactiveFormsModule, RouterLink],
+  imports: [MatButtonModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatSelectModule, ReactiveFormsModule],
   providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   selector: 'app-leave-requests-page', styleUrl: './leave-requests-page.scss', templateUrl: './leave-requests-page.html',
 })

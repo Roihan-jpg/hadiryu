@@ -5,6 +5,7 @@ import {
   UpdateOwnProfileRequestSchema,
   type AuthUser,
   type ProfilePhotoMetadata,
+  type UpdateOwnProfileRequest,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Express, NextFunction, Request, Response } from 'express';
@@ -20,6 +21,7 @@ const ProfileRowSchema = z.strictObject({
   id: z.uuid(),
   nip: z.string(),
   full_name: z.string(),
+  whatsapp_number: z.string().nullable(),
   role: z.enum(['USER', 'SUPER_ADMIN']),
   is_active: z.boolean(),
   profile_photo_storage_path: z.string().nullable(),
@@ -29,7 +31,7 @@ const ProfileRowSchema = z.strictObject({
 });
 
 const PROFILE_FIELDS =
-  'id,nip,full_name,role,is_active,profile_photo_storage_path,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at';
+  'id,nip,full_name,whatsapp_number,role,is_active,profile_photo_storage_path,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at';
 
 export interface UploadedProfilePhoto {
   buffer: Buffer;
@@ -38,7 +40,7 @@ export interface UploadedProfilePhoto {
 }
 
 export interface ProfileService {
-  updateName(user: AuthUser, fullName: string): Promise<AuthUser>;
+  updateProfile(user: AuthUser, input: UpdateOwnProfileRequest): Promise<AuthUser>;
   uploadPhoto(user: AuthUser, photo: UploadedProfilePhoto): Promise<AuthUser>;
   downloadPhoto(user: AuthUser): Promise<{ data: Buffer; mimeType: string; sizeBytes: number }>;
   deletePhoto(user: AuthUser): Promise<AuthUser>;
@@ -76,6 +78,7 @@ function toUser(value: unknown): AuthUser {
     id: row.id,
     nip: row.nip,
     fullName: row.full_name,
+    whatsappNumber: row.whatsapp_number,
     role: row.role,
     isActive: row.is_active,
     mustChangePassword: false,
@@ -124,17 +127,18 @@ export class SupabaseProfileService implements ProfileService {
     if (error) throw new AppError(500, 'AUDIT_WRITE_FAILED', 'Audit profil tidak dapat dicatat');
   }
 
-  async updateName(user: AuthUser, fullName: string): Promise<AuthUser> {
+  async updateProfile(user: AuthUser, input: UpdateOwnProfileRequest): Promise<AuthUser> {
     const before = await this.load(user.id);
-    if (before.full_name === fullName) return toUser(before);
+    const whatsappNumber = input.whatsappNumber === undefined ? before.whatsapp_number : input.whatsappNumber;
+    if (before.full_name === input.fullName && before.whatsapp_number === whatsappNumber) return toUser(before);
     const { data, error } = await this.client.from('profiles')
-      .update({ full_name: fullName }).eq('id', user.id).select(PROFILE_FIELDS).single();
-    if (error || !data) throw new AppError(500, 'PROFILE_UPDATE_FAILED', 'Nama tidak dapat diperbarui');
+      .update({ full_name: input.fullName, whatsapp_number: whatsappNumber }).eq('id', user.id).select(PROFILE_FIELDS).single();
+    if (error || !data) throw new AppError(500, 'PROFILE_UPDATE_FAILED', 'Profil tidak dapat diperbarui');
     try {
-      await this.audit(user.id, 'PROFILE_NAME_UPDATED',
-        { fullName: before.full_name }, { fullName });
+      await this.audit(user.id, 'PROFILE_UPDATED',
+        { fullName: before.full_name, whatsappNumber: before.whatsapp_number }, { fullName: input.fullName, whatsappNumber });
     } catch (auditError) {
-      await this.client.from('profiles').update({ full_name: before.full_name }).eq('id', user.id);
+      await this.client.from('profiles').update({ full_name: before.full_name, whatsapp_number: before.whatsapp_number }).eq('id', user.id);
       throw auditError;
     }
     return toUser(data);
@@ -250,7 +254,7 @@ export function registerProfileRoutes(
     try {
       const parsed = UpdateOwnProfileRequestSchema.safeParse(request.body);
       if (!parsed.success) throw new AppError(400, 'VALIDATION_ERROR', 'Data profil tidak valid', parsed.error.flatten());
-      response.status(200).json({ profile: await profileService.updateName(currentUser(response), parsed.data.fullName) });
+      response.status(200).json({ profile: await profileService.updateProfile(currentUser(response), parsed.data) });
     } catch (error) { next(error); }
   });
   app.post('/api/profile/photo', guard, parsePhoto, async (request, response, next) => {
