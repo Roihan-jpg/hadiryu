@@ -13,6 +13,7 @@
   <nav class="settings-tabs" aria-label="Bagian pengaturan">
     <button type="button" [attr.aria-selected]="activeTab() === 'summary'" (click)="activeTab.set('summary')">Ringkasan</button>
     <button type="button" [attr.aria-selected]="activeTab() === 'schedule'" (click)="activeTab.set('schedule')">Jadwal</button>
+    <button type="button" [attr.aria-selected]="activeTab() === 'security'" (click)="activeTab.set('security')">Jadwal Satpam</button>
     <button type="button" [attr.aria-selected]="activeTab() === 'geofence'" (click)="activeTab.set('geofence')">Geofence</button>
     <button type="button" [attr.aria-selected]="activeTab() === 'calendar'" (click)="activeTab.set('calendar')">Kalender</button>
   </nav>
@@ -162,6 +163,24 @@
           {{ actionInProgress() === 'schedule' ? 'Menyimpan…' : 'Simpan jadwal' }}
         </button>
       </div>
+    </form>
+  </section>
+
+  <section class="setting-section security-tab" aria-labelledby="security-schedule-title">
+    <div class="section-heading"><div><p class="section-kicker">Berlaku hari ini</p><h2 id="security-schedule-title">Jadwal dan rotasi Satpam</h2></div><p>Rotasi berjalan setiap hari, termasuk Minggu dan hari libur sekolah.</p></div>
+    <form [formGroup]="securityScheduleForm" (ngSubmit)="saveSecuritySchedules()" novalidate>
+      @for (shift of [{ key: 'dayShift', label: 'Shift Pagi · mulai 06.00' }, { key: 'nightShift', label: 'Shift Malam · mulai 18.00, selesai hari berikutnya' }]; track shift.key) {
+        <fieldset [formGroupName]="shift.key"><legend>{{ shift.label }}</legend><div class="time-form-grid">
+          @for (field of timeFields; track field.key) { <mat-form-field appearance="outline"><mat-label>{{ field.label }}</mat-label><input matInput type="time" [formControlName]="field.key" autocomplete="off" /><mat-error>Waktu wajib diisi.</mat-error></mat-form-field> }
+          <mat-form-field appearance="outline"><mat-label>Target menit</mat-label><input matInput type="number" min="1" formControlName="targetMinutes" /><mat-error>Target wajib lebih dari nol.</mat-error></mat-form-field>
+        </div></fieldset>
+      }
+      <fieldset><legend>Hari pertama rotasi</legend><p class="empty-inline">Sistem mengulang tiga hari: Pagi/Malam/Libur → Libur/Pagi/Malam → Malam/Libur/Pagi.</p><div class="time-form-grid">
+        <mat-form-field appearance="outline"><mat-label>Shift Pagi</mat-label><select matNativeControl formControlName="dayOneMorningGuardId"><option value="" disabled>Pilih Satpam</option>@for (guard of securityGuards(); track guard.id) { <option [value]="guard.id">{{ guard.fullName }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Shift Malam</mat-label><select matNativeControl formControlName="dayOneNightGuardId"><option value="" disabled>Pilih Satpam</option>@for (guard of securityGuards(); track guard.id) { <option [value]="guard.id">{{ guard.fullName }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Libur rotasi</mat-label><select matNativeControl formControlName="dayOneOffGuardId"><option value="" disabled>Pilih Satpam</option>@for (guard of securityGuards(); track guard.id) { <option [value]="guard.id">{{ guard.fullName }}</option> }</select></mat-form-field>
+      </div></fieldset>
+      <div class="form-actions"><span>Tiga Satpam harus aktif dan berbeda. Riwayat sebelum hari ini tidak berubah.</span><button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">{{ actionInProgress() === 'security' ? 'Menyimpan…' : 'Simpan jadwal Satpam' }}</button></div>
     </form>
   </section>
 

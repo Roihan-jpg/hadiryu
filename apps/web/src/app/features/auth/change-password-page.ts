@@ -109,7 +109,7 @@ export class ChangePasswordPage {
         newPassword: values.newPassword,
       });
       await this.router.navigateByUrl(
-        user.role === 'SUPER_ADMIN' ? '/admin' : '/guru',
+        user.role === 'SUPER_ADMIN' ? '/admin' : user.role === 'SECURITY_GUARD' ? '/satpam' : '/guru',
       );
     } catch (error) {
       this.errorMessage.set(this.messageFor(error));

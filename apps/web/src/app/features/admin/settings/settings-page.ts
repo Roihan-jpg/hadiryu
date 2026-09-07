@@ -8,6 +8,8 @@ import {
   SaveScheduleSettingsRequestSchema,
   type ScheduleRuleInput,
   type ScheduleSettingsResponse,
+  SaveSecurityScheduleSettingsRequestSchema,
+  type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
@@ -28,6 +30,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 
 import { SettingsService } from './settings.service';
+import { TeachersService } from '../teachers/teachers.service';
 import { AdminGeofenceMap } from './admin-geofence-map';
 import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
 
@@ -108,8 +111,9 @@ function scheduleRuleForm() {
 })
 export class SettingsPage implements OnInit {
   private readonly service = inject(SettingsService);
+  private readonly teachersService = inject(TeachersService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  readonly activeTab = signal<'summary' | 'schedule' | 'geofence' | 'calendar'>('summary');
+  readonly activeTab = signal<'summary' | 'schedule' | 'security' | 'geofence' | 'calendar'>('summary');
 
   readonly timeFields: ReadonlyArray<{
     key: (typeof timeKeys)[number];
@@ -130,6 +134,12 @@ export class SettingsPage implements OnInit {
   readonly scheduleForm = new FormGroup({
     weekday: scheduleRuleForm(),
     saturday: scheduleRuleForm(),
+  });
+  readonly securityScheduleForm = new FormGroup({
+    dayShift: scheduleRuleForm(), nightShift: scheduleRuleForm(),
+    dayOneMorningGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    dayOneNightGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    dayOneOffGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
   readonly geofenceForm = new FormGroup({
     maxAccuracyMeters: new FormControl(15, {
@@ -156,12 +166,14 @@ export class SettingsPage implements OnInit {
       ? { scheduleRequired: true }
       : null });
   readonly schedules = signal<ScheduleSettingsResponse | null>(null);
+  readonly securitySchedules = signal<SecurityScheduleSettingsResponse | null>(null);
+  readonly securityGuards = signal<ReadonlyArray<{ id: string; fullName: string }>>([]);
   readonly geofence = signal<GeofenceSettingsResponse | null>(null);
   readonly calendar = signal<CalendarExceptionsResponse | null>(null);
   readonly editingCalendarId = signal<string | null>(null);
   readonly loading = signal(true);
   readonly actionInProgress = signal<
-    'schedule' | 'geofence' | 'calendar' | null
+    'schedule' | 'security' | 'geofence' | 'calendar' | null
   >(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -227,6 +239,26 @@ export class SettingsPage implements OnInit {
     } finally {
       this.actionInProgress.set(null);
     }
+  }
+
+  async saveSecuritySchedules(): Promise<void> {
+    if (this.actionInProgress() !== null) return;
+    if (this.securityScheduleForm.invalid) {
+      this.securityScheduleForm.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
+      return;
+    }
+    const parsed = SaveSecurityScheduleSettingsRequestSchema.safeParse(this.securityScheduleForm.getRawValue());
+    if (!parsed.success) { this.errorMessage.set('Isi dua jadwal dan pilih tiga Satpam berbeda.'); return; }
+    this.actionInProgress.set('security'); this.clearFeedback();
+    try {
+      const saved = await this.service.saveSecuritySchedules(parsed.data);
+      this.inspectionDate.setValue(saved.effectiveOn);
+      await this.loadForDate(saved.effectiveOn);
+      this.successMessage.set('Jadwal dan rotasi Satpam berhasil disimpan.');
+    } catch (error) {
+      this.errorMessage.set(this.errorText(error, 'Jadwal Satpam tidak dapat disimpan.'));
+    } finally { this.actionInProgress.set(null); }
   }
 
   async saveGeofence(): Promise<void> {
@@ -371,12 +403,16 @@ export class SettingsPage implements OnInit {
     this.loading.set(true);
     this.clearFeedback();
     try {
-      const [schedules, geofence, calendar] = await Promise.all([
+      const [schedules, securitySchedules, geofence, calendar, guards] = await Promise.all([
         this.service.getSchedules(effectiveOn),
+        this.service.getSecuritySchedules(effectiveOn),
         this.service.getGeofence(effectiveOn),
         this.service.getCalendarExceptions(),
+        this.teachersService.list({ page: 1, pageSize: 100, role: 'SECURITY_GUARD' }),
       ]);
       this.schedules.set(schedules);
+      this.securitySchedules.set(securitySchedules);
+      this.securityGuards.set(guards.data.map((guard) => ({ id: guard.id, fullName: guard.fullName })));
       this.geofence.set(geofence);
       this.calendar.set(calendar);
       if (schedules.weekday) {
@@ -388,6 +424,18 @@ export class SettingsPage implements OnInit {
         this.scheduleForm.controls.saturday.patchValue(
           this.scheduleInput(schedules.saturday),
         );
+      }
+      if (securitySchedules.dayShift && securitySchedules.nightShift && securitySchedules.roster) {
+        this.securityScheduleForm.patchValue({
+          dayShift: this.scheduleInput(securitySchedules.dayShift),
+          nightShift: this.scheduleInput(securitySchedules.nightShift),
+          dayOneMorningGuardId: securitySchedules.roster.dayOneMorningGuardId,
+          dayOneNightGuardId: securitySchedules.roster.dayOneNightGuardId,
+          dayOneOffGuardId: securitySchedules.roster.dayOneOffGuardId,
+        });
+      } else {
+        this.securityScheduleForm.controls.dayShift.patchValue({ workStart: '06:00', targetMinutes: 720 });
+        this.securityScheduleForm.controls.nightShift.patchValue({ workStart: '18:00', targetMinutes: 720 });
       }
       if (geofence.geofence) {
         const rule = geofence.geofence;

@@ -10,7 +10,7 @@ async function resolveUser() {
 }
 
 function homeUrl(role: UserRole): string {
-  return role === 'SUPER_ADMIN' ? '/admin' : '/guru';
+  return role === 'SUPER_ADMIN' ? '/admin' : role === 'SECURITY_GUARD' ? '/satpam' : '/guru';
 }
 
 export const authGuard: CanActivateFn = async (_route, state) => {
@@ -33,7 +33,7 @@ export const passwordChangedGuard: CanActivateFn = async () => {
     : true;
 };
 
-export function roleGuard(role: UserRole): CanActivateFn {
+export function roleGuard(...roles: UserRole[]): CanActivateFn {
   return async () => {
     const router = inject(Router);
     const user = await resolveUser();
@@ -41,7 +41,7 @@ export function roleGuard(role: UserRole): CanActivateFn {
     if (user.mustChangePassword) {
       return router.createUrlTree(['/change-password']);
     }
-    return user.role === role
+    return roles.includes(user.role)
       ? true
       : router.createUrlTree([homeUrl(user.role)]);
   };

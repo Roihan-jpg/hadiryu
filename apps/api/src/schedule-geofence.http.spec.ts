@@ -124,6 +124,9 @@ class FakeSettingsService implements SettingsService {
     return schedules;
   }
 
+  async getSecuritySchedules(): Promise<never> { throw new Error('not used'); }
+  async saveSecuritySchedules(): Promise<never> { throw new Error('not used'); }
+
   async getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse> {
     this.geofenceDate = effectiveOn;
     return { ...geofence, effectiveOn };

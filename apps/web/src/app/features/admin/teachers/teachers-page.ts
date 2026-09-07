@@ -36,6 +36,7 @@ interface TeacherFormValue {
   fullName: string;
   initialPassword?: string;
   whatsappNumber: string | null;
+  role?: 'USER' | 'SECURITY_GUARD';
 }
 
 interface ConfirmDialogData {
@@ -53,7 +54,7 @@ interface ConfirmDialogData {
     ReactiveFormsModule,
   ],
   template: `
-    <h2 mat-dialog-title>{{ teacher ? 'Ubah profil Guru' : 'Tambah Guru' }}</h2>
+    <h2 mat-dialog-title>{{ teacher ? 'Ubah profil akun' : 'Tambah akun' }}</h2>
     <mat-dialog-content>
       <form class="dialog-form" [formGroup]="form" (ngSubmit)="submit()">
         <mat-form-field appearance="outline">
@@ -76,6 +77,10 @@ interface ConfirmDialogData {
           }
         </mat-form-field>
         @if (!teacher) {
+          <mat-form-field appearance="outline">
+            <mat-label>Role</mat-label>
+            <select matNativeControl formControlName="role" name="role"><option value="USER">Guru</option><option value="SECURITY_GUARD">Satpam</option></select>
+          </mat-form-field>
           <mat-form-field appearance="outline">
             <mat-label>Password awal</mat-label>
             <input
@@ -128,6 +133,7 @@ export class TeacherFormDialog {
         ? []
         : [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8}$/)],
     }),
+    role: new FormControl<'USER' | 'SECURITY_GUARD'>(this.teacher?.role ?? 'USER', { nonNullable: true }),
   });
 
   submit(): void {
@@ -142,6 +148,7 @@ export class TeacherFormDialog {
       fullName: value.fullName.trim(),
       whatsappNumber: value.whatsappNumber.trim() || null,
       ...(this.teacher ? {} : { initialPassword: value.initialPassword }),
+      ...(this.teacher ? {} : { role: value.role }),
     } satisfies TeacherFormValue);
   }
 }

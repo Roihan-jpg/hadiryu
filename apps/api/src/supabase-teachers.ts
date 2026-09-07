@@ -25,7 +25,7 @@ const TeacherProfileRowSchema = z.strictObject({
   nip: z.string(),
   full_name: z.string(),
   whatsapp_number: z.string().nullable(),
-  role: z.literal('USER'),
+  role: z.enum(['USER', 'SECURITY_GUARD']),
   is_active: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -51,6 +51,7 @@ function toTeacher(value: unknown): Teacher {
     nip: row.nip,
     fullName: row.full_name,
     whatsappNumber: row.whatsapp_number,
+    role: row.role,
     isActive: row.is_active,
     mustChangePassword: false,
     temporaryPasswordExpiresAt: null,
@@ -64,7 +65,7 @@ function auditSnapshot(teacher: Teacher) {
     nip: teacher.nip,
     fullName: teacher.fullName,
     whatsappNumber: teacher.whatsappNumber,
-    role: 'USER' as const,
+    role: teacher.role,
     isActive: teacher.isActive,
   };
 }
@@ -101,7 +102,7 @@ export class SupabaseTeacherService implements TeacherService {
       .from('profiles')
       .select(PROFILE_FIELDS)
       .eq('id', teacherId)
-      .eq('role', 'USER')
+      .in('role', ['USER', 'SECURITY_GUARD'])
       .maybeSingle();
     if (error) throw new AppError(500, 'TEACHER_LOOKUP_FAILED', 'Data Guru tidak dapat dimuat');
     if (!data) throw new AppError(404, 'TEACHER_NOT_FOUND', 'Guru tidak ditemukan');
@@ -141,7 +142,7 @@ export class SupabaseTeacherService implements TeacherService {
     let query = this.client
       .from('profiles')
       .select(PROFILE_FIELDS, { count: 'exact' })
-      .eq('role', 'USER')
+      .in('role', ['USER', 'SECURITY_GUARD'])
       .order('full_name', { ascending: true })
       .order('nip', { ascending: true })
       .range(start, end);
@@ -149,6 +150,7 @@ export class SupabaseTeacherService implements TeacherService {
       query = query.or(`nip.ilike.%${input.search}%,full_name.ilike.%${input.search}%`);
     }
     if (input.isActive !== undefined) query = query.eq('is_active', input.isActive);
+    if (input.role !== undefined) query = query.eq('role', input.role);
 
     const { data, error, count } = await query;
     if (error) throw new AppError(500, 'TEACHER_LIST_FAILED', 'Daftar Guru tidak dapat dimuat');
@@ -182,7 +184,7 @@ export class SupabaseTeacherService implements TeacherService {
         nip,
         full_name: input.fullName,
         whatsapp_number: input.whatsappNumber ?? null,
-        role: 'USER',
+        role: input.role ?? 'USER',
         is_active: true,
         must_change_password: false,
         temporary_password_expires_at: null,
@@ -238,7 +240,7 @@ export class SupabaseTeacherService implements TeacherService {
       .from('profiles')
       .update({ nip: nextNip, full_name: nextFullName, whatsapp_number: nextWhatsappNumber })
       .eq('id', teacherId)
-      .eq('role', 'USER')
+      .in('role', ['USER', 'SECURITY_GUARD'])
       .select(PROFILE_FIELDS)
       .single();
     if (error || !data) {
@@ -274,7 +276,7 @@ export class SupabaseTeacherService implements TeacherService {
       .from('profiles')
       .update({ is_active: isActive })
       .eq('id', teacherId)
-      .eq('role', 'USER')
+      .in('role', ['USER', 'SECURITY_GUARD'])
       .select(PROFILE_FIELDS)
       .single();
     if (error || !data) {

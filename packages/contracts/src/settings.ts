@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
 export const LocalDateSchema = z.iso.date();
-export const ScheduleTypeSchema = z.enum(['WEEKDAY', 'SATURDAY']);
+export const ScheduleTypeSchema = z.enum([
+  'WEEKDAY',
+  'SATURDAY',
+  'SECURITY_DAY',
+  'SECURITY_NIGHT',
+]);
 export type ScheduleType = z.infer<typeof ScheduleTypeSchema>;
+export const SchoolScheduleTypeSchema = z.enum(['WEEKDAY', 'SATURDAY']);
 
 const TimeSchema = z
   .string()
@@ -82,6 +88,46 @@ export const ScheduleSettingsResponseSchema = z.strictObject({
 });
 export type ScheduleSettingsResponse = z.infer<
   typeof ScheduleSettingsResponseSchema
+>;
+
+export const SecurityRosterSchema = z
+  .strictObject({
+    dayOneMorningGuardId: z.uuid(),
+    dayOneNightGuardId: z.uuid(),
+    dayOneOffGuardId: z.uuid(),
+    effectiveFrom: LocalDateSchema,
+    effectiveTo: LocalDateSchema.nullable(),
+  })
+  .refine((value) => new Set([
+    value.dayOneMorningGuardId,
+    value.dayOneNightGuardId,
+    value.dayOneOffGuardId,
+  ]).size === 3, 'Tiga Satpam dalam roster harus berbeda');
+export type SecurityRoster = z.infer<typeof SecurityRosterSchema>;
+
+export const SaveSecurityScheduleSettingsRequestSchema = z.strictObject({
+  dayShift: ScheduleRuleInputSchema,
+  nightShift: ScheduleRuleInputSchema,
+  dayOneMorningGuardId: z.uuid(),
+  dayOneNightGuardId: z.uuid(),
+  dayOneOffGuardId: z.uuid(),
+}).refine((value) => new Set([
+  value.dayOneMorningGuardId,
+  value.dayOneNightGuardId,
+  value.dayOneOffGuardId,
+]).size === 3, 'Tiga Satpam dalam roster harus berbeda');
+export type SaveSecurityScheduleSettingsRequest = z.infer<
+  typeof SaveSecurityScheduleSettingsRequestSchema
+>;
+
+export const SecurityScheduleSettingsResponseSchema = z.strictObject({
+  effectiveOn: LocalDateSchema,
+  dayShift: ScheduleRuleSchema.nullable(),
+  nightShift: ScheduleRuleSchema.nullable(),
+  roster: SecurityRosterSchema.nullable(),
+});
+export type SecurityScheduleSettingsResponse = z.infer<
+  typeof SecurityScheduleSettingsResponseSchema
 >;
 
 export const GeofenceCoordinateSchema = z.strictObject({
@@ -224,7 +270,7 @@ export const CalendarExceptionInputSchema = z.discriminatedUnion('exceptionType'
     workDate: LocalDateSchema,
     exceptionType: z.literal('WORKING_DAY'),
     name: CalendarExceptionNameSchema,
-    scheduleType: ScheduleTypeSchema,
+    scheduleType: SchoolScheduleTypeSchema,
   }),
 ]);
 export type CalendarExceptionInput = z.infer<typeof CalendarExceptionInputSchema>;

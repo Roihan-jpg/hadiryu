@@ -61,12 +61,12 @@ export class HomePage {
 
   readonly user = this.auth.user;
   readonly roleLabel = computed(() =>
-    this.user()?.role === 'SUPER_ADMIN' ? 'SuperAdmin' : 'Guru',
+    this.user()?.role === 'SUPER_ADMIN' ? 'SuperAdmin' : this.user()?.role === 'SECURITY_GUARD' ? 'Satpam' : 'Guru',
   );
   readonly todayQuery = injectQuery(() => ({
     queryKey: queryKeys.attendance('today'),
     queryFn: () => this.attendanceService.fetchToday(),
-    enabled: this.user()?.role === 'USER',
+    enabled: this.user()?.role === 'USER' || this.user()?.role === 'SECURITY_GUARD',
   }));
   readonly today = computed<TodayAttendanceResponse | null>(() => this.todayQuery.data() ?? null);
   readonly loadingToday = computed(() => this.todayQuery.isPending());

@@ -242,7 +242,7 @@ export function registerLeaveRequestRoutes(
   authService: AuthService,
   leaveRequestService: LeaveRequestService,
 ): void {
-  const teacherGuards = [createSessionGuard(authService), requireRole('USER')];
+  const teacherGuards = [createSessionGuard(authService), requireRole('USER', 'SECURITY_GUARD')];
   const adminGuards = [createSessionGuard(authService), requireRole('SUPER_ADMIN')];
 
   app.get('/api/leave-requests', ...teacherGuards, async (request, response, next) => {

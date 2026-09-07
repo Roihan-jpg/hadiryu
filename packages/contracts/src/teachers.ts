@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 import { NewPasswordSchema, NipSchema, WhatsappNumberSchema } from './auth.js';
 
+export const StaffRoleSchema = z.enum(['USER', 'SECURITY_GUARD']);
+export type StaffRole = z.infer<typeof StaffRoleSchema>;
+
 const BooleanQuerySchema = z.union([
   z.boolean(),
   z.enum(['true', 'false']).transform((value) => value === 'true'),
@@ -12,6 +15,7 @@ export const TeacherSchema = z.strictObject({
   nip: NipSchema,
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
   whatsappNumber: WhatsappNumberSchema.nullable(),
+  role: StaffRoleSchema.optional(),
   isActive: z.boolean(),
   mustChangePassword: z.boolean().optional(),
   temporaryPasswordExpiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
@@ -34,6 +38,7 @@ export const ListTeachersQuerySchema = z.strictObject({
     .optional(),
   isActive: BooleanQuerySchema.optional(),
   mustChangePassword: BooleanQuerySchema.optional(),
+  role: StaffRoleSchema.optional(),
 });
 export type ListTeachersQuery = z.infer<typeof ListTeachersQuerySchema>;
 
@@ -42,6 +47,7 @@ export const CreateTeacherRequestSchema = z.strictObject({
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
   initialPassword: NewPasswordSchema,
   whatsappNumber: WhatsappNumberSchema.nullable().optional(),
+  role: StaffRoleSchema.optional(),
 });
 export type CreateTeacherRequest = z.infer<
   typeof CreateTeacherRequestSchema

@@ -66,7 +66,7 @@ export class LoginPage {
         ? '/change-password'
         : user.role === 'SUPER_ADMIN'
           ? '/admin'
-          : '/guru';
+          : user.role === 'SECURITY_GUARD' ? '/satpam' : '/guru';
       await Promise.all([
         this.router.navigateByUrl(destination),
         this.opening.play(user),

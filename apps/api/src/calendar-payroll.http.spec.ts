@@ -60,6 +60,8 @@ class FakeSettingsService implements SettingsService {
   async saveSchedules() {
     return { effectiveOn: '2026-08-25', weekday: null, saturday: null };
   }
+  async getSecuritySchedules(): Promise<never> { throw new Error('not used'); }
+  async saveSecuritySchedules(): Promise<never> { throw new Error('not used'); }
   async getGeofence() {
     return { effectiveOn: '2026-08-25', geofence: null };
   }

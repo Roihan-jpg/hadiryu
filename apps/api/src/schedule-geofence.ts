@@ -4,6 +4,7 @@ import {
   GeofenceSettingsQuerySchema,
   SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
+  SaveSecurityScheduleSettingsRequestSchema,
   ScheduleSettingsResponseSchema,
   ScheduleSettingsQuerySchema,
   type AuthUser,
@@ -16,6 +17,8 @@ import {
   type SaveScheduleSettingsRequest,
   type ScheduleRule,
   type ScheduleSettingsResponse,
+  type SaveSecurityScheduleSettingsRequest,
+  type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
 import { z } from 'zod';
@@ -81,6 +84,11 @@ export interface SettingsService {
     actorId: string,
     input: SaveScheduleSettingsRequest,
   ): Promise<ScheduleSettingsResponse>;
+  getSecuritySchedules(effectiveOn: string): Promise<SecurityScheduleSettingsResponse>;
+  saveSecuritySchedules(
+    actorId: string,
+    input: SaveSecurityScheduleSettingsRequest,
+  ): Promise<SecurityScheduleSettingsResponse>;
   getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse>;
   saveGeofence(
     actorId: string,
@@ -159,6 +167,22 @@ export function registerSettingsRoutes(
       }
     },
   );
+
+  app.get('/api/admin/settings/security-schedules', ...adminGuards, async (request, response, next) => {
+    try {
+      const parsed = ScheduleSettingsQuerySchema.safeParse(request.query);
+      if (!parsed.success) throw validationError('Tanggal aturan Satpam tidak valid', parsed.error.flatten());
+      response.status(200).json(await settingsService.getSecuritySchedules(parsed.data.effectiveOn));
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/admin/settings/security-schedules', ...adminGuards, async (request, response, next) => {
+    try {
+      const parsed = SaveSecurityScheduleSettingsRequestSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Aturan jadwal Satpam tidak valid', parsed.error.flatten());
+      response.status(201).json(await settingsService.saveSecuritySchedules(actorId(request), parsed.data));
+    } catch (error) { next(error); }
+  });
 
   app.get(
     '/api/admin/settings/geofence',

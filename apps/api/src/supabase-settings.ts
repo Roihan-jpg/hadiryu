@@ -12,6 +12,9 @@ import {
   type SaveScheduleSettingsRequest,
   type ScheduleRule,
   type ScheduleSettingsResponse,
+  type SaveSecurityScheduleSettingsRequest,
+  type SecurityScheduleSettingsResponse,
+  SecurityScheduleSettingsResponseSchema,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -65,6 +68,11 @@ const SCHEDULE_FIELDS =
 const GEOFENCE_FIELDS =
   'id,latitude,longitude,radius_meters,polygon_vertices,max_accuracy_meters,effective_from,effective_to';
 const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
+const SecurityScheduleRowSchema = z.strictObject({
+  id: z.uuid(), day_shift: z.unknown(), night_shift: z.unknown(),
+  day_one_morning_guard_id: z.uuid(), day_one_night_guard_id: z.uuid(), day_one_off_guard_id: z.uuid(),
+  effective_from: z.string(), effective_to: z.string().nullable(),
+});
 
 const CalendarExceptionRowSchema = z.strictObject({
   id: z.uuid(),
@@ -229,6 +237,42 @@ export class SupabaseSettingsService implements SettingsService {
       throw new AppError(500, 'SETTINGS_UPDATE_FAILED', 'Pengaturan jadwal tidak dapat disimpan');
     }
     return resolveScheduleSettings(rules, effectiveOn);
+  }
+
+  async getSecuritySchedules(effectiveOn: string): Promise<SecurityScheduleSettingsResponse> {
+    const { data, error } = await this.client.from('security_schedule_settings')
+      .select('id,day_shift,night_shift,day_one_morning_guard_id,day_one_night_guard_id,day_one_off_guard_id,effective_from,effective_to')
+      .lte('effective_from', effectiveOn).or(`effective_to.is.null,effective_to.gte.${effectiveOn}`)
+      .order('effective_from', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Aturan jadwal Satpam tidak dapat dimuat');
+    return this.toSecuritySettings(data, effectiveOn);
+  }
+
+  async saveSecuritySchedules(actorId: string, input: SaveSecurityScheduleSettingsRequest): Promise<SecurityScheduleSettingsResponse> {
+    const { data, error } = await this.client.rpc('save_security_schedule_settings', {
+      p_actor_id: actorId, p_day_shift: input.dayShift, p_night_shift: input.nightShift,
+      p_day_one_morning_guard_id: input.dayOneMorningGuardId,
+      p_day_one_night_guard_id: input.dayOneNightGuardId,
+      p_day_one_off_guard_id: input.dayOneOffGuardId,
+    });
+    if (error) throw mutationError(error);
+    const row = SecurityScheduleRowSchema.parse(data);
+    return this.toSecuritySettings(row, row.effective_from);
+  }
+
+  private toSecuritySettings(value: unknown, effectiveOn: string): SecurityScheduleSettingsResponse {
+    if (!value) return SecurityScheduleSettingsResponseSchema.parse({ effectiveOn, dayShift: null, nightShift: null, roster: null });
+    const row = SecurityScheduleRowSchema.parse(value);
+    const makeRule = (input: unknown, scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT') => {
+      const rule = ScheduleRuleSchema.parse({ id: row.id, scheduleType, ...(input as object), effectiveFrom: row.effective_from, effectiveTo: row.effective_to });
+      return rule;
+    };
+    return SecurityScheduleSettingsResponseSchema.parse({
+      effectiveOn,
+      dayShift: makeRule(row.day_shift, 'SECURITY_DAY'),
+      nightShift: makeRule(row.night_shift, 'SECURITY_NIGHT'),
+      roster: { dayOneMorningGuardId: row.day_one_morning_guard_id, dayOneNightGuardId: row.day_one_night_guard_id, dayOneOffGuardId: row.day_one_off_guard_id, effectiveFrom: row.effective_from, effectiveTo: row.effective_to },
+    });
   }
 
   async getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse> {

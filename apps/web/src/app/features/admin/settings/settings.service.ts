@@ -5,6 +5,8 @@ import type {
   GeofenceSettingsResponse,
   SaveGeofenceSettingsRequest,
   SaveScheduleSettingsRequest,
+  SaveSecurityScheduleSettingsRequest,
+  SecurityScheduleSettingsResponse,
   ScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { HttpClient, HttpParams } from '@angular/common/http';
@@ -42,6 +44,24 @@ export class SettingsService {
     );
     const { ScheduleSettingsResponseSchema } = await import('@absensi/contracts');
     return ScheduleSettingsResponseSchema.parse(value);
+    }, [queryKeys.settings()]);
+  }
+
+  async getSecuritySchedules(effectiveOn: string): Promise<SecurityScheduleSettingsResponse> {
+    return this.queries.get(queryKeys.settings(`security-schedules:${effectiveOn}`), async () => {
+      const value = await firstValueFrom(this.http.get<unknown>('/api/admin/settings/security-schedules', {
+        params: new HttpParams().set('effectiveOn', effectiveOn), withCredentials: true,
+      }));
+      const { SecurityScheduleSettingsResponseSchema } = await import('@absensi/contracts');
+      return SecurityScheduleSettingsResponseSchema.parse(value);
+    });
+  }
+
+  async saveSecuritySchedules(input: SaveSecurityScheduleSettingsRequest): Promise<SecurityScheduleSettingsResponse> {
+    return this.queries.write(async () => {
+      const value = await firstValueFrom(this.http.post<unknown>('/api/admin/settings/security-schedules', input, { withCredentials: true }));
+      const { SecurityScheduleSettingsResponseSchema } = await import('@absensi/contracts');
+      return SecurityScheduleSettingsResponseSchema.parse(value);
     }, [queryKeys.settings()]);
   }
 

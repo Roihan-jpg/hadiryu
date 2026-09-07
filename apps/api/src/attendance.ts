@@ -565,7 +565,7 @@ export function registerAttendanceRoutes(
   authService: AuthService,
   attendanceService: AttendanceService,
 ): void {
-  const teacherGuards = [createSessionGuard(authService), requireRole('USER')];
+  const teacherGuards = [createSessionGuard(authService), requireRole('USER', 'SECURITY_GUARD')];
 
   app.get(
     '/api/attendance/today',

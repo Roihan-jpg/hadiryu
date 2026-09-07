@@ -132,6 +132,12 @@ const unavailableSettingsService: SettingsService = {
   async saveSchedules() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
+  async getSecuritySchedules() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan Satpam belum dikonfigurasi');
+  },
+  async saveSecuritySchedules() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan Satpam belum dikonfigurasi');
+  },
   async getGeofence() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },

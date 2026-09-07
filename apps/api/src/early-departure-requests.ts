@@ -312,7 +312,7 @@ export function registerEarlyDepartureRequestRoutes(
   authService: AuthService,
   service: EarlyDepartureRequestService,
 ): void {
-  const teacherGuards = [createSessionGuard(authService), requireRole('USER')];
+  const teacherGuards = [createSessionGuard(authService), requireRole('USER', 'SECURITY_GUARD')];
   const adminGuards = [
     createSessionGuard(authService),
     requireRole('SUPER_ADMIN'),
