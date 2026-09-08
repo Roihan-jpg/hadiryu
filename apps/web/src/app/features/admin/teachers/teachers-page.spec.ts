@@ -167,6 +167,6 @@ describe('TeachersPage', () => {
     await fixture.componentInstance.loadTeachers();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Guru tidak ditemukan');
+    expect(fixture.nativeElement.textContent).toContain('Akun tidak ditemukan');
   });
 });

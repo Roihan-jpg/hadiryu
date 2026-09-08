@@ -31,6 +31,10 @@ function run(
   return capture ? result.stdout : '';
 }
 
+function localPassword(marker) {
+  return `${marker}a1${randomBytes(3).toString('hex').slice(0, 5)}`;
+}
+
 let runtimeEnvironment;
 let testFile;
 if (mode === 'local') {
@@ -64,14 +68,14 @@ if (mode === 'local') {
     CORS_ALLOWED_ORIGINS: 'http://127.0.0.1:4200',
     SUPER_ADMIN_NIP: 'e2e-admin',
     SUPER_ADMIN_FULL_NAME: 'Admin Smoke E2E',
-    SUPER_ADMIN_INITIAL_PASSWORD: `LocalAdmin-${randomBytes(18).toString('base64url')}!aA1`,
-    E2E_ADMIN_PASSWORD: `LocalAdmin-${randomBytes(18).toString('base64url')}!aA1`,
+    SUPER_ADMIN_INITIAL_PASSWORD: localPassword('A'),
+    E2E_ADMIN_PASSWORD: localPassword('B'),
     E2E_TEACHER_NIP: 'e2e-guru',
-    E2E_TEACHER_INITIAL_PASSWORD: `LocalGuru-${randomBytes(18).toString('base64url')}!aA1`,
-    E2E_TEACHER_PASSWORD: `LocalGuru-${randomBytes(18).toString('base64url')}!aA1`,
+    E2E_TEACHER_INITIAL_PASSWORD: localPassword('C'),
+    E2E_TEACHER_PASSWORD: localPassword('D'),
     E2E_EARLY_TEACHER_NIP: 'e2e-guru-pulang-awal',
-    E2E_EARLY_TEACHER_INITIAL_PASSWORD: `LocalGuruEarly-${randomBytes(18).toString('base64url')}!aA1`,
-    E2E_EARLY_TEACHER_PASSWORD: `LocalGuruEarly-${randomBytes(18).toString('base64url')}!aA1`,
+    E2E_EARLY_TEACHER_INITIAL_PASSWORD: localPassword('E'),
+    E2E_EARLY_TEACHER_PASSWORD: localPassword('F'),
     E2E_LATITUDE: '-6.200000',
     E2E_LONGITUDE: '106.816666',
   };

@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "predev": "npm run build --workspace @absensi/contracts",
     "dev": "concurrently --kill-others-on-fail --names api,web \"npm run dev --workspace @absensi/api\" \"npm run dev --workspace @absensi/web\"",
     "bootstrap:super-admin": "npm run bootstrap:super-admin --workspace @absensi/api",
     "prepare:app-accounts": "npm run prepare:app-accounts --workspace @absensi/api",
@@ -20,7 +21,7 @@
     "lint": "eslint playwright.config.ts e2e scripts && npm run lint --workspaces --if-present",
     "typecheck": "tsc -p tsconfig.e2e.json --noEmit && tsc -p worker/tsconfig.json --noEmit && npm run typecheck --workspaces --if-present",
     "test": "npm run test:release-config && npm run test:worker && npm run test:workspaces",
-    "test:release-config": "node --test scripts/release-config.test.mjs",
+    "test:release-config": "node --test scripts/release-config.test.mjs scripts/dev-config.test.mjs",
     "test:worker": "vitest run worker/index.spec.ts",
     "test:workspaces": "npm run test --workspaces --if-present",
     "test:e2e": "node scripts/run-e2e.mjs local",

@@ -10,6 +10,7 @@ import {
   type ListLeaveRequestsQuery,
   type ScheduleRule,
   type ScheduleType,
+  type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -18,6 +19,7 @@ import { AppError } from './auth.js';
 import type { LeaveRequestRepository } from './leave-requests.js';
 import type { StoredRequestAttachment } from './request-attachments.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
+import { SupabaseAttendanceRepository } from './supabase-attendance.js';
 
 const LeaveRowSchema = z.strictObject({
   id: z.uuid(), teacher_id: z.uuid(), leave_date: z.string(),
@@ -109,7 +111,15 @@ function databaseError(code: string, message: string): AppError { return new App
 
 export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
   private readonly client: SupabaseClient;
-  constructor(config: SupabaseAuthConfig) { this.client = createClient(config.url, config.secretKey, clientOptions()); }
+  private readonly attendance: SupabaseAttendanceRepository;
+  constructor(config: SupabaseAuthConfig) {
+    this.client = createClient(config.url, config.secretKey, clientOptions());
+    this.attendance = new SupabaseAttendanceRepository(config);
+  }
+
+  findSecuritySchedules(workDate: string): Promise<SecurityScheduleSettingsResponse> {
+    return this.attendance.findSecuritySchedules(workDate);
+  }
 
   async findAttendance(teacherId: string, leaveDate: string): Promise<boolean> {
     const { data, error } = await this.client.from('attendance_records').select('id').eq('teacher_id', teacherId).eq('work_date', leaveDate).limit(1).maybeSingle();

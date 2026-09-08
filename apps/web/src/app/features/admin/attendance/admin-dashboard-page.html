@@ -14,13 +14,14 @@
       <button type="button" [attr.aria-pressed]="statusControl.value === 'NOT_PRESENT'" [disabled]="loading()" (click)="filterStatus('NOT_PRESENT')"><span>Belum hadir</span><strong>{{ value.notPresent }}</strong></button>
       <button type="button" [attr.aria-pressed]="statusControl.value === 'INCOMPLETE'" [disabled]="loading()" (click)="filterStatus('INCOMPLETE')"><span>Tidak lengkap</span><strong>{{ value.incomplete }}</strong></button>
       <button type="button" [attr.aria-pressed]="statusControl.value === 'LEAVE'" [disabled]="loading()" (click)="filterStatus('LEAVE')"><span>Izin</span><strong>{{ value.leave }}</strong></button>
+      <button type="button" [attr.aria-pressed]="statusControl.value === 'OFF'" [disabled]="loading()" (click)="filterStatus('OFF')"><span>Libur rotasi</span><strong>{{ value.off }}</strong></button>
     </section>
   }
 
   <form class="filters" (ngSubmit)="applyFilters()" novalidate>
     <mat-form-field appearance="outline"><mat-label>Tanggal</mat-label><input matInput type="date" name="workDate" autocomplete="off" [formControl]="dateControl" /></mat-form-field>
-    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select name="attendanceStatus" [formControl]="statusControl"><mat-option value="ALL">Semua status</mat-option><mat-option value="PRESENT">Hadir</mat-option><mat-option value="LATE">Terlambat</mat-option><mat-option value="NOT_PRESENT">Belum hadir</mat-option><mat-option value="INCOMPLETE">Tidak lengkap</mat-option><mat-option value="LEAVE">Izin</mat-option></mat-select></mat-form-field>
-    <mat-form-field appearance="outline"><mat-label>Cari Guru</mat-label><input matInput name="teacherSearch" autocomplete="off" [formControl]="searchControl" placeholder="Contoh: Siti atau 1987001…" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select name="attendanceStatus" [formControl]="statusControl"><mat-option value="ALL">Semua status</mat-option><mat-option value="PRESENT">Hadir</mat-option><mat-option value="LATE">Terlambat</mat-option><mat-option value="NOT_PRESENT">Belum hadir</mat-option><mat-option value="INCOMPLETE">Tidak lengkap</mat-option><mat-option value="LEAVE">Izin</mat-option><mat-option value="OFF">Libur rotasi</mat-option></mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Cari Guru atau Satpam</mat-label><input matInput name="teacherSearch" autocomplete="off" [formControl]="searchControl" placeholder="Contoh: Siti atau 1987001…" /></mat-form-field>
     <button mat-stroked-button type="submit" [disabled]="loading()">Terapkan filter</button>
   </form>
 
@@ -35,12 +36,12 @@
   } @else {
     <div class="table-frame" tabindex="0" role="region" aria-label="Tabel monitoring kehadiran, dapat digeser secara horizontal pada layar sempit">
       <table>
-        <caption class="visually-hidden">Rincian monitoring kehadiran Guru</caption>
-        <thead><tr><th scope="col">Guru</th><th scope="col">Status</th><th scope="col">Check-in</th><th scope="col">Checkout</th><th scope="col">Menit kerja</th><th scope="col">Catatan admin</th></tr></thead>
+        <caption class="visually-hidden">Rincian monitoring kehadiran Guru dan Satpam</caption>
+        <thead><tr><th scope="col">Guru / Satpam</th><th scope="col">Status</th><th scope="col">Check-in</th><th scope="col">Checkout</th><th scope="col">Menit kerja</th><th scope="col">Catatan admin</th></tr></thead>
         <tbody>
           @for (record of records(); track record.teacherId) {
             <tr>
-              <td><strong>{{ record.teacherFullName }}</strong><span>NIP {{ record.teacherNip }}</span></td>
+              <td><strong>{{ record.teacherFullName }}</strong><span>{{ record.role === 'SECURITY_GUARD' ? 'Satpam' : 'Guru' }} · NIP {{ record.teacherNip }}</span>@if (record.scheduleType) { <span>{{ record.scheduleType === 'SECURITY_DAY' ? 'Shift Pagi' : record.scheduleType === 'SECURITY_NIGHT' ? 'Shift Malam' : record.scheduleType === 'SATURDAY' ? 'Jadwal Sabtu' : 'Jadwal Senin–Jumat' }}</span> }</td>
               <td><span class="status" [attr.data-status]="record.status">{{ statusLabel(record.status) }}</span><small>{{ statusDetail(record) }}</small></td>
               <td class="numeric">{{ jakartaTime(record.checkInAt) }}</td>
               <td class="numeric">{{ jakartaTime(record.checkOutAt) }}</td>

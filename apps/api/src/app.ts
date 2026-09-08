@@ -57,6 +57,10 @@ import {
 } from './request-attachments.js';
 import { registerAuditLogRoutes, type AuditLogService } from './audit-logs.js';
 import { registerProfileRoutes, type ProfileService } from './profile.js';
+import {
+  registerSecurityDashboardRoutes,
+  type SecurityDashboardService,
+} from './security-dashboard.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -71,6 +75,7 @@ export interface CreateAppOptions {
   requestAttachmentService?: SupabaseRequestAttachmentService;
   auditLogService?: AuditLogService;
   profileService?: ProfileService;
+  securityDashboardService?: SecurityDashboardService;
   secureCookies?: boolean;
   logger?: AppLogger;
   security?: Partial<SecurityConfig>;
@@ -220,6 +225,12 @@ const unavailableAuditLogService: AuditLogService = {
   },
 };
 
+const unavailableSecurityDashboardService: SecurityDashboardService = {
+  async getDashboard() {
+    throw new AppError(500, 'SECURITY_DASHBOARD_NOT_CONFIGURED', 'Dashboard Satpam belum dikonfigurasi');
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
   const security = resolveSecurityConfig(options.security);
@@ -289,6 +300,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.attendanceService ?? unavailableAttendanceService,
+  );
+  registerSecurityDashboardRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.securityDashboardService ?? unavailableSecurityDashboardService,
   );
   registerLeaveRequestRoutes(
     app,

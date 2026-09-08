@@ -1,10 +1,12 @@
 import type { LeaveRequest, LeaveRequestListResponse } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
 import { provideAngularQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { vi } from 'vitest';
 
 import { AttendanceService } from '../attendance/attendance.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { LeaveRequestsPage } from './leave-requests-page';
 import { LeaveRequestsService } from './leave-requests.service';
 
@@ -17,7 +19,10 @@ describe('LeaveRequestsPage', () => {
   let cancel: ReturnType<typeof vi.fn>;
   let fetchOwn: ReturnType<typeof vi.fn>;
   let fetchToday: ReturnType<typeof vi.fn>;
-  async function setup(result: LeaveRequestListResponse = { data: [pending], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 } }) {
+  async function setup(
+    result: LeaveRequestListResponse = { data: [pending], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 } },
+    role: 'USER' | 'SECURITY_GUARD' = 'USER',
+  ) {
     create = vi.fn(async () => pending);
     cancel = vi.fn(async () => ({ ...pending, status: 'CANCELLED' as const }));
     fetchOwn = vi.fn(async () => result);
@@ -34,6 +39,10 @@ describe('LeaveRequestsPage', () => {
         provideRouter([]),
         provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })),
         { provide: LeaveRequestsService, useValue: { fetchOwn, create, cancel } },
+        {
+          provide: AuthService,
+          useValue: { user: signal({ role }) },
+        },
         {
           provide: AttendanceService,
           useValue: {
@@ -89,6 +98,17 @@ describe('LeaveRequestsPage', () => {
 
     expect(create).not.toHaveBeenCalled();
     expect(page.form.controls.leaveDate.hasError('pastDate')).toBe(true);
+  });
+  it('allows a Satpam to select yesterday for an overnight shift request', async () => {
+    await setup(undefined, 'SECURITY_GUARD');
+    const page = fixture.componentInstance;
+    const yesterday = page.minDate;
+    page.form.controls.leaveDate.setValue(yesterday);
+    page.form.controls.reason.setValue('Sakit saat shift malam');
+
+    await page.submit();
+
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ leaveDate: yesterday }));
   });
   it('cancels only a pending request', async () => {
     await setup();

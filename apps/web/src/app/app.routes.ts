@@ -14,7 +14,7 @@ export const routes: Routes = [
   },
   {
     path: 'guru/pulang-awal',
-    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER', 'SECURITY_GUARD')],
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
       import('./features/early-departure-requests/early-departure-requests-page').then(
         (module) => module.EarlyDepartureRequestsPage,
@@ -22,7 +22,7 @@ export const routes: Routes = [
   },
   {
     path: 'guru/izin',
-    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER', 'SECURITY_GUARD')],
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
       import('./features/leave-requests/leave-requests-page').then(
         (module) => module.LeaveRequestsPage,
@@ -74,7 +74,7 @@ export const routes: Routes = [
   },
   {
     path: 'guru/riwayat',
-    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER', 'SECURITY_GUARD')],
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
       import('./features/attendance/attendance-history-page').then(
         (module) => module.AttendanceHistoryPage,
@@ -82,7 +82,7 @@ export const routes: Routes = [
   },
   {
     path: 'guru',
-    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER', 'SECURITY_GUARD')],
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
       import('./features/home/home-page').then((module) => module.HomePage),
   },
@@ -91,6 +91,21 @@ export const routes: Routes = [
     canActivate: [authGuard, passwordChangedGuard, roleGuard('SECURITY_GUARD')],
     loadComponent: () =>
       import('./features/home/home-page').then((module) => module.HomePage),
+  },
+  {
+    path: 'satpam/riwayat',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SECURITY_GUARD')],
+    loadComponent: () => import('./features/attendance/attendance-history-page').then((module) => module.AttendanceHistoryPage),
+  },
+  {
+    path: 'satpam/izin',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SECURITY_GUARD')],
+    loadComponent: () => import('./features/leave-requests/leave-requests-page').then((module) => module.LeaveRequestsPage),
+  },
+  {
+    path: 'satpam/pulang-awal',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SECURITY_GUARD')],
+    loadComponent: () => import('./features/early-departure-requests/early-departure-requests-page').then((module) => module.EarlyDepartureRequestsPage),
   },
   {
     path: 'admin/reports',

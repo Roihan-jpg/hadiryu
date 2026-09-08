@@ -3,6 +3,7 @@ import type {
   CalendarExceptionsResponse,
   GeofenceSettingsResponse,
   ScheduleSettingsResponse,
+  SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -11,6 +12,7 @@ import { vi } from 'vitest';
 import { SettingsPage } from './settings-page';
 import { SettingsService } from './settings.service';
 import { ADMIN_GEOFENCE_LEAFLET } from './admin-geofence-map';
+import { TeachersService } from '../teachers/teachers.service';
 
 const schedules: ScheduleSettingsResponse = {
   effectiveOn: '2026-08-25',
@@ -56,11 +58,40 @@ const geofence: GeofenceSettingsResponse = {
   },
 };
 const calendar: CalendarExceptionsResponse = { exceptions: [] };
+const guardIds = [
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '33333333-3333-4333-8333-333333333333',
+] as const;
+const securitySchedules: SecurityScheduleSettingsResponse = {
+  effectiveOn: '2026-08-25',
+  dayShift: {
+    id: '50000000-0000-4000-8000-000000000001', scheduleType: 'SECURITY_DAY',
+    checkInOpen: '05:00', workStart: '06:00', checkInClose: '08:00', checkoutOpen: '17:00', workEnd: '18:00', checkoutClose: '20:00', targetMinutes: 720,
+    effectiveFrom: '2026-01-01', effectiveTo: null,
+  },
+  nightShift: {
+    id: '50000000-0000-4000-8000-000000000001', scheduleType: 'SECURITY_NIGHT',
+    checkInOpen: '17:00', workStart: '18:00', checkInClose: '20:00', checkoutOpen: '05:00', workEnd: '06:00', checkoutClose: '08:00', targetMinutes: 720,
+    effectiveFrom: '2026-01-01', effectiveTo: null,
+  },
+  roster: {
+    dayOneMorningGuardId: guardIds[0], dayOneNightGuardId: guardIds[1], dayOneOffGuardId: guardIds[2],
+    effectiveFrom: '2026-01-01', effectiveTo: null,
+  },
+  preview: [
+    { workDate: '2026-08-25', rotationDay: 1, morningGuardId: guardIds[0], nightGuardId: guardIds[1], offGuardId: guardIds[2] },
+    { workDate: '2026-08-26', rotationDay: 2, morningGuardId: guardIds[2], nightGuardId: guardIds[0], offGuardId: guardIds[1] },
+    { workDate: '2026-08-27', rotationDay: 3, morningGuardId: guardIds[1], nightGuardId: guardIds[2], offGuardId: guardIds[0] },
+  ],
+};
 
 describe('SettingsPage', () => {
   let fixture: ComponentFixture<SettingsPage>;
   const getSchedules = vi.fn(async () => schedules);
   const getGeofence = vi.fn(async () => geofence);
+  const getSecuritySchedules = vi.fn(async () => securitySchedules);
+  const saveSecuritySchedules = vi.fn(async () => ({ ...securitySchedules, effectiveOn: '2026-09-01' }));
   const saveSchedules = vi.fn(
     async () => ({
       ...schedules,
@@ -86,6 +117,8 @@ describe('SettingsPage', () => {
   beforeEach(async () => {
     getSchedules.mockClear();
     getGeofence.mockClear();
+    getSecuritySchedules.mockClear();
+    saveSecuritySchedules.mockClear();
     saveSchedules.mockClear();
     saveGeofence.mockClear();
     getCalendarExceptions.mockClear();
@@ -98,6 +131,8 @@ describe('SettingsPage', () => {
           provide: SettingsService,
           useValue: {
             getSchedules,
+            getSecuritySchedules,
+            saveSecuritySchedules,
             getGeofence,
             saveSchedules,
             saveGeofence,
@@ -105,6 +140,15 @@ describe('SettingsPage', () => {
             createCalendarException,
             updateCalendarException,
             deleteCalendarException,
+          },
+        },
+        {
+          provide: TeachersService,
+          useValue: {
+            list: vi.fn(async () => ({
+              data: guardIds.map((id, index) => ({ id, fullName: ['Mujib', 'Wahid', 'Zainur'][index] })),
+              pagination: { page: 1, pageSize: 100, totalItems: 3, totalPages: 1 },
+            })),
           },
         },
         {
@@ -146,7 +190,45 @@ describe('SettingsPage', () => {
     expect(getGeofence).toHaveBeenLastCalledWith('2026-01-31');
   });
 
+  it('renders only the active accessible tab panel', () => {
+    expect(fixture.nativeElement.querySelector('[aria-labelledby="security-schedule-title"]')).toBeNull();
+    fixture.componentInstance.selectTab('security');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Jadwal dan rotasi Satpam');
+    expect(fixture.nativeElement.textContent).not.toContain('Geofence global');
+  });
+
+  it('accepts an overnight shift and displays next-day hints plus rotation preview', async () => {
+    fixture.componentInstance.selectTab('security');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.securityScheduleForm.controls.nightShift.valid).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Hari berikutnya');
+    expect(fixture.nativeElement.textContent).toContain('Preview rotasi tiga hari');
+    await fixture.componentInstance.saveSecuritySchedules();
+    expect(saveSecuritySchedules).toHaveBeenCalled();
+  });
+
+  it('focuses the first invalid field within the night checkout segment', async () => {
+    fixture.componentInstance.selectTab('security');
+    fixture.componentInstance.securityScheduleForm.controls.nightShift.patchValue({
+      checkoutOpen: '07:00',
+      workEnd: '06:00',
+      checkoutClose: '08:00',
+    });
+    fixture.detectChanges();
+
+    await fixture.componentInstance.saveSecuritySchedules();
+
+    expect(saveSecuritySchedules).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('#nightShift-workEnd'),
+    );
+  });
+
   it('blocks an invalid schedule order before calling the API', async () => {
+    fixture.componentInstance.selectTab('schedule');
+    fixture.detectChanges();
     fixture.componentInstance.scheduleForm.patchValue({
       weekday: { checkInOpen: '07:00', workStart: '06:00' },
     });

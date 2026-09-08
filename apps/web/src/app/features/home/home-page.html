@@ -15,7 +15,7 @@
         }
       </div>
       <div class="identity-copy">
-        <p class="eyebrow">Dashboard Guru</p>
+        <p class="eyebrow">{{ user()?.role === 'SECURITY_GUARD' ? 'Pos Jaga · Dashboard Satpam' : 'Dashboard Guru' }}</p>
         <h1 id="home-title">Hari ini, {{ user()?.fullName }}</h1>
         <span>NIP {{ user()?.nip }}</span>
         @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
@@ -24,6 +24,40 @@
         <time class="identity-date">{{ workDateLabel() }}</time>
       }
     </header>
+
+    @if (user()?.role === 'SECURITY_GUARD') {
+      <section class="security-duty-board ledger-panel" aria-labelledby="security-duty-title" [attr.aria-busy]="securityDashboardQuery.isPending()">
+        @if (securityDashboard(); as dashboard) {
+          <div class="board-heading"><div><p class="board-kicker">Tugas kalender hari ini</p><h2 id="security-duty-title">{{ dutyLabel(dashboard.currentDuty) }}</h2></div>
+            @if (dashboard.currentDuty.rotationDay) { <span class="status-chip">Hari {{ dashboard.currentDuty.rotationDay }}</span> }
+          </div>
+          <p class="duty-date">Tanggal kerja {{ dashboard.currentDuty.workDate }}</p>
+          @if (dashboard.currentDuty.boundaries; as times) {
+            <div class="shift-ledger" aria-label="Timeline shift Satpam">
+              <div><span>Check-in</span><strong>{{ jakartaTime(times.checkInOpenAt) }}–{{ jakartaTime(times.checkInCloseAt) }}</strong><small>{{ jakartaDate(times.checkInOpenAt) }}</small></div>
+              <div><span>Mulai</span><strong>{{ jakartaTime(times.workStartAt) }}</strong><small>{{ jakartaDate(times.workStartAt) }}</small></div>
+              <div><span>Selesai</span><strong>{{ jakartaTime(times.workEndAt) }}</strong><small>{{ jakartaDate(times.workEndAt) }} @if (dashboard.currentDuty.status === 'NIGHT') { · Hari berikutnya }</small></div>
+              <div><span>Checkout</span><strong>{{ jakartaTime(times.checkoutOpenAt) }}–{{ jakartaTime(times.checkoutCloseAt) }}</strong><small>{{ jakartaDate(times.checkoutOpenAt) }} @if (dashboard.currentDuty.status === 'NIGHT') { · Hari berikutnya }</small></div>
+            </div>
+          } @else if (dashboard.currentDuty.status === 'OFF' && dashboard.nextWorkingDuty; as nextDuty) {
+            <p class="state-copy">Tugas berikutnya: {{ dutyLabel(nextDuty) }} pada {{ nextDuty.workDate }}.</p>
+          } @else if (dashboard.currentDuty.status === 'UNASSIGNED') {
+            <p class="state-copy">Akun aktif, tetapi belum ditempatkan dalam roster Satpam.</p>
+          } @else if (dashboard.currentDuty.status === 'CONFIGURATION_ERROR') {
+            <p class="state-copy">Jadwal atau roster belum lengkap. Hubungi SuperAdmin.</p>
+          }
+          @if (dashboard.activeDuty && dashboard.activeDuty.workDate !== dashboard.currentDuty.workDate) {
+            <aside class="active-previous-shift"><strong>Shift aktif dari kemarin</strong><span>{{ dutyLabel(dashboard.activeDuty) }} · tanggal kerja {{ dashboard.activeDuty.workDate }}</span></aside>
+          } @else if (!dashboard.activeAttendance && dashboard.latestAttendance?.status === 'COMPLETED' && dashboard.latestAttendance?.workDate !== dashboard.currentDuty.workDate) {
+            <aside class="active-previous-shift"><strong>Shift terakhir selesai</strong><span>Tanggal kerja {{ dashboard.latestAttendance?.workDate }} · checkout {{ jakartaTime(dashboard.latestAttendance!.checkOutAt) }} WIB</span></aside>
+          }
+        } @else if (securityDashboardQuery.isError()) {
+          <p class="feedback feedback--error" role="alert">Tugas Satpam tidak dapat dimuat. Coba lagi.</p>
+        } @else {
+          <p role="status">Memuat tugas Satpam…</p>
+        }
+      </section>
+    }
 
     <section class="attendance-card ledger-panel" aria-labelledby="attendance-title" [attr.aria-busy]="loadingToday()">
       @if (loadingToday()) {
@@ -171,10 +205,10 @@
       </button>
     </section>
 
-    <nav class="quick-actions" aria-label="Layanan mandiri Guru">
-      <a class="ledger-panel" routerLink="/guru/riwayat"><span aria-hidden="true">↺</span><strong>Lihat riwayat</strong><small>Catatan kehadiran</small></a>
-      <a class="ledger-panel" routerLink="/guru/izin"><span aria-hidden="true">▣</span><strong>Ajukan izin</strong><small>Sakit atau bertugas</small></a>
-      <a class="ledger-panel" routerLink="/guru/pulang-awal"><span aria-hidden="true">◷</span><strong>Pulang awal</strong><small>Dengan persetujuan</small></a>
+    <nav class="quick-actions" [attr.aria-label]="user()?.role === 'SECURITY_GUARD' ? 'Layanan mandiri Satpam' : 'Layanan mandiri Guru'">
+      <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/riwayat' : '/guru/riwayat'"><span aria-hidden="true">↺</span><strong>Lihat riwayat</strong><small>Catatan kehadiran</small></a>
+      <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/izin' : '/guru/izin'"><span aria-hidden="true">▣</span><strong>Ajukan izin</strong><small>Sakit atau bertugas</small></a>
+      <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/pulang-awal' : '/guru/pulang-awal'"><span aria-hidden="true">◷</span><strong>Pulang awal</strong><small>Dengan persetujuan</small></a>
     </nav>
 
     <footer class="teacher-footer"><span>Data resmi mengikuti waktu server</span></footer>

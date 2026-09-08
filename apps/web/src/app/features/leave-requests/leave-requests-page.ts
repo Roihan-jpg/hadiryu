@@ -11,6 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AttendanceService } from '../attendance/attendance.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { queryKeys } from '../../core/query/query-keys';
 import { LeaveRequestsService } from './leave-requests.service';
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
@@ -29,6 +30,12 @@ function dateNotBefore(minimumDate: string): ValidatorFn {
       : null;
 }
 
+function addDays(workDate: string, days: number): string {
+  const value = new Date(`${workDate}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 @Component({
   imports: [MatButtonModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, MatSelectModule, ReactiveFormsModule],
   providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
@@ -37,10 +44,14 @@ function dateNotBefore(minimumDate: string): ValidatorFn {
 export class LeaveRequestsPage {
   private readonly service = inject(LeaveRequestsService);
   private readonly attendanceService = inject(AttendanceService);
+  private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  readonly minDate = todayJakarta();
+  readonly currentDate = todayJakarta();
+  readonly minDate = this.auth.user()?.role === 'SECURITY_GUARD'
+    ? addDays(this.currentDate, -1)
+    : this.currentDate;
   readonly form = new FormGroup({
-    leaveDate: new FormControl(this.minDate, { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/), dateNotBefore(this.minDate)] }),
+    leaveDate: new FormControl(this.currentDate, { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/), dateNotBefore(this.minDate)] }),
     leaveType: new FormControl<LeaveType>('SICK', { nonNullable: true, validators: [Validators.required] }),
     reason: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(1000)] }),
   });

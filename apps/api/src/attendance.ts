@@ -18,6 +18,7 @@ import {
   type LocationInput,
   type ScheduleRule,
   type ScheduleType,
+  type SecurityScheduleSettingsResponse,
   type TodayAttendanceResponse,
   type TodaySchedule,
 } from '@absensi/contracts';
@@ -30,6 +31,12 @@ import {
   type AuthService,
 } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
+import {
+  addLocalDays,
+  buildSecurityShiftBoundaries,
+  resolveSecurityAssignment,
+  type ShiftBoundaries,
+} from './security-duty.js';
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
@@ -42,6 +49,7 @@ export interface SaveCheckInInput {
   distanceMeters: number;
   boundaryClearanceMeters: number | null;
   schedule: ScheduleRule;
+  boundaries: ShiftBoundaries;
   arrivalLateMinutes: number;
 }
 
@@ -61,6 +69,8 @@ export type PersistedAttendanceRecord =
   | CheckInRecord
   | CompletedAttendanceRecord;
 
+type StaffIdentity = Pick<AuthUser, 'id' | 'role'>;
+
 export interface AttendanceRepository {
   findAttendance(
     teacherId: string,
@@ -71,6 +81,7 @@ export interface AttendanceRepository {
     scheduleType: ScheduleType,
     workDate: string,
   ): Promise<ScheduleRule | null>;
+  findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   findGeofence(workDate: string): Promise<GeofenceRule | null>;
   hasApprovedLeave(teacherId: string, workDate: string): Promise<boolean>;
   saveCheckIn(input: SaveCheckInInput): Promise<PersistedAttendanceRecord>;
@@ -82,16 +93,20 @@ export interface AttendanceRepository {
 }
 
 export interface AttendanceService {
-  getToday(teacherId: string): Promise<TodayAttendanceResponse>;
-  checkIn(teacherId: string, location: LocationInput): Promise<AttendanceRecord>;
+  getToday(staff: string | StaffIdentity): Promise<TodayAttendanceResponse>;
+  checkIn(staff: string | StaffIdentity, location: LocationInput): Promise<AttendanceRecord>;
   checkout(
-    teacherId: string,
+    staff: string | StaffIdentity,
     location: LocationInput,
   ): Promise<CompletedAttendanceRecord>;
   history(
     teacherId: string,
     input: ListAttendanceHistoryQuery,
   ): Promise<AttendanceHistoryResponse>;
+}
+
+function staffIdentity(value: string | StaffIdentity): StaffIdentity {
+  return typeof value === 'string' ? { id: value, role: 'USER' } : value;
 }
 
 export interface JakartaDateTime {
@@ -160,6 +175,36 @@ function todaySchedule(schedule: ScheduleRule): TodaySchedule {
   };
 }
 
+function todayScheduleSnapshot(
+  attendance: PersistedAttendanceRecord,
+): TodaySchedule | null {
+  if (
+    !attendance.scheduleType ||
+    !attendance.checkInOpenAt ||
+    !attendance.workStartAt ||
+    !attendance.checkInCloseAt ||
+    !attendance.checkoutOpenAt ||
+    !attendance.workEndAt ||
+    !attendance.checkoutCloseAt
+  ) return null;
+  const localTime = (value: string) => new Intl.DateTimeFormat('en-GB', {
+    timeZone: JAKARTA_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(value));
+  return {
+    scheduleType: attendance.scheduleType,
+    checkInOpen: localTime(attendance.checkInOpenAt),
+    workStart: localTime(attendance.workStartAt),
+    checkInClose: localTime(attendance.checkInCloseAt),
+    checkoutOpen: localTime(attendance.checkoutOpenAt),
+    workEnd: localTime(attendance.workEndAt),
+    checkoutClose: localTime(attendance.checkoutCloseAt),
+    targetMinutes: attendance.targetMinutes,
+  };
+}
+
 async function resolveDay(
   repository: AttendanceRepository,
   workDate: string,
@@ -172,6 +217,43 @@ async function resolveDay(
   return {
     schedule: await repository.findSchedule(day.scheduleType, workDate),
     isWorkingDay: true,
+  };
+}
+
+async function resolveStaffDay(
+  repository: AttendanceRepository,
+  staff: StaffIdentity,
+  workDate: string,
+): Promise<{ schedule: ScheduleRule | null; isWorkingDay: boolean; rotationDay?: 1 | 2 | 3; assignment?: 'DAY' | 'NIGHT' | 'OFF' | 'UNASSIGNED' }> {
+  if (staff.role !== 'SECURITY_GUARD') return resolveDay(repository, workDate);
+  const settings = await repository.findSecuritySchedules?.(workDate);
+  if (!settings?.roster || !settings.dayShift || !settings.nightShift) {
+    return { schedule: null, isWorkingDay: true };
+  }
+  const assignment = resolveSecurityAssignment(settings.roster, workDate, staff.id);
+  if (assignment.status === 'OFF' || assignment.status === 'UNASSIGNED') {
+    return { schedule: null, isWorkingDay: false, rotationDay: assignment.rotationDay, assignment: assignment.status };
+  }
+  return {
+    schedule: assignment.status === 'DAY' ? settings.dayShift : settings.nightShift,
+    isWorkingDay: true,
+    rotationDay: assignment.rotationDay,
+    assignment: assignment.status,
+  };
+}
+
+function scheduleBoundaries(workDate: string, schedule: ScheduleRule): ShiftBoundaries {
+  if (schedule.scheduleType === 'SECURITY_DAY' || schedule.scheduleType === 'SECURITY_NIGHT') {
+    return buildSecurityShiftBoundaries(workDate, schedule, schedule.scheduleType);
+  }
+  const instant = (time: string) => new Date(`${workDate}T${time}:00+07:00`).toISOString();
+  return {
+    checkInOpenAt: instant(schedule.checkInOpen),
+    workStartAt: instant(schedule.workStart),
+    checkInCloseAt: instant(schedule.checkInClose),
+    checkoutOpenAt: instant(schedule.checkoutOpen),
+    workEndAt: instant(schedule.workEnd),
+    checkoutCloseAt: instant(schedule.checkoutClose),
   };
 }
 
@@ -335,9 +417,10 @@ function derivedAttendance(
   if (attendance.status === 'COMPLETED') return attendance;
   const current = jakartaDateTime(serverNow);
   const cutoffPassed =
-    attendance.workDate < current.workDate ||
-    (attendance.workDate === current.workDate &&
-      current.minuteOfDay > timeMinutes(attendance.checkoutClose));
+    attendance.checkoutCloseAt
+      ? serverNow.getTime() > new Date(attendance.checkoutCloseAt).getTime()
+      : attendance.workDate < current.workDate ||
+        (attendance.workDate === current.workDate && current.minuteOfDay > timeMinutes(attendance.checkoutClose));
   if (!cutoffPassed) return attendance;
   return IncompleteAttendanceRecordSchema.parse({
     ...attendance,
@@ -348,24 +431,43 @@ function derivedAttendance(
   });
 }
 
+function activeAttendance(
+  attendance: PersistedAttendanceRecord | null,
+  serverNow: Date,
+): PersistedAttendanceRecord | null {
+  return attendance?.status === 'CHECKED_IN' &&
+    derivedAttendance(attendance, serverNow).status === 'CHECKED_IN'
+    ? attendance
+    : null;
+}
+
 export function createAttendanceService(
   repository: AttendanceRepository,
   now: () => Date = () => new Date(),
 ): AttendanceService {
   return {
-    async getToday(teacherId) {
+    async getToday(staffValue) {
+      const staff = staffIdentity(staffValue);
+      const teacherId = staff.id;
       const serverNow = now();
       const { workDate } = jakartaDateTime(serverNow);
-      const existing = await repository.findAttendance(teacherId, workDate);
+      let existing = await repository.findAttendance(teacherId, workDate);
+      if (staff.role === 'SECURITY_GUARD') {
+        const previous = await repository.findAttendance(teacherId, addLocalDays(workDate, -1));
+        existing = activeAttendance(previous, serverNow) ?? existing;
+      }
       if (existing) {
         const attendance = derivedAttendance(existing, serverNow);
-        const day = await resolveDay(repository, workDate);
-        const geofence = await repository.findGeofence(workDate);
+        const snapshotSchedule = todayScheduleSnapshot(existing);
+        const resolvedSchedule = snapshotSchedule
+          ? null
+          : (await resolveStaffDay(repository, staff, existing.workDate)).schedule;
+        const geofence = await repository.findGeofence(existing.workDate);
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
-          workDate,
+          workDate: existing.workDate,
           state: attendance.status,
-          schedule: day.schedule ? todaySchedule(day.schedule) : null,
+          schedule: snapshotSchedule ?? (resolvedSchedule ? todaySchedule(resolvedSchedule) : null),
           attendance,
           locationRequirement: geofence
             ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
@@ -373,7 +475,7 @@ export function createAttendanceService(
         });
       }
 
-      const day = await resolveDay(repository, workDate);
+      const day = await resolveStaffDay(repository, staff, workDate);
       if (!day.isWorkingDay) {
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
@@ -399,13 +501,15 @@ export function createAttendanceService(
       });
     },
 
-    async checkIn(teacherId, location) {
+    async checkIn(staffValue, location) {
+      const staff = staffIdentity(staffValue);
+      const teacherId = staff.id;
       const serverNow = now();
       const { workDate, minuteOfDay } = jakartaDateTime(serverNow);
       const existing = await repository.findAttendance(teacherId, workDate);
       if (existing) return existing;
 
-      const day = await resolveDay(repository, workDate);
+      const day = await resolveStaffDay(repository, staff, workDate);
       if (!day.isWorkingDay) {
         throw new AppError(422, 'NOT_A_WORKING_DAY', 'Hari ini bukan hari kerja');
       }
@@ -446,6 +550,7 @@ export function createAttendanceService(
         );
       }
       const { distanceMeters, boundaryClearanceMeters } = validatedLocation(location, geofence);
+      const boundaries = scheduleBoundaries(workDate, day.schedule);
 
       return AttendanceRecordSchema.parse(
         await repository.saveCheckIn({
@@ -456,18 +561,26 @@ export function createAttendanceService(
           distanceMeters,
           boundaryClearanceMeters,
           schedule: day.schedule,
+          boundaries,
           arrivalLateMinutes: Math.max(
             0,
-            minuteOfDay - timeMinutes(day.schedule.workStart),
+            Math.floor((serverNow.getTime() - new Date(boundaries.workStartAt).getTime()) / 60_000),
           ),
         }),
       );
     },
 
-    async checkout(teacherId, location) {
+    async checkout(staffValue, location) {
+      const staff = staffIdentity(staffValue);
+      const teacherId = staff.id;
       const serverNow = now();
-      const { workDate, minuteOfDay } = jakartaDateTime(serverNow);
-      const existing = await repository.findAttendance(teacherId, workDate);
+      const { workDate } = jakartaDateTime(serverNow);
+      let existing = await repository.findAttendance(teacherId, workDate);
+      if (staff.role === 'SECURITY_GUARD') {
+        const previous = await repository.findAttendance(teacherId, addLocalDays(workDate, -1));
+        existing = activeAttendance(previous, serverNow) ?? existing ??
+          (previous?.status === 'COMPLETED' ? previous : null);
+      }
       if (!existing) {
         throw new AppError(
           409,
@@ -477,29 +590,32 @@ export function createAttendanceService(
       }
       if (existing.status === 'COMPLETED') return existing;
 
-      const day = await resolveDay(repository, workDate);
-      if (!day.schedule) {
-        throw new AppError(
-          422,
-          'SCHEDULE_NOT_CONFIGURED',
-          'Jadwal untuk hari ini belum dikonfigurasi',
-        );
+      let fallbackBoundaries: ShiftBoundaries | null = null;
+      if (!existing.checkoutOpenAt || !existing.checkoutCloseAt) {
+        const schedule = (await resolveStaffDay(repository, staff, existing.workDate)).schedule;
+        if (!schedule) {
+          throw new AppError(
+            422,
+            'SCHEDULE_NOT_CONFIGURED',
+            'Jadwal untuk hari ini belum dikonfigurasi',
+          );
+        }
+        fallbackBoundaries = scheduleBoundaries(existing.workDate, schedule);
       }
-      if (
-        minuteOfDay < timeMinutes(day.schedule.checkoutOpen) ||
-        minuteOfDay > timeMinutes(existing.checkoutClose)
-      ) {
+      const checkoutOpenAt = existing.checkoutOpenAt ?? fallbackBoundaries!.checkoutOpenAt;
+      const checkoutCloseAt = existing.checkoutCloseAt ?? fallbackBoundaries!.checkoutCloseAt;
+      if (serverNow.getTime() < new Date(checkoutOpenAt).getTime() || serverNow.getTime() > new Date(checkoutCloseAt).getTime()) {
         throw new AppError(
           422,
           'OUTSIDE_ATTENDANCE_WINDOW',
           'Checkout hanya dapat dilakukan pada jadwal yang ditentukan',
           {
-            checkoutOpen: day.schedule.checkoutOpen,
+            checkoutOpen: checkoutOpenAt,
             checkoutClose: existing.checkoutClose,
           },
         );
       }
-      const geofence = await repository.findGeofence(workDate);
+      const geofence = await repository.findGeofence(existing.workDate);
       if (!geofence) {
         throw new AppError(
           422,
@@ -518,7 +634,7 @@ export function createAttendanceService(
         await repository.saveCheckout({
           attendanceId: existing.id,
           teacherId,
-          workDate,
+          workDate: existing.workDate,
           checkOutAt: serverNow.toISOString(),
           location,
           distanceMeters,
@@ -560,6 +676,12 @@ function teacherId(request: Request): string {
   return user.id;
 }
 
+function staffUser(request: Request): AuthUser {
+  const user = request.res?.locals['authUser'] as AuthUser | undefined;
+  if (!user) throw new AppError(401, 'AUTH_REQUIRED', 'Silakan login terlebih dahulu');
+  return user;
+}
+
 export function registerAttendanceRoutes(
   app: Express,
   authService: AuthService,
@@ -574,7 +696,7 @@ export function registerAttendanceRoutes(
       try {
         response
           .status(200)
-          .json(await attendanceService.getToday(teacherId(request)));
+          .json(await attendanceService.getToday(staffUser(request)));
       } catch (error) {
         next(error);
       }
@@ -597,7 +719,7 @@ export function registerAttendanceRoutes(
         }
         response
           .status(200)
-          .json(await attendanceService.checkIn(teacherId(request), parsed.data));
+          .json(await attendanceService.checkIn(staffUser(request), parsed.data));
       } catch (error) {
         next(error);
       }
@@ -620,7 +742,7 @@ export function registerAttendanceRoutes(
         }
         response
           .status(200)
-          .json(await attendanceService.checkout(teacherId(request), parsed.data));
+          .json(await attendanceService.checkout(staffUser(request), parsed.data));
       } catch (error) {
         next(error);
       }

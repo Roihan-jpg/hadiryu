@@ -56,6 +56,19 @@ describe('TeachersService', () => {
     await expect(resultPromise).resolves.toEqual(response);
   });
 
+  it('sends the Satpam role filter to the admin API', async () => {
+    const resultPromise = service.list({ role: 'SECURITY_GUARD', page: 1, pageSize: 100 });
+    const request = http.expectOne(
+      '/api/admin/teachers?role=SECURITY_GUARD&page=1&pageSize=100',
+    );
+    request.flush({
+      data: [],
+      pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+    });
+
+    await expect(resultPromise).resolves.toMatchObject({ data: [] });
+  });
+
   it('calls create, update, status, and reset endpoints without leaking response secrets', async () => {
     const createPromise = service.create({
       nip: teacher.nip,

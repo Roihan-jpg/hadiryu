@@ -22,7 +22,7 @@ const ProfileRowSchema = z.strictObject({
   nip: z.string(),
   full_name: z.string(),
   whatsapp_number: z.string().nullable(),
-  role: z.enum(['USER', 'SUPER_ADMIN']),
+  role: z.enum(['USER', 'SECURITY_GUARD', 'SUPER_ADMIN']),
   is_active: z.boolean(),
   profile_photo_storage_path: z.string().nullable(),
   profile_photo_mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']).nullable(),

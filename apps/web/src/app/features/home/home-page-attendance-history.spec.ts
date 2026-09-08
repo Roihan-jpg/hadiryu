@@ -15,6 +15,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { GEOLOCATION } from '../attendance/geolocation';
 import { HomePage } from './home-page';
+import { SecurityDashboardService } from './security-dashboard.service';
 
 const teacher: AuthUser = {
   id: '50000000-0000-4000-8000-000000000001',
@@ -104,6 +105,7 @@ describe('HomePage checkout states', () => {
             checkout,
           },
         },
+        { provide: SecurityDashboardService, useValue: { getDashboard: vi.fn() } },
         { provide: GEOLOCATION, useValue: geolocation },
       ],
     }).compileComponents();

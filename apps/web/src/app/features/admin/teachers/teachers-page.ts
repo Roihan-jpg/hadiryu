@@ -100,7 +100,7 @@ interface ConfirmDialogData {
     <mat-dialog-actions align="end">
       <button mat-button type="button" [mat-dialog-close]="undefined">Batal</button>
       <button mat-flat-button type="button" (click)="submit()">
-        {{ teacher ? 'Simpan perubahan' : 'Tambah Guru' }}
+        {{ teacher ? 'Simpan perubahan' : 'Tambah Akun' }}
       </button>
     </mat-dialog-actions>
   `,

@@ -31,7 +31,7 @@ import { ReportsService } from './reports.service';
         </div>
         <div class="admin-panel table-wrap">
           <table><thead><tr><th>Guru</th><th>NIP</th><th>Hari terlambat</th><th>Tidak hadir</th><th>Kekurangan</th></tr></thead>
-          <tbody>@for (teacher of value.teachers; track teacher.teacherId) { <tr><td><strong>{{ teacher.teacherFullName }}</strong></td><td>{{ teacher.teacherNip }}</td><td>{{ teacher.lateDayCount }}</td><td>{{ teacher.absentDayCount }}</td><td>{{ minutesLabel(teacher.totalWorkDeficitMinutes) }}</td></tr> }</tbody></table>
+          <tbody>@for (teacher of value.teachers; track teacher.teacherId) { <tr><td><strong>{{ teacher.teacherFullName }}</strong><small>{{ teacher.role === 'SECURITY_GUARD' ? 'Satpam' : 'Guru' }}</small></td><td>{{ teacher.teacherNip }}</td><td>{{ teacher.lateDayCount }}</td><td>{{ teacher.absentDayCount }}</td><td>{{ minutesLabel(teacher.totalWorkDeficitMinutes) }}</td></tr> }</tbody></table>
           @if (value.teachers.length === 0) { <p class="empty">Belum ada Guru aktif untuk periode ini.</p> }
         </div>
       }

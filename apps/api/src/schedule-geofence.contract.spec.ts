@@ -2,6 +2,8 @@ import {
   GeofenceSettingsQuerySchema,
   SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
+  SaveSecurityScheduleSettingsRequestSchema,
+  SecurityScheduleSettingsResponseSchema,
   ScheduleSettingsQuerySchema,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
@@ -56,6 +58,51 @@ describe('schedule-geofence contracts', () => {
         teacherId: 'de3eb0e2-b31e-4ec5-a932-05297d928368',
       }).success,
     ).toBe(false);
+  });
+
+  it('accepts a Satpam night shift whose checkout segment is on the next day', () => {
+    const input = {
+      dayShift: {
+        checkInOpen: '05:00', workStart: '06:00', checkInClose: '08:00',
+        checkoutOpen: '17:00', workEnd: '18:00', checkoutClose: '20:00', targetMinutes: 720,
+      },
+      nightShift: {
+        checkInOpen: '17:00', workStart: '18:00', checkInClose: '20:00',
+        checkoutOpen: '05:00', workEnd: '06:00', checkoutClose: '08:00', targetMinutes: 720,
+      },
+      dayOneMorningGuardId: '11111111-1111-4111-8111-111111111111',
+      dayOneNightGuardId: '22222222-2222-4222-8222-222222222222',
+      dayOneOffGuardId: '33333333-3333-4333-8333-333333333333',
+    };
+
+    expect(SaveSecurityScheduleSettingsRequestSchema.parse(input)).toEqual(input);
+    expect(SaveSecurityScheduleSettingsRequestSchema.safeParse({
+      ...input,
+      nightShift: { ...input.nightShift, workEnd: '04:00' },
+    }).success).toBe(false);
+  });
+
+  it('requires unique roster members and exposes a three-day rotation preview', () => {
+    const guardId = '11111111-1111-4111-8111-111111111111';
+    expect(SaveSecurityScheduleSettingsRequestSchema.safeParse({
+      dayShift: weekday,
+      nightShift: {
+        checkInOpen: '17:00', workStart: '18:00', checkInClose: '20:00',
+        checkoutOpen: '05:00', workEnd: '06:00', checkoutClose: '08:00', targetMinutes: 720,
+      },
+      dayOneMorningGuardId: guardId,
+      dayOneNightGuardId: guardId,
+      dayOneOffGuardId: '33333333-3333-4333-8333-333333333333',
+    }).success).toBe(false);
+
+    expect(SecurityScheduleSettingsResponseSchema.safeParse({
+      effectiveOn: '2026-09-07', dayShift: null, nightShift: null, roster: null,
+      preview: [
+        { workDate: '2026-09-07', rotationDay: 1, morningGuardId: guardId, nightGuardId: '22222222-2222-4222-8222-222222222222', offGuardId: '33333333-3333-4333-8333-333333333333' },
+        { workDate: '2026-09-08', rotationDay: 2, morningGuardId: '33333333-3333-4333-8333-333333333333', nightGuardId: guardId, offGuardId: '22222222-2222-4222-8222-222222222222' },
+        { workDate: '2026-09-09', rotationDay: 3, morningGuardId: '22222222-2222-4222-8222-222222222222', nightGuardId: '33333333-3333-4333-8333-333333333333', offGuardId: guardId },
+      ],
+    }).success).toBe(true);
   });
 
   it('accepts a bounded polygon attendance zone without a client date', () => {

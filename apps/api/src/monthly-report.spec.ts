@@ -396,4 +396,72 @@ describe('monthly report calculator', () => {
       code: 'REPORT_CONFIGURATION_MISSING',
     });
   });
+
+  it('keeps a started Satpam shift from its attendance snapshot after the same-day roster changes', async () => {
+    const guardId = '50000000-0000-4000-8000-000000000001';
+    const dayShift: ScheduleRule = {
+      ...weekday,
+      id: '10000000-0000-4000-8000-000000000003',
+      scheduleType: 'SECURITY_DAY',
+      targetMinutes: 720,
+    };
+    const nightShift: ScheduleRule = {
+      ...weekday,
+      id: '10000000-0000-4000-8000-000000000004',
+      scheduleType: 'SECURITY_NIGHT',
+      checkInOpen: '17:00',
+      workStart: '18:00',
+      checkInClose: '20:00',
+      checkoutOpen: '05:00',
+      workEnd: '06:00',
+      checkoutClose: '08:00',
+      targetMinutes: 720,
+    };
+    const repository = new FakeMonthlyReportRepository(source({
+      teachers: [{
+        teacherId: guardId,
+        teacherNip: 'SATPAM-1',
+        teacherFullName: 'Satpam Satu',
+        role: 'SECURITY_GUARD',
+      }],
+      attendances: [{
+        id: '40000000-0000-4000-8000-000000000003',
+        teacherId: guardId,
+        workDate: '2026-06-01',
+        checkInAt: '2026-06-01T11:00:00.000Z',
+        checkOutAt: '2026-06-01T23:00:00.000Z',
+        workStart: '18:00',
+        workEnd: '06:00',
+        checkoutClose: '08:00',
+        targetMinutes: 720,
+        workedMinutes: 720,
+        arrivalLateMinutes: 0,
+        workDeficitMinutes: 0,
+        scheduleType: 'SECURITY_NIGHT',
+        workEndAt: '2026-06-01T23:00:00.000Z',
+        status: 'COMPLETED',
+      }],
+      securitySettings: [{
+        dayShift,
+        nightShift,
+        roster: {
+          dayOneMorningGuardId: '60000000-0000-4000-8000-000000000001',
+          dayOneNightGuardId: '60000000-0000-4000-8000-000000000002',
+          dayOneOffGuardId: guardId,
+          effectiveFrom: '2026-06-01',
+          effectiveTo: null,
+        },
+      }],
+    }));
+
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+
+    expect(report.teachers[0]?.days[0]).toMatchObject({
+      status: 'WORKED',
+      scheduleType: 'SECURITY_NIGHT',
+      targetMinutes: 720,
+      workedMinutes: 720,
+      workDeficitMinutes: 0,
+    });
+  });
 });

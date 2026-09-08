@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   const client = createClient(config.url, config.secretKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
-  const { data: teachers, error } = await client.from('profiles').select('id').eq('role', 'USER');
+  const { data: teachers, error } = await client.from('profiles').select('id').in('role', ['USER', 'SECURITY_GUARD']);
   if (error) throw error;
   for (const teacher of teachers ?? []) {
     const { error: accountError } = await client.from('app_accounts').upsert({
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     fullName: input.adminFullName,
     password: input.adminPassword,
   });
-  process.stdout.write(`Akun aplikasi siap untuk ${teachers?.length ?? 0} Guru dan satu Super Admin.\n`);
+  process.stdout.write(`Akun aplikasi siap untuk ${teachers?.length ?? 0} Guru/Satpam dan satu Super Admin.\n`);
 }
 
 await main();

@@ -12,4 +12,5 @@ export * from './profile.js';
 export * from './request-attachments.js';
 export * from './audit-logs.js';
 export * from './settings.js';
+export * from './security-dashboard.js';
 export * from './teachers.js';

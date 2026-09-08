@@ -239,6 +239,7 @@ export class AdminDashboardPage implements OnInit {
       NOT_PRESENT: 'Belum hadir',
       INCOMPLETE: 'Tidak lengkap',
       LEAVE: 'Izin',
+      OFF: 'Libur rotasi',
     }[status];
   }
 
@@ -249,6 +250,7 @@ export class AdminDashboardPage implements OnInit {
     if (record.status === 'INCOMPLETE') return 'Checkout tidak tercatat';
     if (record.status === 'LEAVE') return this.leaveLabel(record.leaveType);
     if (record.status === 'PRESENT') return 'Tepat waktu';
+    if (record.status === 'OFF') return 'Tidak dijadwalkan bertugas';
     return 'Belum ada check-in';
   }
 

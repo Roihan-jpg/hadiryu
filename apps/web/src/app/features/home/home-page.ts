@@ -1,5 +1,7 @@
 import type {
   LocationInput,
+  SecurityDuty,
+  SecurityGuardDashboardResponse,
   TodayAttendanceResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -21,6 +23,7 @@ import {
   type LocationAccuracyProgress,
 } from '../attendance/geolocation';
 import { TeacherLocationMap } from './teacher-location-map';
+import { SecurityDashboardService } from './security-dashboard.service';
 
 type PermissionState =
   | 'IDLE'
@@ -58,6 +61,7 @@ export class HomePage {
   private readonly geolocation = inject(GEOLOCATION);
   private readonly geolocationPermissions = inject(GEOLOCATION_PERMISSIONS);
   private readonly router = inject(Router);
+  private readonly securityDashboardService = inject(SecurityDashboardService, { optional: true });
 
   readonly user = this.auth.user;
   readonly roleLabel = computed(() =>
@@ -69,6 +73,12 @@ export class HomePage {
     enabled: this.user()?.role === 'USER' || this.user()?.role === 'SECURITY_GUARD',
   }));
   readonly today = computed<TodayAttendanceResponse | null>(() => this.todayQuery.data() ?? null);
+  readonly securityDashboardQuery = injectQuery(() => ({
+    queryKey: queryKeys.securityDashboard,
+    queryFn: () => this.securityDashboardService!.getDashboard(),
+    enabled: this.user()?.role === 'SECURITY_GUARD',
+  }));
+  readonly securityDashboard = computed<SecurityGuardDashboardResponse | null>(() => this.securityDashboardQuery.data() ?? null);
   readonly loadingToday = computed(() => this.todayQuery.isPending());
   readonly actionInProgress = signal(false);
   readonly locationPreviewInProgress = signal(false);
@@ -96,6 +106,7 @@ export class HomePage {
 
   loadToday(): void {
     void this.todayQuery.refetch();
+    if (this.user()?.role === 'SECURITY_GUARD') void this.securityDashboardQuery.refetch();
   }
 
   async checkIn(): Promise<void> {
@@ -113,6 +124,7 @@ export class HomePage {
       this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkIn(location);
       await this.todayQuery.refetch();
+      if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
         `Check-in berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}.`,
       );
@@ -146,6 +158,7 @@ export class HomePage {
       this.locationPreview.set(location);
       const attendance = await this.attendanceService.checkout(location);
       await this.todayQuery.refetch();
+      if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
         `Checkout berhasil dicatat pukul ${this.jakartaTime(attendance.checkOutAt)}.`,
       );
@@ -171,6 +184,18 @@ export class HomePage {
       minute: '2-digit',
       hourCycle: 'h23',
     }).format(new Date(timestamp));
+  }
+
+  dutyLabel(duty: SecurityDuty): string {
+    if (duty.status === 'DAY') return 'Shift Pagi';
+    if (duty.status === 'NIGHT') return 'Shift Malam';
+    if (duty.status === 'OFF') return 'Libur Rotasi';
+    if (duty.status === 'UNASSIGNED') return 'Belum masuk roster';
+    return 'Konfigurasi belum lengkap';
+  }
+
+  jakartaDate(timestamp: string): string {
+    return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' }).format(new Date(timestamp));
   }
 
   async showLocationPreview(): Promise<void> {

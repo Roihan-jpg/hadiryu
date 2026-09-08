@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { LeaveTypeSchema } from './leave-requests.js';
 import { LocalDateSchema } from './settings.js';
 import { PaginationSchema } from './teachers.js';
+import { StaffRoleSchema } from './teachers.js';
+import { ScheduleTypeSchema } from './settings.js';
 
 export const AdminAttendanceStatusSchema = z.enum([
   'PRESENT',
@@ -10,6 +12,7 @@ export const AdminAttendanceStatusSchema = z.enum([
   'NOT_PRESENT',
   'INCOMPLETE',
   'LEAVE',
+  'OFF',
 ]);
 export type AdminAttendanceStatus = z.infer<
   typeof AdminAttendanceStatusSchema
@@ -29,6 +32,8 @@ export const AdminAttendanceRecordSchema = z.strictObject({
   teacherId: z.uuid(),
   teacherNip: z.string().trim().min(1),
   teacherFullName: z.string().trim().min(1).max(200),
+  role: StaffRoleSchema.optional(),
+  scheduleType: ScheduleTypeSchema.nullable().optional(),
   workDate: LocalDateSchema,
   status: AdminAttendanceStatusSchema,
   attendanceId: z.uuid().nullable(),
@@ -73,6 +78,7 @@ export const AdminAttendanceSummarySchema = z
     notPresent: z.number().int().nonnegative(),
     incomplete: z.number().int().nonnegative(),
     leave: z.number().int().nonnegative(),
+    off: z.number().int().nonnegative(),
     total: z.number().int().nonnegative(),
   })
   .superRefine((summary, context) => {
@@ -81,7 +87,8 @@ export const AdminAttendanceSummarySchema = z
       summary.late +
       summary.notPresent +
       summary.incomplete +
-      summary.leave;
+      summary.leave +
+      summary.off;
     if (summary.total !== expectedTotal) {
       context.addIssue({
         code: 'custom',

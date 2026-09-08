@@ -8,6 +8,7 @@ import {
   type MonthlyReportParams,
   type MonthlyReportPreview,
   type ScheduleRule,
+  type SecurityRoster,
 } from '@absensi/contracts';
 import type { Express } from 'express';
 
@@ -18,11 +19,13 @@ import {
   type AuthService,
 } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
+import { resolveSecurityAssignment } from './security-duty.js';
 
 export interface MonthlyReportSourceTeacher {
   teacherId: string;
   teacherNip: string;
   teacherFullName: string;
+  role?: 'USER' | 'SECURITY_GUARD';
 }
 
 interface MonthlyReportSourceAttendanceBase {
@@ -35,6 +38,8 @@ interface MonthlyReportSourceAttendanceBase {
   checkoutClose: string;
   targetMinutes: number;
   arrivalLateMinutes: number;
+  scheduleType?: ScheduleRule['scheduleType'];
+  workEndAt?: string;
 }
 
 export type MonthlyReportSourceAttendance =
@@ -73,6 +78,11 @@ export interface MonthlyReportSource {
   attendances: MonthlyReportSourceAttendance[];
   leaves: MonthlyReportSourceLeave[];
   earlyDepartures: MonthlyReportSourceEarlyDeparture[];
+  securitySettings?: Array<{
+    dayShift: ScheduleRule;
+    nightShift: ScheduleRule;
+    roster: SecurityRoster;
+  }>;
 }
 
 export interface MonthlyReportRepository {
@@ -160,6 +170,27 @@ function resolveReportDays(
   });
 }
 
+function resolveTeacherReportDays(
+  dates: readonly string[],
+  source: MonthlyReportSource,
+  teacher: MonthlyReportSourceTeacher,
+  schoolDays: readonly ResolvedReportDay[],
+): ResolvedReportDay[] {
+  if (teacher.role !== 'SECURITY_GUARD') return [...schoolDays];
+  return dates.map((workDate) => {
+    const settings = source.securitySettings
+      ?.filter((item) => item.roster.effectiveFrom <= workDate && (item.roster.effectiveTo === null || workDate <= item.roster.effectiveTo))
+      .sort((left, right) => right.roster.effectiveFrom.localeCompare(left.roster.effectiveFrom))[0];
+    if (!settings) throw configurationMissing('Jadwal Satpam belum tersedia untuk periode laporan', workDate);
+    const assignment = resolveSecurityAssignment(settings.roster, workDate, teacher.teacherId);
+    if (assignment.status === 'OFF' || assignment.status === 'UNASSIGNED') {
+      return { workDate, schedule: null, scheduleType: null, calendarExceptionName: null };
+    }
+    const schedule = assignment.status === 'DAY' ? settings.dayShift : settings.nightShift;
+    return { workDate, schedule, scheduleType: schedule.scheduleType, calendarExceptionName: null };
+  });
+}
+
 function sourceKey(teacherId: string, workDate: string): string {
   return `${teacherId}:${workDate}`;
 }
@@ -190,7 +221,7 @@ function attendanceDay(
 ): MonthlyReportDay {
   const common = {
     workDate: day.workDate,
-    scheduleType: day.scheduleType!,
+    scheduleType: attendance.scheduleType ?? day.scheduleType!,
     attendanceId: attendance.id,
     checkInAt: attendance.checkInAt,
     workStart: attendance.workStart,
@@ -215,6 +246,7 @@ function attendanceDay(
         earlyDeparture.requestedAt,
         attendance.workEnd,
         attendance.targetMinutes,
+        attendance.workEndAt,
       );
       return {
         ...common,
@@ -245,7 +277,13 @@ function rejectedEarlyDepartureMinutes(
   requestedAt: string,
   workEnd: string,
   maximumMinutes: number,
+  workEndAt?: string,
 ): number {
+  if (workEndAt) {
+    return Math.min(maximumMinutes, Math.max(0, Math.floor(
+      (new Date(workEndAt).getTime() - new Date(requestedAt).getTime()) / 60_000,
+    )));
+  }
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta',
     hour: '2-digit',
@@ -355,8 +393,8 @@ export function createMonthlyReportService(
             left.teacherNip.localeCompare(right.teacherNip, 'id'),
         )
         .map((teacher) => {
-          const days = resolvedDays.map((day) => {
-            if (!day.schedule) return nonWorkingDay(day);
+          const teacherDays = resolveTeacherReportDays(dates, source, teacher, resolvedDays);
+          const days = teacherDays.map((day) => {
             const attendance = attendanceByTeacherDate.get(
               sourceKey(teacher.teacherId, day.workDate),
             );
@@ -367,6 +405,7 @@ export function createMonthlyReportService(
                 earlyDepartureByAttendanceId.get(attendance.id),
               );
             }
+            if (!day.schedule) return nonWorkingDay(day);
             return scheduledDay(
               day,
               approvedLeaveByTeacherDate.get(
@@ -394,6 +433,7 @@ export function createMonthlyReportService(
                       request.requestedAt,
                       day.workEnd,
                       day.targetMinutes,
+                      source.attendances.find((attendance) => attendance.id === day.attendanceId)?.workEndAt,
                     )
                 : total;
             },

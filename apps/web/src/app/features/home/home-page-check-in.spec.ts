@@ -19,6 +19,7 @@ import {
   GEOLOCATION_PERMISSIONS,
 } from '../attendance/geolocation';
 import { HomePage } from './home-page';
+import { SecurityDashboardService } from './security-dashboard.service';
 
 const teacher: AuthUser = {
   id: '50000000-0000-4000-8000-000000000001',
@@ -104,6 +105,7 @@ describe('HomePage check-in', () => {
           },
         },
         { provide: AttendanceService, useValue: { fetchToday, checkIn } },
+        { provide: SecurityDashboardService, useValue: { getDashboard: vi.fn() } },
         { provide: GEOLOCATION, useValue: geolocation },
         {
           provide: GEOLOCATION_PERMISSIONS,

@@ -4,6 +4,12 @@ export const HOSTED_PROJECT_REF = 'jlqzeytwwdnooepagknb';
 export const HOSTED_SUPABASE_URL = `https://${HOSTED_PROJECT_REF}.supabase.co`;
 
 const RequiredText = z.string().trim().min(1);
+const Password = z.string()
+  .length(8)
+  .regex(/^[A-Za-z0-9]+$/)
+  .regex(/[A-Z]/)
+  .regex(/[a-z]/)
+  .regex(/[0-9]/);
 
 const HostedEnvironmentSchema = z.strictObject({
   SUPABASE_URL: z.literal(HOSTED_SUPABASE_URL),
@@ -11,10 +17,10 @@ const HostedEnvironmentSchema = z.strictObject({
   SUPABASE_SECRET_KEY: RequiredText,
   SUPER_ADMIN_NIP: RequiredText,
   SUPER_ADMIN_FULL_NAME: RequiredText,
-  SUPER_ADMIN_INITIAL_PASSWORD: z.string().min(8),
-  E2E_ADMIN_PASSWORD: z.string().min(8),
+  SUPER_ADMIN_INITIAL_PASSWORD: Password,
+  E2E_ADMIN_PASSWORD: Password,
   E2E_TEACHER_NIP: RequiredText,
-  E2E_TEACHER_PASSWORD: z.string().min(8),
+  E2E_TEACHER_PASSWORD: Password,
   E2E_LEAVE_DATE: z.iso.date(),
   E2E_LATITUDE: z.string().refine(
     (value) => Number.isFinite(Number(value)) && Number(value) >= -90 && Number(value) <= 90,
@@ -27,7 +33,7 @@ const HostedEnvironmentSchema = z.strictObject({
 });
 
 const HostedSetupEnvironmentSchema = HostedEnvironmentSchema.extend({
-  E2E_TEACHER_INITIAL_PASSWORD: z.string().min(8),
+  E2E_TEACHER_INITIAL_PASSWORD: Password,
 });
 
 const HostedCliEnvironmentSchema = z.strictObject({

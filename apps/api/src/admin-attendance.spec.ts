@@ -2,6 +2,7 @@ import type {
   AttendanceAdminNote,
   CalendarException,
   CreateAttendanceAdminNote,
+  SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
 
@@ -46,9 +47,15 @@ class FakeAdminAttendanceRepository implements AdminAttendanceRepository {
   records: AdminAttendanceSource[] = [];
   requestedSearch: string | undefined;
   createdNotes: AttendanceAdminNote[] = [];
+  securitySettings?: SecurityScheduleSettingsResponse;
 
   async findCalendarException(): Promise<CalendarException | null> {
     return this.calendarException;
+  }
+
+  async findSecuritySchedules(): Promise<SecurityScheduleSettingsResponse> {
+    if (!this.securitySettings) throw new Error('Security settings not configured in test');
+    return this.securitySettings;
   }
 
   async listDailySources(
@@ -131,6 +138,7 @@ describe('admin attendance monitoring service', () => {
       notPresent: 1,
       incomplete: 1,
       leave: 1,
+      off: 0,
       total: 5,
     });
     expect(result.pagination.totalItems).toBe(result.summary.total);
@@ -181,6 +189,69 @@ describe('admin attendance monitoring service', () => {
     expect(result.summary.workDate).toBe('2026-08-30');
     expect(result.summary.total).toBe(0);
     expect(result.data).toEqual([]);
+  });
+
+  it('marks a roster rest day as off with zero minutes instead of absent', async () => {
+    const repository = new FakeAdminAttendanceRepository();
+    const guard = source(6, { role: 'SECURITY_GUARD' });
+    repository.records = [guard];
+    repository.securitySettings = {
+      effectiveOn: workDate,
+      dayShift: {
+        id: '71000000-0000-4000-8000-000000000001', scheduleType: 'SECURITY_DAY',
+        checkInOpen: '05:00', workStart: '06:00', checkInClose: '08:00',
+        checkoutOpen: '17:00', workEnd: '18:00', checkoutClose: '20:00',
+        targetMinutes: 720, effectiveFrom: workDate, effectiveTo: null,
+      },
+      nightShift: {
+        id: '71000000-0000-4000-8000-000000000001', scheduleType: 'SECURITY_NIGHT',
+        checkInOpen: '17:00', workStart: '18:00', checkInClose: '20:00',
+        checkoutOpen: '05:00', workEnd: '06:00', checkoutClose: '08:00',
+        targetMinutes: 720, effectiveFrom: workDate, effectiveTo: null,
+      },
+      roster: {
+        dayOneMorningGuardId: '50000000-0000-4000-8000-000000000007',
+        dayOneNightGuardId: '50000000-0000-4000-8000-000000000008',
+        dayOneOffGuardId: guard.teacherId,
+        effectiveFrom: workDate,
+        effectiveTo: null,
+      },
+      preview: [],
+    };
+
+    const result = await serviceAt(repository, '2026-08-25T01:00:00.000Z')
+      .list({ page: 1, pageSize: 20, workDate });
+
+    expect(result.data[0]).toMatchObject({
+      role: 'SECURITY_GUARD',
+      status: 'OFF',
+      scheduleType: null,
+      workedMinutes: 0,
+      workDeficitMinutes: 0,
+    });
+    expect(result.summary).toMatchObject({ off: 1, notPresent: 0, total: 1 });
+  });
+
+  it('uses the timestamp snapshot before marking an overnight shift incomplete', async () => {
+    const repository = new FakeAdminAttendanceRepository();
+    repository.records = [source(1, {
+      role: 'SECURITY_GUARD',
+      attendance: {
+        ...attendance,
+        checkOutAt: null,
+        workedMinutes: null,
+        workDeficitMinutes: null,
+        status: 'CHECKED_IN',
+        scheduleType: 'SECURITY_NIGHT',
+        checkoutClose: '08:00',
+        checkoutCloseAt: '2026-08-26T01:00:00.000Z',
+      },
+    })];
+
+    const result = await serviceAt(repository, '2026-08-25T23:30:00.000Z')
+      .list({ page: 1, pageSize: 20, workDate });
+
+    expect(result.data[0]?.status).toBe('PRESENT');
   });
 
   it('appends a note without exposing any attendance correction input', async () => {

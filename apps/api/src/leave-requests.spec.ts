@@ -2,6 +2,7 @@ import type {
   AdminLeaveRequest,
   LeaveRequest,
   ScheduleRule,
+  SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
 
@@ -48,10 +49,15 @@ class FakeLeaveRepository implements LeaveRequestRepository {
   request: LeaveRequest | null = pending;
   saved: LeaveRequest | null = null;
   decisions: Array<{ status: 'APPROVED' | 'REJECTED'; actorId: string }> = [];
+  securitySchedules?: SecurityScheduleSettingsResponse;
 
   async findAttendance(): Promise<boolean> { return this.attendance; }
   async findCalendarException() { return null; }
   async findSchedule(): Promise<ScheduleRule | null> { return schedule; }
+  async findSecuritySchedules(): Promise<SecurityScheduleSettingsResponse> {
+    if (!this.securitySchedules) throw new Error('not configured');
+    return this.securitySchedules;
+  }
   async create(_teacherId: string, input: { leaveDate: string; leaveType: LeaveRequest['leaveType']; reason: string }): Promise<LeaveRequest> {
     this.saved = { ...pending, ...input, id: '40000000-0000-4000-8000-000000000009', teacherId: _teacherId };
     return this.saved;
@@ -89,6 +95,52 @@ describe('leave request service', () => {
     });
     expect(result).toMatchObject({ teacherId, leaveType: 'FAMILY', status: 'PENDING' });
     expect(repository.saved).toMatchObject({ leaveDate: '2026-08-26' });
+  });
+
+  it('rejects leave on a Satpam rotation off day', async () => {
+    const repository = new FakeLeaveRepository();
+    repository.securitySchedules = {
+      effectiveOn: '2026-08-26',
+      dayShift: { ...schedule, scheduleType: 'SECURITY_DAY' },
+      nightShift: { ...schedule, scheduleType: 'SECURITY_NIGHT', checkInOpen: '17:00', workStart: '18:00', checkInClose: '20:00', checkoutOpen: '05:00', workEnd: '06:00', checkoutClose: '08:00', targetMinutes: 720 },
+      roster: { dayOneMorningGuardId: '11111111-1111-4111-8111-111111111111', dayOneNightGuardId: '22222222-2222-4222-8222-222222222222', dayOneOffGuardId: teacherId, effectiveFrom: '2026-08-26', effectiveTo: null },
+      preview: [],
+    };
+    await expect(createLeaveRequestService(repository, () => new Date('2026-08-25T05:00:00.000Z')).create(
+      { id: teacherId, role: 'SECURITY_GUARD' },
+      { leaveDate: '2026-08-26', leaveType: 'SICK', reason: 'Sakit' },
+    )).rejects.toMatchObject({ code: 'LEAVE_NOT_ALLOWED_ON_OFF_DAY' });
+  });
+
+  it('accepts yesterday as the work date for a night-shift leave before its next-day deadline', async () => {
+    const repository = new FakeLeaveRepository();
+    repository.securitySchedules = {
+      effectiveOn: '2026-08-25',
+      dayShift: { ...schedule, scheduleType: 'SECURITY_DAY', targetMinutes: 720 },
+      nightShift: {
+        ...schedule,
+        scheduleType: 'SECURITY_NIGHT',
+        checkInOpen: '17:00', workStart: '18:00', checkInClose: '20:00',
+        checkoutOpen: '05:00', workEnd: '06:00', checkoutClose: '08:00', targetMinutes: 720,
+      },
+      roster: {
+        dayOneMorningGuardId: '11111111-1111-4111-8111-111111111111',
+        dayOneNightGuardId: teacherId,
+        dayOneOffGuardId: '22222222-2222-4222-8222-222222222222',
+        effectiveFrom: '2026-08-25', effectiveTo: null,
+      },
+      preview: [],
+    };
+
+    const result = await createLeaveRequestService(
+      repository,
+      () => new Date('2026-08-25T22:30:00.000Z'),
+    ).create(
+      { id: teacherId, role: 'SECURITY_GUARD' },
+      { leaveDate: '2026-08-25', leaveType: 'SICK', reason: 'Sakit saat shift malam' },
+    );
+
+    expect(result).toMatchObject({ leaveDate: '2026-08-25', status: 'PENDING' });
   });
 
   it('removes an uploaded attachment when creating the database record fails', async () => {

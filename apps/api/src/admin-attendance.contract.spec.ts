@@ -29,6 +29,7 @@ describe('admin attendance contracts', () => {
       'NOT_PRESENT',
       'INCOMPLETE',
       'LEAVE',
+      'OFF',
     ]) {
       expect(AdminAttendanceStatusSchema.parse(status)).toBe(status);
     }
@@ -66,6 +67,7 @@ describe('admin attendance contracts', () => {
         notPresent: 1,
         incomplete: 1,
         leave: 1,
+        off: 0,
         total: 5,
       },
       data: [{ ...baseRecord, status: 'PRESENT' }],

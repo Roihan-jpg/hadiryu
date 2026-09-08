@@ -57,6 +57,9 @@ export async function changeInitialPassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
+  if (!/\/change-password$/.test(page.url())) {
+    await page.goto('/change-password');
+  }
   await expect(page).toHaveURL(/\/change-password$/);
   await page.getByLabel('Password saat ini').fill(currentPassword);
   await page.getByLabel('Password baru', { exact: true }).fill(newPassword);

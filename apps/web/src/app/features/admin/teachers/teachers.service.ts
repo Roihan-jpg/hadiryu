@@ -21,6 +21,7 @@ export class TeachersService {
     return this.queries.get(queryKeys.teachers(input), async () => {
     let params = new HttpParams();
     if (input.search) params = params.set('search', input.search);
+    if (input.role) params = params.set('role', input.role);
     if (input.isActive !== undefined) params = params.set('isActive', String(input.isActive));
     if (input.mustChangePassword !== undefined) params = params.set('mustChangePassword', String(input.mustChangePassword));
     params = params

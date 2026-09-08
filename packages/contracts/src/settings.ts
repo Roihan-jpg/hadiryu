@@ -28,8 +28,7 @@ function minutes(value: string): number {
   return Number(hour) * 60 + Number(minute);
 }
 
-export const ScheduleRuleInputSchema = z
-  .strictObject({
+const ScheduleRuleFieldsSchema = z.strictObject({
     checkInOpen: TimeSchema,
     workStart: TimeSchema,
     checkInClose: TimeSchema,
@@ -37,21 +36,38 @@ export const ScheduleRuleInputSchema = z
     workEnd: TimeSchema,
     checkoutClose: TimeSchema,
     targetMinutes: z.number().int().positive('Target menit wajib lebih dari nol'),
-  })
-  .superRefine((value, context) => {
-    for (let index = 1; index < scheduleTimeFields.length; index += 1) {
-      const previous = scheduleTimeFields[index - 1]!;
-      const current = scheduleTimeFields[index]!;
-      if (minutes(value[current]) < minutes(value[previous])) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Urutan waktu jadwal tidak valid',
-          path: [current],
-        });
-      }
+  });
+
+function validateOrderedFields(
+  value: z.infer<typeof ScheduleRuleFieldsSchema>,
+  context: z.RefinementCtx,
+  fields: readonly (typeof scheduleTimeFields)[number][],
+): void {
+  for (let index = 1; index < fields.length; index += 1) {
+    const previous = fields[index - 1]!;
+    const current = fields[index]!;
+    if (minutes(value[current]) < minutes(value[previous])) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Urutan waktu jadwal tidak valid',
+        path: [current],
+      });
     }
+  }
+}
+
+export const ScheduleRuleInputSchema = ScheduleRuleFieldsSchema
+  .superRefine((value, context) => {
+    validateOrderedFields(value, context, scheduleTimeFields);
   });
 export type ScheduleRuleInput = z.infer<typeof ScheduleRuleInputSchema>;
+
+export const OvernightScheduleRuleInputSchema = ScheduleRuleFieldsSchema
+  .superRefine((value, context) => {
+    validateOrderedFields(value, context, ['checkInOpen', 'workStart', 'checkInClose']);
+    validateOrderedFields(value, context, ['checkoutOpen', 'workEnd', 'checkoutClose']);
+  });
+export type OvernightScheduleRuleInput = z.infer<typeof OvernightScheduleRuleInputSchema>;
 
 export const ScheduleRuleSchema = z.strictObject({
   id: z.uuid(),
@@ -107,7 +123,7 @@ export type SecurityRoster = z.infer<typeof SecurityRosterSchema>;
 
 export const SaveSecurityScheduleSettingsRequestSchema = z.strictObject({
   dayShift: ScheduleRuleInputSchema,
-  nightShift: ScheduleRuleInputSchema,
+  nightShift: OvernightScheduleRuleInputSchema,
   dayOneMorningGuardId: z.uuid(),
   dayOneNightGuardId: z.uuid(),
   dayOneOffGuardId: z.uuid(),
@@ -120,11 +136,21 @@ export type SaveSecurityScheduleSettingsRequest = z.infer<
   typeof SaveSecurityScheduleSettingsRequestSchema
 >;
 
+export const SecurityRotationPreviewItemSchema = z.strictObject({
+  workDate: LocalDateSchema,
+  rotationDay: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  morningGuardId: z.uuid(),
+  nightGuardId: z.uuid(),
+  offGuardId: z.uuid(),
+});
+export type SecurityRotationPreviewItem = z.infer<typeof SecurityRotationPreviewItemSchema>;
+
 export const SecurityScheduleSettingsResponseSchema = z.strictObject({
   effectiveOn: LocalDateSchema,
   dayShift: ScheduleRuleSchema.nullable(),
   nightShift: ScheduleRuleSchema.nullable(),
   roster: SecurityRosterSchema.nullable(),
+  preview: z.array(SecurityRotationPreviewItemSchema).max(3),
 });
 export type SecurityScheduleSettingsResponse = z.infer<
   typeof SecurityScheduleSettingsResponseSchema

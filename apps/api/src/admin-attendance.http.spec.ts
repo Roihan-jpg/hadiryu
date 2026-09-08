@@ -43,6 +43,7 @@ const response: AdminAttendanceListResponse = {
     notPresent: 0,
     incomplete: 0,
     leave: 0,
+    off: 0,
     total: 1,
   },
   data: [

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { LeaveTypeSchema } from './leave-requests.js';
 import { LocalDateSchema, ScheduleTypeSchema } from './settings.js';
+import { StaffRoleSchema } from './teachers.js';
 
 const TimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 
@@ -129,6 +130,7 @@ export const MonthlyReportTeacherSchema = z
     teacherId: z.uuid(),
     teacherNip: z.string().trim().min(1),
     teacherFullName: z.string().trim().min(1).max(200),
+    role: StaffRoleSchema.optional(),
     days: z.array(MonthlyReportDaySchema),
     totalWorkDeficitMinutes: z.number().int().nonnegative(),
     lateDayCount: z.number().int().nonnegative(),

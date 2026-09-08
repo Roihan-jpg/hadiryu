@@ -23,7 +23,7 @@ select has_table('public', 'audit_logs', 'audit_logs table exists');
 select has_table('public', 'early_departure_requests', 'early departure requests table exists');
 
 select col_is_pk('public', 'profiles', 'id', 'profiles.id is the primary key');
-select col_is_fk('public', 'profiles', 'id', 'profiles.id references auth.users');
+select col_is_fk('public', 'app_accounts', 'profile_id', 'app_accounts.profile_id references profiles');
 select col_is_unique('public', 'profiles', 'nip', 'profiles.nip is unique');
 select col_type_is('public', 'attendance_records', 'check_in_at', 'timestamp with time zone', 'attendance timestamp is timezone-aware');
 select has_index('public', 'attendance_records', 'attendance_records_teacher_work_date_key', 'one attendance row exists per teacher and work date');
@@ -209,6 +209,13 @@ insert into public.attendance_records (
   check_in_longitude,
   check_in_accuracy_meters,
   check_in_distance_meters,
+  schedule_type,
+  check_in_open_at,
+  work_start_at,
+  check_in_close_at,
+  checkout_open_at,
+  work_end_at,
+  checkout_close_at,
   work_start,
   work_end,
   checkout_close,
@@ -225,6 +232,13 @@ insert into public.attendance_records (
     106.8,
     10,
     5,
+    'WEEKDAY',
+    '2026-08-23 22:30:00+00',
+    '2026-08-24 00:00:00+00',
+    '2026-08-24 01:00:00+00',
+    '2026-08-24 05:00:00+00',
+    '2026-08-24 08:35:00+00',
+    '2026-08-24 10:00:00+00',
     '07:00',
     '15:35',
     '17:00',
@@ -241,6 +255,13 @@ insert into public.attendance_records (
     106.8,
     10,
     5,
+    'WEEKDAY',
+    '2026-08-23 22:30:00+00',
+    '2026-08-24 00:00:00+00',
+    '2026-08-24 01:00:00+00',
+    '2026-08-24 05:00:00+00',
+    '2026-08-24 08:35:00+00',
+    '2026-08-24 10:00:00+00',
     '07:00',
     '15:35',
     '17:00',

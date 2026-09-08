@@ -12,6 +12,7 @@ import {
   type LeaveType,
   type ListAdminAttendanceQuery,
   type AuthUser,
+  type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ import {
   type AuthService,
 } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
+import { resolveSecurityAssignment } from './security-duty.js';
 
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 const AttendanceIdSchema = z.uuid();
@@ -32,17 +34,20 @@ export interface AdminAttendanceSourceAttendance {
   checkInAt: string;
   checkOutAt: string | null;
   checkoutClose: string;
+  checkoutCloseAt?: string;
   targetMinutes: number;
   workedMinutes: number | null;
   workDeficitMinutes: number | null;
   arrivalLateMinutes: number;
   status: 'CHECKED_IN' | 'COMPLETED';
+  scheduleType?: 'WEEKDAY' | 'SATURDAY' | 'SECURITY_DAY' | 'SECURITY_NIGHT';
 }
 
 export interface AdminAttendanceSource {
   teacherId: string;
   teacherNip: string;
   teacherFullName: string;
+  role?: 'USER' | 'SECURITY_GUARD';
   attendance: AdminAttendanceSourceAttendance | null;
   approvedLeave: { leaveType: LeaveType } | null;
   notes: AttendanceAdminNote[];
@@ -50,6 +55,7 @@ export interface AdminAttendanceSource {
 
 export interface AdminAttendanceRepository {
   findCalendarException(workDate: string): Promise<CalendarException | null>;
+  findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   listDailySources(
     workDate: string,
     search?: string,
@@ -74,6 +80,7 @@ export interface AdminAttendanceService {
 interface JakartaDateTime {
   workDate: string;
   minuteOfDay: number;
+  timestampMs: number;
 }
 
 function jakartaDateTime(value: Date): JakartaDateTime {
@@ -91,6 +98,7 @@ function jakartaDateTime(value: Date): JakartaDateTime {
   return {
     workDate: `${part('year')}-${part('month')}-${part('day')}`,
     minuteOfDay: Number(part('hour')) * 60 + Number(part('minute')),
+    timestampMs: value.getTime(),
   };
 }
 
@@ -104,6 +112,9 @@ function isIncomplete(
   selectedWorkDate: string,
   current: JakartaDateTime,
 ): boolean {
+  if (attendance.status === 'CHECKED_IN' && attendance.checkoutCloseAt) {
+    return new Date(attendance.checkoutCloseAt).getTime() < current.timestampMs;
+  }
   return (
     attendance.status === 'CHECKED_IN' &&
     (selectedWorkDate < current.workDate ||
@@ -116,10 +127,13 @@ function toRecord(
   source: AdminAttendanceSource,
   workDate: string,
   current: JakartaDateTime,
+  securityDuty?: { isWorkingDay: boolean; scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT' | null },
 ): AdminAttendanceRecord {
   const attendance = source.attendance;
   let status: AdminAttendanceStatus;
-  if (attendance) {
+  if (source.role === 'SECURITY_GUARD' && securityDuty && !securityDuty.isWorkingDay && !attendance) {
+    status = 'OFF';
+  } else if (attendance) {
     status = isIncomplete(attendance, workDate, current)
       ? 'INCOMPLETE'
       : attendance.arrivalLateMinutes > 0
@@ -134,18 +148,24 @@ function toRecord(
     teacherId: source.teacherId,
     teacherNip: source.teacherNip,
     teacherFullName: source.teacherFullName,
+    role: source.role,
+    scheduleType: attendance?.scheduleType ?? securityDuty?.scheduleType ?? null,
     workDate,
     status,
     attendanceId: attendance?.id ?? null,
     checkInAt: attendance?.checkInAt ?? null,
     checkOutAt: attendance?.checkOutAt ?? null,
-    workedMinutes: incomplete
+    workedMinutes: status === 'OFF'
+      ? 0
+      : incomplete
       ? Math.max(0, attendance.targetMinutes - 60)
       : (attendance?.workedMinutes ?? null),
-    workDeficitMinutes: incomplete
+    workDeficitMinutes: status === 'OFF'
+      ? 0
+      : incomplete
       ? Math.min(60, attendance.targetMinutes)
       : (attendance?.workDeficitMinutes ?? null),
-    arrivalLateMinutes: attendance?.arrivalLateMinutes ?? null,
+    arrivalLateMinutes: status === 'OFF' ? 0 : (attendance?.arrivalLateMinutes ?? null),
     leaveType: source.approvedLeave?.leaveType ?? null,
     notes: attendance ? source.notes : [],
   };
@@ -160,6 +180,7 @@ function emptySummary(workDate: string, generatedAt: string) {
     notPresent: 0,
     incomplete: 0,
     leave: 0,
+    off: 0,
     total: 0,
   };
 }
@@ -176,6 +197,7 @@ function summaryFor(
     if (record.status === 'NOT_PRESENT') summary.notPresent += 1;
     if (record.status === 'INCOMPLETE') summary.incomplete += 1;
     if (record.status === 'LEAVE') summary.leave += 1;
+    if (record.status === 'OFF') summary.off += 1;
   }
   summary.total = records.length;
   return summary;
@@ -192,23 +214,32 @@ export function createAdminAttendanceService(
       const workDate = input.workDate ?? current.workDate;
       const exception = await repository.findCalendarException(workDate);
       const day = resolveCalendarDay(workDate, exception);
-      if (!day.isWorkingDay) {
-        return AdminAttendanceListResponseSchema.parse({
-          summary: emptySummary(workDate, serverNow.toISOString()),
-          data: [],
-          pagination: {
-            page: input.page,
-            pageSize: input.pageSize,
-            totalItems: 0,
-            totalPages: 0,
-          },
-        });
-      }
-
-      const records = (
-        await repository.listDailySources(workDate, input.search)
+      const sources = await repository.listDailySources(workDate, input.search);
+      const securitySettings = sources.some(
+        (source) => source.role === 'SECURITY_GUARD' && !source.attendance,
       )
-        .map((source) => toRecord(source, workDate, current))
+        ? await repository.findSecuritySchedules?.(workDate)
+        : undefined;
+      const records = sources
+        .filter((source) => day.isWorkingDay || source.role === 'SECURITY_GUARD')
+        .map((source) => {
+          if (source.role !== 'SECURITY_GUARD' || !securitySettings?.roster) {
+            return toRecord(source, workDate, current);
+          }
+          const assignment = resolveSecurityAssignment(
+            securitySettings.roster,
+            workDate,
+            source.teacherId,
+          );
+          return toRecord(source, workDate, current, {
+            isWorkingDay: assignment.status === 'DAY' || assignment.status === 'NIGHT',
+            scheduleType: assignment.status === 'DAY'
+              ? 'SECURITY_DAY'
+              : assignment.status === 'NIGHT'
+                ? 'SECURITY_NIGHT'
+                : null,
+          });
+        })
         .sort(
           (left, right) =>
             left.teacherFullName.localeCompare(right.teacherFullName, 'id') ||

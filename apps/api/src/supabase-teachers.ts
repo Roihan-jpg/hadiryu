@@ -272,6 +272,27 @@ export class SupabaseTeacherService implements TeacherService {
   ): Promise<Teacher> {
     const before = await this.loadTeacher(teacherId);
     if (before.isActive === isActive) return before;
+    if (!isActive && before.role === 'SECURITY_GUARD') {
+      const today = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date());
+      const { data: roster, error: rosterError } = await this.client
+        .from('security_schedule_settings')
+        .select('id')
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`)
+        .or(`day_one_morning_guard_id.eq.${teacherId},day_one_night_guard_id.eq.${teacherId},day_one_off_guard_id.eq.${teacherId}`)
+        .limit(1)
+        .maybeSingle();
+      if (rosterError) throw new AppError(500, 'TEACHER_UPDATE_FAILED', 'Roster Satpam tidak dapat diperiksa');
+      if (roster) {
+        throw new AppError(
+          409,
+          'SECURITY_GUARD_IN_ACTIVE_ROSTER',
+          'Satpam masih berada dalam roster aktif. Ganti roster terlebih dahulu',
+        );
+      }
+    }
     const { data, error } = await this.client
       .from('profiles')
       .update({ is_active: isActive })
@@ -280,7 +301,14 @@ export class SupabaseTeacherService implements TeacherService {
       .select(PROFILE_FIELDS)
       .single();
     if (error || !data) {
-      throw new AppError(500, 'TEACHER_UPDATE_FAILED', 'Status Guru tidak dapat diperbarui');
+      const activeRosterConflict = error?.message?.includes('SECURITY_GUARD_IN_ACTIVE_ROSTER');
+      throw new AppError(
+        activeRosterConflict ? 409 : 500,
+        activeRosterConflict ? 'SECURITY_GUARD_IN_ACTIVE_ROSTER' : 'TEACHER_UPDATE_FAILED',
+        activeRosterConflict
+          ? 'Satpam masih berada dalam roster aktif. Ganti roster terlebih dahulu'
+          : 'Status akun tidak dapat diperbarui',
+      );
     }
     const after = toTeacher(data);
     try {

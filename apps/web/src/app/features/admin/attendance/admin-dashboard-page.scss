@@ -4,7 +4,7 @@
 .eyebrow { margin: 0 0 .4rem; color: #477f79; font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 h1 { margin: 0; color: #34413e; font-size: clamp(1.65rem, 3vw, 2.25rem); letter-spacing: -.035em; }
 .intro { max-width: 42rem; margin: .45rem 0 0; color: #74817d; font-size: 13px; line-height: 1.6; }
-.status-ledger { display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 24px; background: #fffdf9; border: 1px solid #e8e0d6; border-radius: 8px; overflow: hidden; }
+.status-ledger { display: grid; grid-template-columns: repeat(6, 1fr); margin-top: 24px; background: #fffdf9; border: 1px solid #e8e0d6; border-radius: 8px; overflow: hidden; }
 .status-ledger button { display: flex; align-items: end; justify-content: space-between; gap: .5rem; min-height: 82px; padding: 14px; color: #74817d; background: none; border: 0; border-right: 1px solid #e8e0d6; cursor: pointer; text-align: left; }
 .status-ledger button:last-child { border-right: 0; }
 .status-ledger button:hover, .status-ledger button[aria-pressed='true'] { background: #eaf2ef; }
@@ -25,6 +25,7 @@ td > span, td small { margin-top: .25rem; color: #5d6b80; font-size: .78rem; }
 .status { display: inline-block; width: fit-content; margin: 0; padding: .22rem .5rem; color: #35665f; background: #e5f1ed; border-radius: 999px; font-size: 10px; font-weight: 700; }
 .status[data-status='LATE'], .status[data-status='INCOMPLETE'] { color: #8a4b12; background: #fff3df; }
 .status[data-status='NOT_PRESENT'] { color: #9b2c2c; background: #fff0ef; }
+.status[data-status='OFF'] { color: #52615f; background: #edf2f1; }
 .status[data-status='LEAVE'] { color: #176345; background: #e9f7f0; }
 .notes-cell { min-width: 13rem; }
 .notes-cell p { margin: 0 0 .65rem; padding-left: .65rem; border-left: 2px solid #9fb9df; line-height: 1.4; }

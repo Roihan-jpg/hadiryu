@@ -1,4 +1,7 @@
 import {
+  addLocalDays,
+} from './security-duty.js';
+import {
   AdminEarlyDepartureRequestListResponseSchema,
   AdminEarlyDepartureRequestDetailResponseSchema,
   CreateEarlyDepartureRequestSchema,
@@ -86,7 +89,7 @@ export interface EarlyDepartureRequestRepository {
 
 export interface EarlyDepartureRequestService {
   create(
-    teacherId: string,
+    teacher: string | Pick<AuthUser, 'id' | 'role'>,
     input: CreateEarlyDepartureRequest,
     attachment?: UploadedRequestAttachment,
   ): Promise<EarlyDepartureRequest>;
@@ -172,14 +175,25 @@ export function createEarlyDepartureRequestService(
   }
 
   return {
-    async create(teacherId, rawInput, attachment) {
+    async create(teacherValue, rawInput, attachment) {
+      const teacher = typeof teacherValue === 'string' ? { id: teacherValue, role: 'USER' as const } : teacherValue;
+      const teacherId = teacher.id;
       const input = CreateEarlyDepartureRequestSchema.parse(rawInput);
       const serverNow = now();
       const current = jakartaDateTime(serverNow);
-      const attendance = await repository.findAttendance(
+      let attendance = await repository.findAttendance(
         teacherId,
         current.workDate,
       );
+      if (teacher.role === 'SECURITY_GUARD') {
+        const previous = await repository.findAttendance(teacherId, addLocalDays(current.workDate, -1));
+        if (
+          previous?.status === 'CHECKED_IN' &&
+          (!previous.checkoutCloseAt || serverNow.getTime() <= new Date(previous.checkoutCloseAt).getTime())
+        ) {
+          attendance = previous;
+        }
+      }
       if (!attendance) {
         throw new AppError(
           409,
@@ -194,14 +208,16 @@ export function createEarlyDepartureRequestService(
           'Absensi hari ini sudah selesai',
         );
       }
-      if (current.minuteOfDay >= timeMinutes(attendance.workEnd)) {
+      if (attendance.workEndAt
+        ? serverNow.getTime() >= new Date(attendance.workEndAt).getTime()
+        : current.minuteOfDay >= timeMinutes(attendance.workEnd)) {
         throw new AppError(
           422,
           'NOT_EARLY_DEPARTURE',
           'Permohonan hanya dapat dibuat sebelum jam kerja selesai',
         );
       }
-      const geofence = await repository.findGeofence(current.workDate);
+      const geofence = await repository.findGeofence(attendance.workDate);
       if (!geofence) {
         throw new AppError(
           422,
@@ -303,6 +319,12 @@ function userId(request: Request): string {
   return user.id;
 }
 
+function staffUser(request: Request): AuthUser {
+  const user = request.res?.locals['authUser'] as AuthUser | undefined;
+  if (!user) throw new AppError(401, 'AUTH_REQUIRED', 'Silakan login terlebih dahulu');
+  return user;
+}
+
 function validationError(message: string, details: unknown): AppError {
   return new AppError(400, 'VALIDATION_ERROR', message, details);
 }
@@ -331,7 +353,7 @@ export function registerEarlyDepartureRequestRoutes(
       const parsed = CreateEarlyDepartureRequestSchema.safeParse(multipartPayload(request));
       if (!parsed.success) throw validationError('Permohonan pulang awal tidak valid', parsed.error.flatten());
       response.status(201).json({
-        earlyDepartureRequest: await service.create(userId(request), parsed.data, validateUploadedAttachment(request.file)),
+        earlyDepartureRequest: await service.create(staffUser(request), parsed.data, validateUploadedAttachment(request.file)),
       });
     } catch (error) { next(error); }
   });

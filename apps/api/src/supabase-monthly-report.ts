@@ -3,6 +3,7 @@ import {
   ScheduleRuleSchema,
   type CalendarException,
   type ScheduleRule,
+  type SecurityRoster,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ const ProfileRowSchema = z.strictObject({
   id: z.uuid(),
   nip: z.string(),
   full_name: z.string(),
+  role: z.enum(['USER', 'SECURITY_GUARD']),
 });
 const ScheduleRowSchema = z.strictObject({
   id: z.uuid(),
@@ -54,6 +56,13 @@ const AttendanceBaseRowSchema = z.strictObject({
   checkout_close: z.string(),
   target_minutes: z.number().int(),
   arrival_late_minutes: z.number().int(),
+  schedule_type: z.enum(['WEEKDAY', 'SATURDAY', 'SECURITY_DAY', 'SECURITY_NIGHT']),
+  work_end_at: z.string(),
+});
+const SecuritySettingsRowSchema = z.strictObject({
+  id: z.uuid(), day_shift: z.unknown(), night_shift: z.unknown(),
+  day_one_morning_guard_id: z.uuid(), day_one_night_guard_id: z.uuid(), day_one_off_guard_id: z.uuid(),
+  effective_from: z.string(), effective_to: z.string().nullable(),
 });
 const AttendanceRowSchema = z.discriminatedUnion('status', [
   AttendanceBaseRowSchema.extend({
@@ -86,7 +95,7 @@ const EarlyDepartureRowSchema = z.strictObject({
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const ATTENDANCE_FIELDS =
-  'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
+  'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status,schedule_type,work_end_at';
 
 interface PageResult {
   data: unknown[] | null;
@@ -129,6 +138,7 @@ function toTeacher(value: unknown): MonthlyReportSourceTeacher {
     teacherId: row.id,
     teacherNip: row.nip,
     teacherFullName: row.full_name,
+    role: row.role,
   };
 }
 
@@ -172,6 +182,8 @@ function toAttendance(value: unknown): MonthlyReportSourceAttendance {
     checkoutClose: time(row.checkout_close),
     targetMinutes: row.target_minutes,
     arrivalLateMinutes: row.arrival_late_minutes,
+    scheduleType: row.schedule_type,
+    workEndAt: row.work_end_at,
   };
   return row.status === 'COMPLETED'
     ? {
@@ -231,6 +243,7 @@ export class SupabaseMonthlyReportRepository
     const [
       teacherRows,
       scheduleRows,
+      securitySettingsRows,
       calendarRows,
       attendanceRows,
       leaveRows,
@@ -239,8 +252,8 @@ export class SupabaseMonthlyReportRepository
       loadAllPages(async (from, to) =>
         this.client
           .from('profiles')
-          .select('id,nip,full_name')
-          .eq('role', 'USER')
+          .select('id,nip,full_name,role')
+          .in('role', ['USER', 'SECURITY_GUARD'])
           .eq('is_active', true)
           .lt('created_at', `${nextMonthDate}T00:00:00+07:00`)
           .order('full_name', { ascending: true })
@@ -256,6 +269,15 @@ export class SupabaseMonthlyReportRepository
           .or(`effective_to.is.null,effective_to.gte.${startDate}`)
           .order('effective_from', { ascending: true })
           .order('schedule_type', { ascending: true })
+          .range(from, to),
+      ),
+      loadAllPages(async (from, to) =>
+        this.client
+          .from('security_schedule_settings')
+          .select('id,day_shift,night_shift,day_one_morning_guard_id,day_one_night_guard_id,day_one_off_guard_id,effective_from,effective_to')
+          .lte('effective_from', endDate)
+          .or(`effective_to.is.null,effective_to.gte.${startDate}`)
+          .order('effective_from', { ascending: true })
           .range(from, to),
       ),
       loadAllPages(async (from, to) =>
@@ -306,6 +328,19 @@ export class SupabaseMonthlyReportRepository
     return {
       teachers,
       schedules: scheduleRows.map(toSchedule),
+      securitySettings: securitySettingsRows.map((value) => {
+        const row = SecuritySettingsRowSchema.parse(value);
+        const roster: SecurityRoster = {
+          dayOneMorningGuardId: row.day_one_morning_guard_id,
+          dayOneNightGuardId: row.day_one_night_guard_id,
+          dayOneOffGuardId: row.day_one_off_guard_id,
+          effectiveFrom: row.effective_from,
+          effectiveTo: row.effective_to,
+        };
+        const schedule = (input: unknown, scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT') =>
+          ScheduleRuleSchema.parse({ id: row.id, scheduleType, ...(input as object), effectiveFrom: row.effective_from, effectiveTo: row.effective_to });
+        return { dayShift: schedule(row.day_shift, 'SECURITY_DAY'), nightShift: schedule(row.night_shift, 'SECURITY_NIGHT'), roster };
+      }),
       calendarExceptions: calendarRows.map(toCalendarException),
       attendances: attendanceRows
         .map(toAttendance)

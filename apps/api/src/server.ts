@@ -25,6 +25,7 @@ import { SupabaseRequestAttachmentService } from './request-attachments.js';
 import { createAuditLogService } from './audit-logs.js';
 import { SupabaseAuditLogRepository } from './supabase-audit-logs.js';
 import { SupabaseProfileService } from './profile.js';
+import { createSecurityDashboardService } from './security-dashboard.js';
 
 function commaSeparated(value: string | undefined): string[] {
   return (value ?? '')
@@ -47,9 +48,9 @@ const supabaseConfig = loadSupabaseAuthConfig(process.env);
 const authService = new SupabaseAuthService(supabaseConfig);
 const teacherService = new SupabaseTeacherService(supabaseConfig);
 const settingsService = new SupabaseSettingsService(supabaseConfig);
-const attendanceService = createAttendanceService(
-  new SupabaseAttendanceRepository(supabaseConfig),
-);
+const attendanceRepository = new SupabaseAttendanceRepository(supabaseConfig);
+const attendanceService = createAttendanceService(attendanceRepository);
+const securityDashboardService = createSecurityDashboardService(attendanceRepository);
 const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
 const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
 const profileService = new SupabaseProfileService(supabaseConfig);
@@ -98,6 +99,7 @@ createApp({
   requestAttachmentService,
   auditLogService,
   profileService,
+  securityDashboardService,
   logger,
   secureCookies,
   security: {

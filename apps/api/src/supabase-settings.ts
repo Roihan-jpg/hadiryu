@@ -26,6 +26,7 @@ import {
   type SettingsService,
 } from './schedule-geofence.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
+import { securityRotationPreview } from './security-duty.js';
 
 const ScheduleRowSchema = z.strictObject({
   id: z.uuid(),
@@ -73,6 +74,14 @@ const SecurityScheduleRowSchema = z.strictObject({
   day_one_morning_guard_id: z.uuid(), day_one_night_guard_id: z.uuid(), day_one_off_guard_id: z.uuid(),
   effective_from: z.string(), effective_to: z.string().nullable(),
 });
+const SecurityScheduleRpcRowSchema = SecurityScheduleRowSchema.extend({
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+const SecurityScheduleResultRowSchema = z.union([
+  SecurityScheduleRowSchema,
+  SecurityScheduleRpcRowSchema,
+]);
 
 const CalendarExceptionRowSchema = z.strictObject({
   id: z.uuid(),
@@ -201,6 +210,44 @@ function calendarMutationError(error: { code?: string; message?: string } | null
   );
 }
 
+export function toSecurityScheduleSettings(
+  value: unknown,
+  effectiveOn: string,
+): SecurityScheduleSettingsResponse {
+  if (!value) {
+    return SecurityScheduleSettingsResponseSchema.parse({
+      effectiveOn,
+      dayShift: null,
+      nightShift: null,
+      roster: null,
+      preview: [],
+    });
+  }
+  const row = SecurityScheduleResultRowSchema.parse(value);
+  const makeRule = (input: unknown, scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT') =>
+    ScheduleRuleSchema.parse({
+      id: row.id,
+      scheduleType,
+      ...(input as object),
+      effectiveFrom: row.effective_from,
+      effectiveTo: row.effective_to,
+    });
+  const roster = {
+    dayOneMorningGuardId: row.day_one_morning_guard_id,
+    dayOneNightGuardId: row.day_one_night_guard_id,
+    dayOneOffGuardId: row.day_one_off_guard_id,
+    effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to,
+  };
+  return SecurityScheduleSettingsResponseSchema.parse({
+    effectiveOn,
+    dayShift: makeRule(row.day_shift, 'SECURITY_DAY'),
+    nightShift: makeRule(row.night_shift, 'SECURITY_NIGHT'),
+    roster,
+    preview: securityRotationPreview(roster, effectiveOn),
+  });
+}
+
 export class SupabaseSettingsService implements SettingsService {
   private readonly client: SupabaseClient;
 
@@ -245,7 +292,7 @@ export class SupabaseSettingsService implements SettingsService {
       .lte('effective_from', effectiveOn).or(`effective_to.is.null,effective_to.gte.${effectiveOn}`)
       .order('effective_from', { ascending: false }).limit(1).maybeSingle();
     if (error) throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Aturan jadwal Satpam tidak dapat dimuat');
-    return this.toSecuritySettings(data, effectiveOn);
+    return toSecurityScheduleSettings(data, effectiveOn);
   }
 
   async saveSecuritySchedules(actorId: string, input: SaveSecurityScheduleSettingsRequest): Promise<SecurityScheduleSettingsResponse> {
@@ -256,23 +303,8 @@ export class SupabaseSettingsService implements SettingsService {
       p_day_one_off_guard_id: input.dayOneOffGuardId,
     });
     if (error) throw mutationError(error);
-    const row = SecurityScheduleRowSchema.parse(data);
-    return this.toSecuritySettings(row, row.effective_from);
-  }
-
-  private toSecuritySettings(value: unknown, effectiveOn: string): SecurityScheduleSettingsResponse {
-    if (!value) return SecurityScheduleSettingsResponseSchema.parse({ effectiveOn, dayShift: null, nightShift: null, roster: null });
-    const row = SecurityScheduleRowSchema.parse(value);
-    const makeRule = (input: unknown, scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT') => {
-      const rule = ScheduleRuleSchema.parse({ id: row.id, scheduleType, ...(input as object), effectiveFrom: row.effective_from, effectiveTo: row.effective_to });
-      return rule;
-    };
-    return SecurityScheduleSettingsResponseSchema.parse({
-      effectiveOn,
-      dayShift: makeRule(row.day_shift, 'SECURITY_DAY'),
-      nightShift: makeRule(row.night_shift, 'SECURITY_NIGHT'),
-      roster: { dayOneMorningGuardId: row.day_one_morning_guard_id, dayOneNightGuardId: row.day_one_night_guard_id, dayOneOffGuardId: row.day_one_off_guard_id, effectiveFrom: row.effective_from, effectiveTo: row.effective_to },
-    });
+    const row = SecurityScheduleResultRowSchema.parse(data);
+    return toSecurityScheduleSettings(row, row.effective_from);
   }
 
   async getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse> {

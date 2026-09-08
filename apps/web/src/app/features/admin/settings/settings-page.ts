@@ -27,7 +27,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { RouterLink } from '@angular/router';
+import { MatTabsModule } from '@angular/material/tabs';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { SettingsService } from './settings.service';
 import { TeachersService } from '../teachers/teachers.service';
@@ -44,21 +45,36 @@ const timeKeys = [
   'checkoutClose',
 ] as const;
 
-const scheduleOrderValidator: ValidatorFn = (
+function scheduleOrderValidator(overnight = false): ValidatorFn {
+  return (
   control: AbstractControl,
 ): ValidationErrors | null => {
-  const values = timeKeys.map((key) => control.get(key)?.value as string | undefined);
-  if (values.some((value) => !value || !timePattern.test(value))) return null;
-  const minutes = values.map((value) => {
-    const [hour = '0', minute = '0'] = value!.split(':');
-    return Number(hour) * 60 + Number(minute);
-  });
-  return minutes.some((value, index) => index > 0 && value < minutes[index - 1]!)
-    ? { timeOrder: true }
-    : null;
-};
+  const values = Object.fromEntries(timeKeys.map((key) => [
+    key,
+    control.get(key)?.value as string | undefined,
+  ])) as Record<(typeof timeKeys)[number], string | undefined>;
+  if (timeKeys.some((key) => !values[key] || !timePattern.test(values[key]!))) return null;
+  const segments: ReadonlyArray<ReadonlyArray<(typeof timeKeys)[number]>> = overnight
+    ? [['checkInOpen', 'workStart', 'checkInClose'], ['checkoutOpen', 'workEnd', 'checkoutClose']]
+    : [timeKeys];
+  for (const segment of segments) {
+    for (let index = 1; index < segment.length; index += 1) {
+      const previous = segment[index - 1]!;
+      const current = segment[index]!;
+      const toMinutes = (value: string) => {
+        const [hour = '0', minute = '0'] = value.split(':');
+        return Number(hour) * 60 + Number(minute);
+      };
+      if (toMinutes(values[current]!) < toMinutes(values[previous]!)) {
+        return { timeOrder: current };
+      }
+    }
+  }
+  return null;
+  };
+}
 
-function scheduleRuleForm() {
+function scheduleRuleForm(overnight = false) {
   return new FormGroup(
     {
       checkInOpen: new FormControl('', {
@@ -90,9 +106,16 @@ function scheduleRuleForm() {
         validators: [Validators.required, Validators.min(1)],
       }),
     },
-    { validators: scheduleOrderValidator },
+    { validators: scheduleOrderValidator(overnight) },
   );
 }
+
+const distinctRosterValidator: ValidatorFn = (control) => {
+  const ids = ['dayOneMorningGuardId', 'dayOneNightGuardId', 'dayOneOffGuardId']
+    .map((key) => control.get(key)?.value as string | undefined)
+    .filter(Boolean);
+  return ids.length === 3 && new Set(ids).size !== 3 ? { duplicateRoster: true } : null;
+};
 
 @Component({
   imports: [
@@ -100,6 +123,7 @@ function scheduleRuleForm() {
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatTabsModule,
     FormsModule,
     ReactiveFormsModule,
     RouterLink,
@@ -113,7 +137,16 @@ export class SettingsPage implements OnInit {
   private readonly service = inject(SettingsService);
   private readonly teachersService = inject(TeachersService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly activeTab = signal<'summary' | 'schedule' | 'security' | 'geofence' | 'calendar'>('summary');
+  readonly tabs = [
+    { id: 'summary', label: 'Ringkasan' },
+    { id: 'schedule', label: 'Jadwal Guru' },
+    { id: 'security', label: 'Jadwal Satpam' },
+    { id: 'geofence', label: 'Geofence' },
+    { id: 'calendar', label: 'Kalender' },
+  ] as const;
 
   readonly timeFields: ReadonlyArray<{
     key: (typeof timeKeys)[number];
@@ -136,11 +169,11 @@ export class SettingsPage implements OnInit {
     saturday: scheduleRuleForm(),
   });
   readonly securityScheduleForm = new FormGroup({
-    dayShift: scheduleRuleForm(), nightShift: scheduleRuleForm(),
+    dayShift: scheduleRuleForm(), nightShift: scheduleRuleForm(true),
     dayOneMorningGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     dayOneNightGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     dayOneOffGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-  });
+  }, { validators: distinctRosterValidator });
   readonly geofenceForm = new FormGroup({
     maxAccuracyMeters: new FormControl(15, {
       nonNullable: true,
@@ -177,6 +210,10 @@ export class SettingsPage implements OnInit {
   >(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+  readonly loadErrorMessage = signal('');
+  isHistoricalInspection(): boolean {
+    return this.inspectionDate.value < this.minimumEffectiveDate;
+  }
 
   dateLabel(workDate: string | null | undefined): string {
     if (!workDate) return '—';
@@ -187,7 +224,28 @@ export class SettingsPage implements OnInit {
   }
 
   ngOnInit(): void {
+    const requestedTab = this.route.snapshot.queryParamMap.get('tab');
+    if (this.tabs.some((tab) => tab.id === requestedTab)) {
+      this.activeTab.set(requestedTab as typeof this.tabs[number]['id']);
+    }
+    const requestedDate = this.route.snapshot.queryParamMap.get('date');
+    if (requestedDate) this.inspectionDate.setValue(requestedDate);
     void this.loadForDate(this.inspectionDate.value);
+  }
+
+  selectTab(tab: typeof this.tabs[number]['id']): void {
+    this.activeTab.set(tab);
+    void this.syncQuery();
+  }
+
+  copyHistoricalToToday(): void {
+    this.inspectionDate.setValue(this.minimumEffectiveDate);
+    this.successMessage.set('Konfigurasi historis disalin sebagai draft hari ini. Tinjau lalu simpan.');
+    void this.syncQuery();
+  }
+
+  guardName(guardId: string): string {
+    return this.securityGuards().find((guard) => guard.id === guardId)?.fullName ?? 'Satpam tidak ditemukan';
   }
 
   async inspectDate(): Promise<void> {
@@ -245,7 +303,16 @@ export class SettingsPage implements OnInit {
     if (this.actionInProgress() !== null) return;
     if (this.securityScheduleForm.invalid) {
       this.securityScheduleForm.markAllAsTouched();
-      focusFirstInvalidControl(this.host.nativeElement);
+      const invalidShift = this.securityScheduleForm.controls.dayShift.hasError('timeOrder')
+        ? `dayShift-${String(this.securityScheduleForm.controls.dayShift.getError('timeOrder'))}`
+        : this.securityScheduleForm.controls.nightShift.hasError('timeOrder')
+          ? `nightShift-${String(this.securityScheduleForm.controls.nightShift.getError('timeOrder'))}`
+          : null;
+      if (invalidShift) this.host.nativeElement.querySelector<HTMLElement>(`#${invalidShift}`)?.focus();
+      else focusFirstInvalidControl(this.host.nativeElement);
+      this.errorMessage.set(this.securityScheduleForm.hasError('duplicateRoster')
+        ? 'Pilih tiga Satpam yang berbeda untuk roster.'
+        : 'Periksa kembali field jadwal Satpam yang ditandai.');
       return;
     }
     const parsed = SaveSecurityScheduleSettingsRequestSchema.safeParse(this.securityScheduleForm.getRawValue());
@@ -402,6 +469,7 @@ export class SettingsPage implements OnInit {
   private async loadForDate(effectiveOn: string): Promise<boolean> {
     this.loading.set(true);
     this.clearFeedback();
+    this.loadErrorMessage.set('');
     try {
       const [schedules, securitySchedules, geofence, calendar, guards] = await Promise.all([
         this.service.getSchedules(effectiveOn),
@@ -415,6 +483,7 @@ export class SettingsPage implements OnInit {
       this.securityGuards.set(guards.data.map((guard) => ({ id: guard.id, fullName: guard.fullName })));
       this.geofence.set(geofence);
       this.calendar.set(calendar);
+      void this.syncQuery();
       if (schedules.weekday) {
         this.scheduleForm.controls.weekday.patchValue(
           this.scheduleInput(schedules.weekday),
@@ -448,13 +517,22 @@ export class SettingsPage implements OnInit {
       }
       return true;
     } catch (error) {
-      this.errorMessage.set(
+      this.loadErrorMessage.set(
         this.errorText(error, 'Pengaturan tidak dapat dimuat.'),
       );
       return false;
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private async syncQuery(): Promise<void> {
+    await this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: this.activeTab(), date: this.inspectionDate.value },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   private scheduleInput(rule: ScheduleRuleInput): ScheduleRuleInput {

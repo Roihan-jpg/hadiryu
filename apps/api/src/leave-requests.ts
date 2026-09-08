@@ -18,12 +18,14 @@ import {
   type ListLeaveRequestsQuery,
   type ScheduleRule,
   type ScheduleType,
+  type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
 import { z } from 'zod';
 
 import { AppError, createSessionGuard, requireRole, type AuthService } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
+import { addLocalDays, buildSecurityShiftBoundaries, resolveSecurityAssignment } from './security-duty.js';
 import {
   multipartPayload,
   parseOptionalAttachment,
@@ -40,6 +42,7 @@ export interface LeaveRequestRepository {
   findAttendance(teacherId: string, leaveDate: string): Promise<boolean>;
   findCalendarException(workDate: string): Promise<CalendarException | null>;
   findSchedule(scheduleType: ScheduleType, workDate: string): Promise<ScheduleRule | null>;
+  findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   create(
     teacherId: string,
     input: CreateLeaveRequest,
@@ -66,7 +69,7 @@ export interface LeaveRequestRepository {
 
 export interface LeaveRequestService {
   create(
-    teacherId: string,
+    teacher: string | Pick<AuthUser, 'id' | 'role'>,
     input: CreateLeaveRequest,
     attachment?: UploadedRequestAttachment,
   ): Promise<LeaveRequest>;
@@ -111,6 +114,12 @@ function userId(request: Request): string {
   const user = request.res?.locals['authUser'] as AuthUser | undefined;
   if (!user) throw new AppError(401, 'AUTH_REQUIRED', 'Silakan login terlebih dahulu');
   return user.id;
+}
+
+function staffUser(request: Request): AuthUser {
+  const user = request.res?.locals['authUser'] as AuthUser | undefined;
+  if (!user) throw new AppError(401, 'AUTH_REQUIRED', 'Silakan login terlebih dahulu');
+  return user;
 }
 
 function leaveRequestId(value: unknown): string {
@@ -163,14 +172,49 @@ export function createLeaveRequestService(
   }
 
   return {
-    async create(teacherId, rawInput, attachment) {
+    async create(teacherValue, rawInput, attachment) {
+      const teacher = typeof teacherValue === 'string'
+        ? { id: teacherValue, role: 'USER' as const }
+        : teacherValue;
+      const teacherId = teacher.id;
       const input = CreateLeaveRequestSchema.parse(rawInput);
-      const current = jakartaDateTime(now());
-      if (input.leaveDate < current.workDate) {
+      const serverNow = now();
+      const current = jakartaDateTime(serverNow);
+      if (
+        input.leaveDate < current.workDate &&
+        (teacher.role !== 'SECURITY_GUARD' || input.leaveDate < addLocalDays(current.workDate, -1))
+      ) {
         throw new AppError(422, 'LEAVE_DATE_IN_PAST', 'Izin tidak dapat diajukan untuk tanggal yang sudah lewat');
       }
       await assertNoCheckIn(teacherId, input.leaveDate);
-      if (input.leaveDate === current.workDate) {
+      if (teacher.role === 'SECURITY_GUARD') {
+        const settings = await repository.findSecuritySchedules?.(input.leaveDate);
+        if (!settings?.roster || !settings.dayShift || !settings.nightShift) {
+          throw new AppError(422, 'SECURITY_SCHEDULE_NOT_CONFIGURED', 'Jadwal Satpam belum dikonfigurasi');
+        }
+        const assignment = resolveSecurityAssignment(settings.roster, input.leaveDate, teacherId);
+        if (assignment.status === 'OFF' || assignment.status === 'UNASSIGNED') {
+          throw new AppError(422, 'LEAVE_NOT_ALLOWED_ON_OFF_DAY', 'Izin tidak dapat diajukan pada Libur Rotasi');
+        }
+        if (input.leaveDate < current.workDate && assignment.status !== 'NIGHT') {
+          throw new AppError(422, 'LEAVE_DATE_IN_PAST', 'Izin tidak dapat diajukan untuk tanggal yang sudah lewat');
+        }
+        if (input.leaveDate <= current.workDate) {
+          const schedule = assignment.status === 'DAY' ? settings.dayShift : settings.nightShift;
+          const workEndAt = buildSecurityShiftBoundaries(
+            input.leaveDate,
+            schedule,
+            schedule.scheduleType as 'SECURITY_DAY' | 'SECURITY_NIGHT',
+          ).workEndAt;
+          if (serverNow.getTime() > new Date(workEndAt).getTime()) {
+            throw new AppError(
+              422,
+              'LEAVE_REQUEST_DEADLINE_PASSED',
+              'Izin hari ini hanya dapat diajukan sampai jam kerja selesai',
+            );
+          }
+        }
+      } else if (input.leaveDate === current.workDate) {
         const exception = await repository.findCalendarException(input.leaveDate);
         const day = resolveCalendarDay(input.leaveDate, exception);
         const schedule = day.scheduleType
@@ -257,7 +301,7 @@ export function registerLeaveRequestRoutes(
       const parsed = CreateLeaveRequestSchema.safeParse(multipartPayload(request));
       if (!parsed.success) throw validationError('Data pengajuan izin tidak valid', parsed.error.flatten());
       const attachment = validateUploadedAttachment(request.file);
-      response.status(201).json({ leaveRequest: await leaveRequestService.create(userId(request), parsed.data, attachment) } satisfies { leaveRequest: LeaveRequest });
+      response.status(201).json({ leaveRequest: await leaveRequestService.create(staffUser(request), parsed.data, attachment) } satisfies { leaveRequest: LeaveRequest });
     } catch (error) { next(error); }
   });
   app.post('/api/leave-requests/:id/cancel', ...teacherGuards, async (request, response, next) => {

@@ -15,11 +15,13 @@ import type {
 } from './admin-attendance.js';
 import { AppError } from './auth.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
+import { SupabaseAttendanceRepository } from './supabase-attendance.js';
 
 const ProfileRowSchema = z.strictObject({
   id: z.uuid(),
   nip: z.string(),
   full_name: z.string(),
+  role: z.enum(['USER', 'SECURITY_GUARD']),
 });
 const AttendanceRowSchema = z.strictObject({
   id: z.uuid(),
@@ -27,11 +29,13 @@ const AttendanceRowSchema = z.strictObject({
   check_in_at: z.string(),
   check_out_at: z.string().nullable(),
   checkout_close: z.string(),
+  checkout_close_at: z.string(),
   target_minutes: z.number().int(),
   worked_minutes: z.number().int().nullable(),
   work_deficit_minutes: z.number().int().nullable(),
   arrival_late_minutes: z.number().int(),
   status: z.enum(['CHECKED_IN', 'COMPLETED']),
+  schedule_type: z.enum(['WEEKDAY', 'SATURDAY', 'SECURITY_DAY', 'SECURITY_NIGHT']),
 });
 const LeaveRowSchema = z.strictObject({
   teacher_id: z.uuid(),
@@ -54,7 +58,7 @@ const NoteRowSchema = z.strictObject({
 });
 
 const ATTENDANCE_FIELDS =
-  'id,teacher_id,check_in_at,check_out_at,checkout_close,target_minutes,worked_minutes,work_deficit_minutes,arrival_late_minutes,status';
+  'id,teacher_id,check_in_at,check_out_at,checkout_close,checkout_close_at,target_minutes,worked_minutes,work_deficit_minutes,arrival_late_minutes,status,schedule_type';
 const NOTE_FIELDS =
   'id,attendance_id,note,created_by,created_at,profiles!attendance_admin_notes_created_by_fkey(full_name)';
 
@@ -79,11 +83,13 @@ function toAttendance(value: unknown): AdminAttendanceSourceAttendance {
     checkInAt: row.check_in_at,
     checkOutAt: row.check_out_at,
     checkoutClose: time(row.checkout_close),
+    checkoutCloseAt: row.checkout_close_at,
     targetMinutes: row.target_minutes,
     workedMinutes: row.worked_minutes,
     workDeficitMinutes: row.work_deficit_minutes,
     arrivalLateMinutes: row.arrival_late_minutes,
     status: row.status,
+    scheduleType: row.schedule_type,
   };
 }
 
@@ -125,9 +131,15 @@ export class SupabaseAdminAttendanceRepository
   implements AdminAttendanceRepository
 {
   private readonly client: SupabaseClient;
+  private readonly attendanceRepository: SupabaseAttendanceRepository;
 
   constructor(config: SupabaseAuthConfig) {
     this.client = createClient(config.url, config.secretKey, clientOptions());
+    this.attendanceRepository = new SupabaseAttendanceRepository(config);
+  }
+
+  async findSecuritySchedules(workDate: string) {
+    return this.attendanceRepository.findSecuritySchedules(workDate);
   }
 
   async findCalendarException(
@@ -153,8 +165,8 @@ export class SupabaseAdminAttendanceRepository
   ): Promise<AdminAttendanceSource[]> {
     let profileQuery = this.client
       .from('profiles')
-      .select('id,nip,full_name')
-      .eq('role', 'USER')
+      .select('id,nip,full_name,role')
+      .in('role', ['USER', 'SECURITY_GUARD'])
       .eq('is_active', true)
       .order('full_name', { ascending: true })
       .order('nip', { ascending: true });
@@ -237,6 +249,7 @@ export class SupabaseAdminAttendanceRepository
         teacherId: profile.id,
         teacherNip: profile.nip,
         teacherFullName: profile.full_name,
+        role: profile.role,
         attendance: attendanceRow ? toAttendance(attendanceRow) : null,
         approvedLeave: leaveRow ? { leaveType: leaveRow.leave_type } : null,
         notes: attendanceRow

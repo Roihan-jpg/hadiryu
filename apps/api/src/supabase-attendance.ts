@@ -4,12 +4,14 @@ import {
   CompletedAttendanceRecordSchema,
   GeofenceRuleSchema,
   ScheduleRuleSchema,
+  SecurityScheduleSettingsResponseSchema,
   type CalendarException,
   type CompletedAttendanceRecord,
   type GeofenceRule,
   type ListAttendanceHistoryQuery,
   type ScheduleRule,
   type ScheduleType,
+  type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -22,6 +24,7 @@ import type {
   SaveCheckoutInput,
 } from './attendance.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
+import { securityRotationPreview } from './security-duty.js';
 
 const NumericValueSchema = z.union([z.number(), z.string()]);
 const AttendanceRowSchema = z.strictObject({
@@ -47,6 +50,13 @@ const AttendanceRowSchema = z.strictObject({
   arrival_late_minutes: z.number().int(),
   work_deficit_minutes: z.number().int().nullable(),
   status: z.enum(['CHECKED_IN', 'COMPLETED']),
+  schedule_type: z.enum(['WEEKDAY', 'SATURDAY', 'SECURITY_DAY', 'SECURITY_NIGHT']),
+  check_in_open_at: z.string(),
+  work_start_at: z.string(),
+  check_in_close_at: z.string(),
+  checkout_open_at: z.string(),
+  work_end_at: z.string(),
+  checkout_close_at: z.string(),
 });
 const CalendarRowSchema = z.strictObject({
   id: z.uuid(),
@@ -78,9 +88,19 @@ const GeofenceRowSchema = z.strictObject({
   effective_from: z.string(),
   effective_to: z.string().nullable(),
 });
+const SecurityScheduleRowSchema = z.strictObject({
+  id: z.uuid(),
+  day_shift: z.unknown(),
+  night_shift: z.unknown(),
+  day_one_morning_guard_id: z.uuid(),
+  day_one_night_guard_id: z.uuid(),
+  day_one_off_guard_id: z.uuid(),
+  effective_from: z.string(),
+  effective_to: z.string().nullable(),
+});
 
 const ATTENDANCE_FIELDS =
-  'id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy_meters,check_in_distance_meters,check_in_boundary_clearance_meters,check_out_at,check_out_latitude,check_out_longitude,check_out_accuracy_meters,check_out_distance_meters,check_out_boundary_clearance_meters,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status';
+  'id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy_meters,check_in_distance_meters,check_in_boundary_clearance_meters,check_out_at,check_out_latitude,check_out_longitude,check_out_accuracy_meters,check_out_distance_meters,check_out_boundary_clearance_meters,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status,schedule_type,check_in_open_at,work_start_at,check_in_close_at,checkout_open_at,work_end_at,checkout_close_at';
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
@@ -108,6 +128,13 @@ function toAttendance(value: unknown): PersistedAttendanceRecord {
     checkoutClose: time(row.checkout_close),
     targetMinutes: row.target_minutes,
     arrivalLateMinutes: row.arrival_late_minutes,
+    scheduleType: row.schedule_type,
+    checkInOpenAt: row.check_in_open_at,
+    workStartAt: row.work_start_at,
+    checkInCloseAt: row.check_in_close_at,
+    checkoutOpenAt: row.checkout_open_at,
+    workEndAt: row.work_end_at,
+    checkoutCloseAt: row.checkout_close_at,
   };
   if (row.status === 'CHECKED_IN') {
     return CheckInRecordSchema.parse({ ...base, status: row.status });
@@ -242,6 +269,44 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
     return data ? toSchedule(data) : null;
   }
 
+  async findSecuritySchedules(workDate: string): Promise<SecurityScheduleSettingsResponse> {
+    const { data, error } = await this.client
+      .from('security_schedule_settings')
+      .select('id,day_shift,night_shift,day_one_morning_guard_id,day_one_night_guard_id,day_one_off_guard_id,effective_from,effective_to')
+      .lte('effective_from', workDate)
+      .or(`effective_to.is.null,effective_to.gte.${workDate}`)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw lookupError('Jadwal Satpam tidak dapat dimuat');
+    if (!data) return SecurityScheduleSettingsResponseSchema.parse({
+      effectiveOn: workDate, dayShift: null, nightShift: null, roster: null, preview: [],
+    });
+    const row = SecurityScheduleRowSchema.parse(data);
+    const roster = {
+      dayOneMorningGuardId: row.day_one_morning_guard_id,
+      dayOneNightGuardId: row.day_one_night_guard_id,
+      dayOneOffGuardId: row.day_one_off_guard_id,
+      effectiveFrom: row.effective_from,
+      effectiveTo: row.effective_to,
+    };
+    const rule = (value: unknown, scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT') =>
+      ScheduleRuleSchema.parse({
+        id: row.id,
+        scheduleType,
+        ...(value as object),
+        effectiveFrom: row.effective_from,
+        effectiveTo: row.effective_to,
+      });
+    return SecurityScheduleSettingsResponseSchema.parse({
+      effectiveOn: workDate,
+      dayShift: rule(row.day_shift, 'SECURITY_DAY'),
+      nightShift: rule(row.night_shift, 'SECURITY_NIGHT'),
+      roster,
+      preview: securityRotationPreview(roster, workDate),
+    });
+  }
+
   async findGeofence(workDate: string): Promise<GeofenceRule | null> {
     const { data, error } = await this.client
       .from('geofence_rules')
@@ -285,6 +350,13 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         checkout_close: input.schedule.checkoutClose,
         target_minutes: input.schedule.targetMinutes,
         arrival_late_minutes: input.arrivalLateMinutes,
+        schedule_type: input.schedule.scheduleType,
+        check_in_open_at: input.boundaries.checkInOpenAt,
+        work_start_at: input.boundaries.workStartAt,
+        check_in_close_at: input.boundaries.checkInCloseAt,
+        checkout_open_at: input.boundaries.checkoutOpenAt,
+        work_end_at: input.boundaries.workEndAt,
+        checkout_close_at: input.boundaries.checkoutCloseAt,
         status: 'CHECKED_IN',
       })
       .select(ATTENDANCE_FIELDS)
