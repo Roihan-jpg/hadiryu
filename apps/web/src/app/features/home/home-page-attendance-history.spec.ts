@@ -162,6 +162,30 @@ describe('HomePage checkout states', () => {
     expect(fixture.nativeElement.querySelector('app-teacher-location-map')).not.toBeNull();
   });
 
+  it('reuses a ready preview for checkout without requesting location again', async () => {
+    await setup({
+      serverNow: '2026-08-25T08:00:00.000Z',
+      workDate: '2026-08-25',
+      state: 'CHECKED_IN',
+      schedule,
+      attendance: checkedIn,
+    });
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    geolocation.success?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
+    await preview;
+    await fixture.componentInstance.checkout();
+
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(checkout).toHaveBeenCalledWith({
+      latitude: -6.2,
+      longitude: 106.816666,
+      accuracyMeters: 10,
+    });
+  });
+
   it('shows derived incomplete values without offering checkout after cutoff', async () => {
     await setup({
       serverNow: '2026-08-25T10:01:00.000Z',

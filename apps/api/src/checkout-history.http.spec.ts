@@ -123,7 +123,7 @@ describe('checkout and attendance history HTTP API', () => {
     const { app, attendanceService } = testApp();
     const response = await request(app)
       .post('/api/attendance/checkout')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({
         latitude: -6.2,
         longitude: 106.816666,
@@ -141,13 +141,13 @@ describe('checkout and attendance history HTTP API', () => {
     const input = { latitude: -6.2, longitude: 106.816666, accuracyMeters: 10 };
     const response = await request(app)
       .post('/api/attendance/checkout')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send(input);
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(completed);
     expect(attendanceService.checkoutCalls).toEqual([
-      { teacherId: teacher.id, location: input },
+      { teacherId: teacher, location: input },
     ]);
   });
 
@@ -155,7 +155,7 @@ describe('checkout and attendance history HTTP API', () => {
     const { app, attendanceService } = testApp();
     const response = await request(app)
       .get('/api/attendance/history?page=2&pageSize=10&month=2026-08')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(200);
     expect(response.body.pagination).toMatchObject({ page: 2, pageSize: 10 });
@@ -171,7 +171,7 @@ describe('checkout and attendance history HTTP API', () => {
     const { app, attendanceService } = testApp();
     const response = await request(app)
       .get('/api/attendance/history?month=2026-13')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');

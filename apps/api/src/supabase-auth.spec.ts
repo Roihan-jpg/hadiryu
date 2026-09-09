@@ -10,7 +10,7 @@ import { AppError } from './auth.js';
 import {
   SupabaseAuthService,
   bootstrapSuperAdmin,
-  internalEmailForNip,
+  hashPassword,
   type SupabaseAuthConfig,
 } from './supabase-auth.js';
 
@@ -109,15 +109,12 @@ describe('SupabaseAuthService integration', () => {
         '-v',
         'ON_ERROR_STOP=1',
         '-c',
-        `set session_replication_role = replica; delete from public.audit_logs where actor_id in (${ids}); delete from public.profiles where id in (${ids});`,
+        `set session_replication_role = replica; delete from public.audit_logs where actor_id in (${ids}) or entity_id in (${ids}); delete from public.app_sessions where profile_id in (${ids}); delete from public.app_accounts where profile_id in (${ids}); delete from public.profiles where id in (${ids});`,
       ],
       { encoding: 'utf8' },
     );
     if (cleanup.status !== 0) {
       throw new Error([cleanup.stdout, cleanup.stderr].filter(Boolean).join('\n'));
-    }
-    for (const userId of cleanupUserIds) {
-      await serviceClient.auth.admin.deleteUser(userId);
     }
   });
 
@@ -129,17 +126,11 @@ describe('SupabaseAuthService integration', () => {
     password?: string;
   }) {
     const nip = `t03-${options.role.toLowerCase()}-${randomUUID()}`;
-    const password = options.password ?? `T03-${randomUUID()}!`;
-    const { data, error } = await serviceClient.auth.admin.createUser({
-      email: internalEmailForNip(nip),
-      password,
-      email_confirm: true,
-      app_metadata: { role: options.role },
-    });
-    if (error) throw error;
-    cleanupUserIds.push(data.user.id);
+    const password = options.password ?? 'Test1234';
+    const id = randomUUID();
+    cleanupUserIds.push(id);
     const { error: profileError } = await serviceClient.from('profiles').insert({
-      id: data.user.id,
+      id,
       nip,
       full_name: `${options.role} Test`,
       role: options.role,
@@ -148,16 +139,15 @@ describe('SupabaseAuthService integration', () => {
       temporary_password_expires_at: options.temporaryPasswordExpiresAt ?? null,
     });
     if (profileError) throw profileError;
-    return { nip, password, id: data.user.id };
+    const { error: accountError } = await serviceClient.from('app_accounts').insert({
+      profile_id: id,
+      password_hash: await hashPassword(password),
+    });
+    if (accountError) throw accountError;
+    return { nip, password, id };
   }
 
-  it('maps a normalized textual NIP to a private Auth identity', () => {
-    expect(internalEmailForNip('  Guru-001 ')).toBe(
-      'guru-001@absensi.invalid',
-    );
-  });
-
-  it('logs in USER and SUPER_ADMIN using the current database role', async () => {
+  it('logs in USER and SUPER_ADMIN using application accounts and the current database role', async () => {
     const teacher = await createAccount({ role: 'USER' });
     const admin = await createAccount({ role: 'SUPER_ADMIN' });
 
@@ -175,18 +165,15 @@ describe('SupabaseAuthService integration', () => {
     expect(teacherSession.user).not.toHaveProperty('email');
   });
 
-  it('rotates refresh tokens and reloads the active profile', async () => {
+  it('authenticates an opaque application session without a refresh token', async () => {
     const account = await createAccount({
       role: 'USER',
       mustChangePassword: false,
     });
     const login = await authService.login(account);
 
-    const refreshed = await authService.refresh(login.refreshToken);
-
-    expect(refreshed.refreshToken).not.toBe(login.refreshToken);
-    expect(refreshed.user.id).toBe(account.id);
-    await expect(authService.authenticate(refreshed.accessToken)).resolves.toMatchObject({
+    expect(login.refreshToken).toBe('');
+    await expect(authService.authenticate(login.accessToken)).resolves.toMatchObject({
       id: account.id,
       isActive: true,
     });
@@ -210,22 +197,22 @@ describe('SupabaseAuthService integration', () => {
     } satisfies Partial<AppError>);
   });
 
-  it('rejects an expired temporary password before issuing an application session', async () => {
-    const expired = await createAccount({
+  it('ignores legacy temporary-password fields when issuing an application session', async () => {
+    const legacy = await createAccount({
       role: 'USER',
       mustChangePassword: true,
       temporaryPasswordExpiresAt: '2020-01-01T00:00:00.000Z',
     });
 
-    await expect(authService.login(expired)).rejects.toMatchObject({
-      code: 'TEMPORARY_PASSWORD_EXPIRED',
-    } satisfies Partial<AppError>);
+    await expect(authService.login(legacy)).resolves.toMatchObject({
+      user: { id: legacy.id, mustChangePassword: false },
+    });
   });
 
-  it('changes the initial password and removes the first-login restriction', async () => {
+  it('changes the password and revokes the previous application session', async () => {
     const account = await createAccount({ role: 'USER' });
     const initialSession = await authService.login(account);
-    const newPassword = `Baru-${randomUUID()}!`;
+    const newPassword = 'Baru1234';
 
     const changed = await authService.changePassword(
       initialSession.accessToken,
@@ -234,12 +221,12 @@ describe('SupabaseAuthService integration', () => {
     );
 
     expect(changed.user.mustChangePassword).toBe(false);
-    const { data: profile } = await serviceClient
-      .from('profiles')
-      .select('temporary_password_expires_at')
-      .eq('id', account.id)
-      .single();
-    expect(profile?.temporary_password_expires_at).toBeNull();
+    await expect(authService.authenticate(initialSession.accessToken)).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED',
+    } satisfies Partial<AppError>);
+    await expect(authService.authenticate(changed.accessToken)).resolves.toMatchObject({
+      id: account.id,
+    });
     await expect(
       authService.login({ nip: account.nip, password: newPassword }),
     ).resolves.toMatchObject({ user: { mustChangePassword: false } });
@@ -248,21 +235,22 @@ describe('SupabaseAuthService integration', () => {
     });
   });
 
-  it('bootstraps one idempotent SuperAdmin with app metadata and an audit event', async () => {
+  it('bootstraps one idempotent SuperAdmin application account and audit event', async () => {
     const result = await bootstrapSuperAdmin(config, {
       nip: 't03-bootstrap-super-admin',
       fullName: 'SuperAdmin Bootstrap Test',
-      password: `Bootstrap-${randomUUID()}!`,
+      password: 'Admin123',
     });
     cleanupUserIds.push(result.id);
     const repeated = await bootstrapSuperAdmin(config, {
       nip: 't03-bootstrap-super-admin',
       fullName: 'SuperAdmin Bootstrap Test',
-      password: `Ignored-${randomUUID()}!`,
+      password: 'Ignore12',
     });
-    const { data: authUser } = await serviceClient.auth.admin.getUserById(
-      result.id,
-    );
+    const { count: accountCount } = await serviceClient
+      .from('app_accounts')
+      .select('*', { count: 'exact', head: true })
+      .eq('profile_id', result.id);
     const { count } = await serviceClient
       .from('audit_logs')
       .select('*', { count: 'exact', head: true })
@@ -271,7 +259,7 @@ describe('SupabaseAuthService integration', () => {
 
     expect(repeated.id).toBe(result.id);
     expect(result.role).toBe('SUPER_ADMIN');
-    expect(authUser.user?.app_metadata['role']).toBe('SUPER_ADMIN');
+    expect(accountCount).toBe(1);
     expect(count).toBe(1);
   });
 });

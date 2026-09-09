@@ -18,6 +18,48 @@ export const DefaultReportPeriodSchema = z.strictObject({
 });
 export type DefaultReportPeriod = z.infer<typeof DefaultReportPeriodSchema>;
 
+export const MonthlyReportReadinessIssueSchema = z.strictObject({
+  code: z.enum([
+    'SCHOOL_SCHEDULE_COVERAGE_MISSING',
+    'SECURITY_SCHEDULE_COVERAGE_MISSING',
+  ]),
+  source: z.enum(['SCHOOL_SCHEDULE', 'SECURITY_SCHEDULE']),
+  missingRanges: z
+    .array(
+      z.strictObject({
+        startDate: LocalDateSchema,
+        endDate: LocalDateSchema,
+      }),
+    )
+    .min(1),
+});
+export type MonthlyReportReadinessIssue = z.infer<
+  typeof MonthlyReportReadinessIssueSchema
+>;
+
+const MonthlyReportReadinessFields = {
+  year: z.number().int().min(2000).max(9999),
+  month: z.number().int().min(1).max(12),
+  startDate: LocalDateSchema,
+  endDate: LocalDateSchema,
+};
+
+export const MonthlyReportReadinessSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('READY'),
+    ...MonthlyReportReadinessFields,
+    issues: z.tuple([]),
+  }),
+  z.strictObject({
+    status: z.literal('BLOCKED'),
+    ...MonthlyReportReadinessFields,
+    issues: z.array(MonthlyReportReadinessIssueSchema).min(1),
+  }),
+]);
+export type MonthlyReportReadiness = z.infer<
+  typeof MonthlyReportReadinessSchema
+>;
+
 export const MonthlyReportDayStatusSchema = z.enum([
   'WORKED',
   'INCOMPLETE',

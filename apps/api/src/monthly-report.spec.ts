@@ -36,6 +36,7 @@ function source(input: Partial<MonthlyReportSource> = {}): MonthlyReportSource {
         teacherId: '50000000-0000-4000-8000-000000000001',
         teacherNip: '1987001',
         teacherFullName: 'Guru Satu',
+        createdDate: '2020-01-01',
       },
     ],
     schedules: [weekday, saturday],
@@ -194,16 +195,19 @@ describe('monthly report calculator', () => {
             teacherId: '50000000-0000-4000-8000-000000000003',
             teacherNip: '3',
             teacherFullName: 'Zahra',
+            createdDate: '2020-01-01',
           },
           {
             teacherId: '50000000-0000-4000-8000-000000000002',
             teacherNip: '2',
             teacherFullName: 'Ayu',
+            createdDate: '2020-01-01',
           },
           {
             teacherId: '50000000-0000-4000-8000-000000000001',
             teacherNip: '1',
             teacherFullName: 'Ayu',
+            createdDate: '2020-01-01',
           },
         ],
         calendarExceptions: [
@@ -397,6 +401,80 @@ describe('monthly report calculator', () => {
     });
   });
 
+  it('blocks a month and reports the exact gap before the first Satpam roster', async () => {
+    const guardId = '50000000-0000-4000-8000-000000000002';
+    const repository = new FakeMonthlyReportRepository(source({
+      teachers: [{
+        teacherId: guardId,
+        teacherNip: 'SATPAM-1',
+        teacherFullName: 'Satpam Satu',
+        role: 'SECURITY_GUARD',
+        createdDate: '2026-09-01',
+      }],
+      securitySettings: [{
+        dayShift: { ...weekday, scheduleType: 'SECURITY_DAY', effectiveFrom: '2026-09-07' },
+        nightShift: { ...weekday, scheduleType: 'SECURITY_NIGHT', effectiveFrom: '2026-09-07' },
+        roster: {
+          dayOneMorningGuardId: guardId,
+          dayOneNightGuardId: '60000000-0000-4000-8000-000000000002',
+          dayOneOffGuardId: '60000000-0000-4000-8000-000000000003',
+          effectiveFrom: '2026-09-07',
+          effectiveTo: null,
+        },
+      }],
+    }));
+
+    const readiness = await service(repository).readiness({ year: 2026, month: 9 });
+
+    expect(readiness).toEqual({
+      status: 'BLOCKED',
+      year: 2026,
+      month: 9,
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      issues: [{
+        code: 'SECURITY_SCHEDULE_COVERAGE_MISSING',
+        source: 'SECURITY_SCHEDULE',
+        missingRanges: [{ startDate: '2026-09-01', endDate: '2026-09-06' }],
+      }],
+    });
+    await expect(
+      service(repository).preview({ year: 2026, month: 9 }),
+    ).rejects.toMatchObject({
+      status: 422,
+      code: 'REPORT_CONFIGURATION_MISSING',
+      details: { issues: readiness.issues },
+    });
+  });
+
+  it('does not require a Satpam roster before the account creation date', async () => {
+    const guardId = '50000000-0000-4000-8000-000000000002';
+    const repository = new FakeMonthlyReportRepository(source({
+      teachers: [{
+        teacherId: guardId,
+        teacherNip: 'SATPAM-1',
+        teacherFullName: 'Satpam Satu',
+        role: 'SECURITY_GUARD',
+        createdDate: '2026-09-07',
+      }],
+      securitySettings: [{
+        dayShift: { ...weekday, scheduleType: 'SECURITY_DAY', effectiveFrom: '2026-09-07' },
+        nightShift: { ...weekday, scheduleType: 'SECURITY_NIGHT', effectiveFrom: '2026-09-07' },
+        roster: {
+          dayOneMorningGuardId: guardId,
+          dayOneNightGuardId: '60000000-0000-4000-8000-000000000002',
+          dayOneOffGuardId: '60000000-0000-4000-8000-000000000003',
+          effectiveFrom: '2026-09-07',
+          effectiveTo: null,
+        },
+      }],
+    }));
+
+    await expect(
+      service(repository).readiness({ year: 2026, month: 9 }),
+    ).resolves.toMatchObject({ status: 'READY', issues: [] });
+  });
+
   it('keeps a started Satpam shift from its attendance snapshot after the same-day roster changes', async () => {
     const guardId = '50000000-0000-4000-8000-000000000001';
     const dayShift: ScheduleRule = {
@@ -423,6 +501,7 @@ describe('monthly report calculator', () => {
         teacherNip: 'SATPAM-1',
         teacherFullName: 'Satpam Satu',
         role: 'SECURITY_GUARD',
+        createdDate: '2020-01-01',
       }],
       attendances: [{
         id: '40000000-0000-4000-8000-000000000003',

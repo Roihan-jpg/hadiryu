@@ -25,6 +25,7 @@ const ProfileRowSchema = z.strictObject({
   nip: z.string(),
   full_name: z.string(),
   role: z.enum(['USER', 'SECURITY_GUARD']),
+  created_at: z.string(),
 });
 const ScheduleRowSchema = z.strictObject({
   id: z.uuid(),
@@ -125,6 +126,18 @@ function time(value: string): string {
   return value.slice(0, 5);
 }
 
+function jakartaDate(value: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(value));
+  const part = (type: 'year' | 'month' | 'day') =>
+    parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
 function nextDate(workDate: string): string {
   const [year, month, day] = workDate.split('-').map(Number);
   return new Date(Date.UTC(year!, month! - 1, day! + 1))
@@ -139,6 +152,7 @@ function toTeacher(value: unknown): MonthlyReportSourceTeacher {
     teacherNip: row.nip,
     teacherFullName: row.full_name,
     role: row.role,
+    createdDate: jakartaDate(row.created_at),
   };
 }
 
@@ -252,7 +266,7 @@ export class SupabaseMonthlyReportRepository
       loadAllPages(async (from, to) =>
         this.client
           .from('profiles')
-          .select('id,nip,full_name,role')
+          .select('id,nip,full_name,role,created_at')
           .in('role', ['USER', 'SECURITY_GUARD'])
           .eq('is_active', true)
           .lt('created_at', `${nextMonthDate}T00:00:00+07:00`)

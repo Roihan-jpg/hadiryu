@@ -36,6 +36,8 @@ async function mockTeacherApi(page: import('@playwright/test').Page): Promise<vo
 
 async function mockGeolocation(page: import('@playwright/test').Page): Promise<void> {
   await page.addInitScript(() => {
+    const state = window as typeof window & { __geolocationWatchCalls: number };
+    state.__geolocationWatchCalls = 0;
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
       value: {
@@ -54,6 +56,44 @@ async function mockGeolocation(page: import('@playwright/test').Page): Promise<v
             timestamp: Date.now(),
             toJSON: () => ({}),
           });
+        },
+        watchPosition(success: PositionCallback): number {
+          state.__geolocationWatchCalls += 1;
+          const watchId = state.__geolocationWatchCalls;
+          window.setTimeout(() => {
+            success({
+              coords: {
+                accuracy: 45,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: -8.1329,
+                longitude: 113.222,
+                speed: null,
+                toJSON: () => ({}),
+              },
+              timestamp: Date.now(),
+              toJSON: () => ({}),
+            });
+            window.setTimeout(() => success({
+              coords: {
+                accuracy: 8,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: -8.1328,
+                longitude: 113.2219,
+                speed: null,
+                toJSON: () => ({}),
+              },
+              timestamp: Date.now(),
+              toJSON: () => ({}),
+            }), 10);
+          }, 0);
+          return watchId;
+        },
+        clearWatch(): void {
+          // Scheduled callbacks are harmless after the accepted sample settles.
         },
       },
     });
@@ -134,6 +174,48 @@ test('open Guru drawer stays above the Leaflet map', async ({ page }) => {
   });
 
   expect(overlapIsCoveredByDrawer).toBe(true);
+});
+
+test('Guru check-in reuses the ready preview without starting another GPS watch', async ({ page }) => {
+  let submittedLocation: unknown;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGeolocation(page);
+  await mockTeacherApi(page);
+  await page.route('**/api/attendance/check-in', async (route) => {
+    submittedLocation = route.request().postDataJSON();
+    await route.fulfill({
+      json: {
+        id: '40000000-0000-4000-8000-000000000007',
+        workDate: today.workDate,
+        checkInAt: '2026-09-05T00:05:00.000Z',
+        latitude: -8.1328,
+        longitude: 113.2219,
+        accuracyMeters: 8,
+        distanceMeters: 0,
+        workStart: today.schedule.workStart,
+        workEnd: today.schedule.workEnd,
+        checkoutClose: today.schedule.checkoutClose,
+        targetMinutes: today.schedule.targetMinutes,
+        arrivalLateMinutes: 5,
+        status: 'CHECKED_IN',
+      },
+    });
+  });
+  await page.goto('/guru');
+
+  await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
+  await expect(page.getByText('Siap digunakan', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Check-in sekarang' }).click();
+
+  await expect(page.getByText(/Check-in berhasil dicatat/)).toBeVisible();
+  expect(submittedLocation).toEqual({
+    latitude: -8.1328,
+    longitude: 113.2219,
+    accuracyMeters: 8,
+  });
+  expect(await page.evaluate(() => (
+    window as typeof window & { __geolocationWatchCalls: number }
+  ).__geolocationWatchCalls)).toBe(1);
 });
 
 test('Guru dashboard uses a circular profile avatar', async ({ page }) => {

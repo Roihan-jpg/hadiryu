@@ -128,7 +128,7 @@ describe('teacher HTTP API', () => {
     authService.authenticatedUser = { ...admin, role: 'USER' };
     const forbidden = await request(testApp(authService).app)
       .get('/api/admin/teachers')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(anonymous.status).toBe(401);
     expect(forbidden.status).toBe(403);
@@ -139,7 +139,7 @@ describe('teacher HTTP API', () => {
     const { app, teacherService } = testApp();
     const response = await request(app)
       .get('/api/admin/teachers?search= Guru &page=2&pageSize=25')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(200);
     expect(teacherService.listInput).toEqual({
@@ -154,20 +154,20 @@ describe('teacher HTTP API', () => {
     const { app, teacherService } = testApp();
     const invalid = await request(app)
       .post('/api/admin/teachers')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({
         nip: '19870001',
         fullName: 'Guru Contoh',
-        initialPassword: 'Sementara-123',
+        initialPassword: 'Guru1234',
         role: 'SUPER_ADMIN',
       });
     const response = await request(app)
       .post('/api/admin/teachers')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({
         nip: '19870001',
         fullName: 'Guru Contoh',
-        initialPassword: 'Sementara-123',
+        initialPassword: 'Guru1234',
       });
 
     expect(invalid.status).toBe(400);
@@ -180,7 +180,7 @@ describe('teacher HTTP API', () => {
     const { app, teacherService } = testApp();
     const response = await request(app)
       .patch(`/api/admin/teachers/${teacher.id}`)
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ nip: '19870002', fullName: 'Nama Baru' });
 
     expect(response.status).toBe(200);
@@ -197,31 +197,33 @@ describe('teacher HTTP API', () => {
     const { app, teacherService } = testApp();
     const response = await request(app)
       .post(`/api/admin/teachers/${teacher.id}/${action}`)
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(200);
     expect(response.body.teacher.isActive).toBe(isActive);
     expect(teacherService.action).toBe(action);
   });
 
-  it('generates a temporary password on the server and returns it once', async () => {
+  it('generates a permanent password on the server and returns it once', async () => {
     const { app, teacherService } = testApp();
     const response = await request(app)
       .post(`/api/admin/teachers/${teacher.id}/reset-password`)
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({});
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
-      temporaryPassword: 'AG-vA7Qm2pR-2026',
-      expiresAt: '2026-08-28T01:00:00.000Z',
-      teacher: { temporaryPasswordExpiresAt: '2026-08-28T01:00:00.000Z' },
+      newPassword: 'Baru1234',
+      teacher: {
+        mustChangePassword: false,
+        temporaryPasswordExpiresAt: null,
+      },
     });
     expect(teacherService.action).toBe('reset-password');
 
     const clientPassword = await request(app)
       .post(`/api/admin/teachers/${teacher.id}/reset-password`)
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ temporaryPassword: 'Password-Baru-123' });
     expect(clientPassword.status).toBe(400);
   });

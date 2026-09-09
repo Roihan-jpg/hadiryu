@@ -5,7 +5,7 @@ import type {
   TodayAttendanceResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
@@ -15,7 +15,6 @@ import { AuthService } from '../../core/auth/auth.service';
 import { queryKeys } from '../../core/query/query-keys';
 import { AttendanceService } from '../attendance/attendance.service';
 import {
-  acquireLocationPreview,
   acquirePreciseLocation,
   GEOLOCATION,
   GEOLOCATION_PERMISSIONS,
@@ -24,6 +23,21 @@ import {
 } from '../attendance/geolocation';
 import { TeacherLocationMap } from './teacher-location-map';
 import { SecurityDashboardService } from './security-dashboard.service';
+
+type LocationAcquisitionState =
+  | 'IDLE'
+  | 'SEARCHING'
+  | 'IMPROVING'
+  | 'READY'
+  | 'STALE'
+  | 'ERROR';
+
+interface CachedAttendanceLocation {
+  location: LocationInput;
+  expiresAt: number;
+}
+
+const LOCATION_CACHE_TTL_MS = 60_000;
 
 type PermissionState =
   | 'IDLE'
@@ -58,6 +72,7 @@ class LocationRequestError extends Error {
 export class HomePage {
   private readonly auth = inject(AuthService);
   private readonly attendanceService = inject(AttendanceService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly geolocation = inject(GEOLOCATION);
   private readonly geolocationPermissions = inject(GEOLOCATION_PERMISSIONS);
   private readonly router = inject(Router);
@@ -87,10 +102,15 @@ export class HomePage {
   );
   readonly locationPreview = signal<LocationInput | null>(null);
   readonly locationAccuracyProgress = signal<LocationAccuracyProgress | null>(null);
+  readonly locationAcquisitionState = signal<LocationAcquisitionState>('IDLE');
   readonly permissionState = signal<PermissionState>('IDLE');
   readonly errorMessage = signal<string | null>(null);
   readonly locationPreviewError = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
+  private locationAcquisition: Promise<LocationInput> | null = null;
+  private cachedAttendanceLocation: CachedAttendanceLocation | null = null;
+  private locationExpiryTimer: ReturnType<typeof setTimeout> | null = null;
+  private destroyed = false;
   readonly workDateLabel = computed(() => {
     const workDate = this.today()?.workDate;
     if (!workDate) return '';
@@ -104,24 +124,27 @@ export class HomePage {
     ? 'Status absensi hari ini tidak dapat dimuat. Periksa koneksi lalu coba lagi.'
     : null);
 
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      this.cachedAttendanceLocation = null;
+      this.clearLocationExpiryTimer();
+    });
+  }
+
   loadToday(): void {
     void this.todayQuery.refetch();
     if (this.user()?.role === 'SECURITY_GUARD') void this.securityDashboardQuery.refetch();
   }
 
   async checkIn(): Promise<void> {
-    if (this.locationRequestInProgress()) return;
+    if (this.actionInProgress()) return;
     this.actionInProgress.set(true);
-    this.permissionState.set('REQUESTING');
     this.errorMessage.set(null);
-    this.locationPreview.set(null);
     this.locationPreviewError.set(null);
     this.successMessage.set(null);
-    this.locationAccuracyProgress.set(null);
     try {
-      const location = await this.currentLocation('ATTENDANCE');
-      this.permissionState.set('GRANTED');
-      this.locationPreview.set(location);
+      const location = await this.attendanceLocation();
       const attendance = await this.attendanceService.checkIn(location);
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
@@ -144,18 +167,13 @@ export class HomePage {
   }
 
   async checkout(): Promise<void> {
-    if (this.locationRequestInProgress()) return;
+    if (this.actionInProgress()) return;
     this.actionInProgress.set(true);
-    this.permissionState.set('REQUESTING');
     this.errorMessage.set(null);
-    this.locationPreview.set(null);
     this.locationPreviewError.set(null);
     this.successMessage.set(null);
-    this.locationAccuracyProgress.set(null);
     try {
-      const location = await this.currentLocation('ATTENDANCE');
-      this.permissionState.set('GRANTED');
-      this.locationPreview.set(location);
+      const location = await this.attendanceLocation();
       const attendance = await this.attendanceService.checkout(location);
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
@@ -199,18 +217,11 @@ export class HomePage {
   }
 
   async showLocationPreview(): Promise<void> {
-    if (this.locationRequestInProgress()) return;
-
-    this.locationPreviewInProgress.set(true);
-    this.locationPreview.set(null);
-    this.locationPreviewError.set(null);
-    this.permissionState.set('REQUESTING');
-    this.locationAccuracyProgress.set(null);
+    if (this.actionInProgress()) return;
     try {
-      const location = await this.currentLocation('PREVIEW');
-      this.permissionState.set('GRANTED');
-      this.locationPreview.set(location);
+      await this.startLocationAcquisition(true);
     } catch (error) {
+      if (this.actionInProgress()) return;
       if (error instanceof LocationRequestError) {
         this.permissionState.set(error.permissionState);
         this.locationPreviewError.set(
@@ -221,8 +232,6 @@ export class HomePage {
           'Lokasi belum dapat ditampilkan. Periksa perangkat lalu coba lagi.',
         );
       }
-    } finally {
-      this.locationPreviewInProgress.set(false);
     }
   }
 
@@ -252,13 +261,100 @@ export class HomePage {
     await this.router.navigateByUrl('/login');
   }
 
-  private async currentLocation(mode: 'ATTENDANCE' | 'PREVIEW'): Promise<LocationInput> {
+  private attendanceLocation(): Promise<LocationInput> {
+    const cachedLocation = this.validCachedLocation();
+    return cachedLocation
+      ? Promise.resolve(cachedLocation)
+      : this.startLocationAcquisition(false);
+  }
+
+  private startLocationAcquisition(forceRefresh: boolean): Promise<LocationInput> {
+    if (this.locationAcquisition) return this.locationAcquisition;
+    if (!forceRefresh) {
+      const cachedLocation = this.validCachedLocation();
+      if (cachedLocation) return Promise.resolve(cachedLocation);
+    }
+
+    this.clearCachedLocation();
+    this.locationPreviewInProgress.set(true);
+    this.locationPreviewError.set(null);
+    this.permissionState.set('REQUESTING');
+    this.locationAccuracyProgress.set(null);
+    this.locationAcquisitionState.set('SEARCHING');
+
+    const acquisition = this.currentLocation()
+      .then((location) => {
+        this.cacheReadyLocation(location);
+        return location;
+      })
+      .catch((error: unknown) => {
+        this.locationAcquisitionState.set('ERROR');
+        throw error;
+      })
+      .finally(() => {
+        if (this.locationAcquisition === acquisition) {
+          this.locationAcquisition = null;
+          this.locationPreviewInProgress.set(false);
+        }
+      });
+    this.locationAcquisition = acquisition;
+    return acquisition;
+  }
+
+  private validCachedLocation(): LocationInput | null {
+    const cached = this.cachedAttendanceLocation;
+    if (!cached) return null;
+    if (Date.now() >= cached.expiresAt) {
+      this.expireCachedLocation(cached);
+      return null;
+    }
+    return cached.location;
+  }
+
+  private cacheReadyLocation(location: LocationInput): void {
+    if (this.destroyed) return;
+    const cached = {
+      location,
+      expiresAt: Date.now() + LOCATION_CACHE_TTL_MS,
+    } satisfies CachedAttendanceLocation;
+    this.cachedAttendanceLocation = cached;
+    this.permissionState.set('GRANTED');
+    this.locationPreview.set(location);
+    this.locationAcquisitionState.set('READY');
+    this.clearLocationExpiryTimer();
+    this.locationExpiryTimer = setTimeout(
+      () => this.expireCachedLocation(cached),
+      LOCATION_CACHE_TTL_MS,
+    );
+  }
+
+  private expireCachedLocation(cached: CachedAttendanceLocation): void {
+    if (this.cachedAttendanceLocation !== cached) return;
+    this.cachedAttendanceLocation = null;
+    this.clearLocationExpiryTimer();
+    if (this.locationAcquisitionState() === 'READY') {
+      this.locationAcquisitionState.set('STALE');
+    }
+  }
+
+  private clearCachedLocation(): void {
+    this.cachedAttendanceLocation = null;
+    this.clearLocationExpiryTimer();
+  }
+
+  private clearLocationExpiryTimer(): void {
+    if (this.locationExpiryTimer === null) return;
+    clearTimeout(this.locationExpiryTimer);
+    this.locationExpiryTimer = null;
+  }
+
+  private async currentLocation(): Promise<LocationInput> {
     if (!this.geolocation) {
       throw new LocationRequestError('UNAVAILABLE');
     }
 
     try {
-      return await this.requestCurrentLocation(mode, true);
+      return await this.requestCurrentLocation(true);
     } catch (error) {
       if (
         !(error instanceof LocationRequestError) ||
@@ -269,7 +365,7 @@ export class HomePage {
       }
 
       try {
-        return await this.requestCurrentLocation(mode, false);
+        return await this.requestCurrentLocation(false);
       } catch (fallbackError) {
         if (
           fallbackError instanceof LocationRequestError &&
@@ -283,13 +379,9 @@ export class HomePage {
   }
 
   private requestCurrentLocation(
-    mode: 'ATTENDANCE' | 'PREVIEW',
     enableHighAccuracy: boolean,
   ): Promise<LocationInput> {
-    const request = mode === 'PREVIEW'
-      ? acquireLocationPreview(this.geolocation!, enableHighAccuracy)
-      : this.acquireAttendanceLocation(enableHighAccuracy);
-    return request.catch((error: unknown) => {
+    return this.acquireAttendanceLocation(enableHighAccuracy).catch((error: unknown) => {
       if (error instanceof PreciseLocationError) {
         throw new LocationRequestError(error.state, error.bestAccuracyMeters);
       }
@@ -303,7 +395,12 @@ export class HomePage {
     return acquirePreciseLocation(
       this.geolocation!,
       maxAccuracyMeters,
-      (progress) => this.locationAccuracyProgress.set(progress),
+      (progress) => {
+        if (this.destroyed) return;
+        this.locationAccuracyProgress.set(progress);
+        this.locationPreview.set(progress.location);
+        this.locationAcquisitionState.set('IMPROVING');
+      },
       enableHighAccuracy,
     );
   }

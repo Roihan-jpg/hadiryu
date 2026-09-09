@@ -1,4 +1,8 @@
-import type { DefaultReportPeriod, MonthlyReportPreview } from '@absensi/contracts';
+import type {
+  DefaultReportPeriod,
+  MonthlyReportPreview,
+  MonthlyReportReadiness,
+} from '@absensi/contracts';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
@@ -19,10 +23,21 @@ export class ReportsService {
   }
 
   async preview(year: number, month: number): Promise<MonthlyReportPreview> {
-    return this.queries.get(queryKeys.reports(`${year}-${month}`), async () => {
+    return this.queries.get(queryKeys.reports(`${year}-${month}-preview`), async () => {
     const value = await firstValueFrom(this.http.get<unknown>(`/api/admin/reports/monthly/${year}/${month}/preview`, { withCredentials: true }));
     const { MonthlyReportPreviewSchema } = await import('@absensi/contracts');
     return MonthlyReportPreviewSchema.parse(value);
+    });
+  }
+
+  async readiness(year: number, month: number): Promise<MonthlyReportReadiness> {
+    return this.queries.get(queryKeys.reports(`${year}-${month}-readiness`), async () => {
+      const value = await firstValueFrom(this.http.get<unknown>(
+        `/api/admin/reports/monthly/${year}/${month}/readiness`,
+        { withCredentials: true },
+      ));
+      const { MonthlyReportReadinessSchema } = await import('@absensi/contracts');
+      return MonthlyReportReadinessSchema.parse(value);
     });
   }
 

@@ -147,10 +147,15 @@
         @if (todayErrorMessage()) {
           <p class="feedback feedback--error" role="alert">{{ todayErrorMessage() }}</p>
         }
-        @if (actionInProgress() && locationAccuracyProgress(); as progress) {
+        @if (actionInProgress() && locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
           <div class="gps-progress" aria-live="polite">
             <span class="gps-pulse" aria-hidden="true"></span>
-            <div><strong>Mencari sinyal GPS presisi…</strong><small>Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</small></div>
+            <div><strong>Meningkatkan akurasi lokasi…</strong><small>Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</small></div>
+          </div>
+        } @else if (actionInProgress() && locationPreviewInProgress()) {
+          <div class="gps-progress" role="status" aria-live="polite">
+            <span class="gps-pulse" aria-hidden="true"></span>
+            <div><strong>Mencari lokasi…</strong><small>Tindakan akan dikirim otomatis setelah lokasi siap.</small></div>
           </div>
         }
         @if (successMessage()) {
@@ -160,14 +165,16 @@
         @if (!today() && todayErrorMessage()) {
           <button mat-stroked-button type="button" (click)="loadToday()">Coba lagi</button>
         } @else if (today()?.state === 'READY_TO_CHECK_IN') {
-          <button mat-flat-button class="primary-action" data-action="check-in" type="button" [disabled]="locationRequestInProgress()" (click)="checkIn()">
-            {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Check-in sekarang' }}
+          <button mat-flat-button class="primary-action" data-action="check-in" type="button" [disabled]="actionInProgress()" (click)="checkIn()">
+            {{ actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan check-in…') : 'Check-in sekarang' }}
           </button>
         } @else if (today()?.state === 'CHECKED_IN') {
-          <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="locationRequestInProgress()" (click)="checkout()">
-            {{ actionInProgress() ? 'Memeriksa lokasi…' : 'Checkout sekarang' }}
+          <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="actionInProgress()" (click)="checkout()">
+            {{ actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan checkout…') : 'Checkout sekarang' }}
           </button>
-          <p class="permission-note">Lokasi presisi baru diminta setelah tombol ditekan.</p>
+        }
+        @if (today()?.state === 'READY_TO_CHECK_IN' || today()?.state === 'CHECKED_IN') {
+          <p class="permission-note">Gunakan lokasi yang siap atau tekan tombol absensi untuk mencari lokasi secara otomatis.</p>
         }
       }
     </section>
@@ -175,7 +182,17 @@
     <section class="location-panel ledger-panel" aria-labelledby="location-title">
       <header>
         <div><p class="board-kicker">Pratinjau perangkat</p><h2 id="location-title">Lokasi saya</h2></div>
-        @if (locationPreview()) { <span class="status-chip success">Terbaca</span> }
+        @if (locationAcquisitionState() === 'READY') {
+          <span class="status-chip success">Siap digunakan</span>
+        } @else if (locationAcquisitionState() === 'STALE') {
+          <span class="status-chip warning">Perlu diperbarui</span>
+        } @else if (locationAcquisitionState() === 'IMPROVING') {
+          <span class="status-chip">Meningkatkan akurasi</span>
+        } @else if (locationAcquisitionState() === 'SEARCHING') {
+          <span class="status-chip">Mencari lokasi</span>
+        } @else if (locationPreview()) {
+          <span class="status-chip warning">Belum siap</span>
+        }
       </header>
 
       @if (locationPreview(); as location) {
@@ -185,7 +202,13 @@
           <div><dt>Longitude</dt><dd>{{ coordinateText(location.longitude) }}</dd></div>
           <div><dt>Akurasi</dt><dd>{{ accuracyText(location.accuracyMeters) }}</dd></div>
         </dl>
-        <p class="map-note">Pratinjau ini tidak dikirim sebagai absensi dan tidak menentukan hasil geofence.</p>
+        @if (locationAcquisitionState() === 'READY') {
+          <p class="map-note">Lokasi ini siap dipakai untuk check-in atau checkout selama 60 detik. Backend tetap memvalidasi geofence.</p>
+        } @else if (locationAcquisitionState() === 'STALE') {
+          <p class="map-note">Lokasi tetap ditampilkan, tetapi sudah kedaluwarsa dan akan diperbarui sebelum absensi.</p>
+        } @else {
+          <p class="map-note">Peta menampilkan sampel terbaik. Absensi hanya dikirim setelah akurasi memenuhi syarat.</p>
+        }
       } @else {
         <div class="location-empty">
           <span aria-hidden="true">⌖</span>
@@ -196,12 +219,14 @@
       @if (locationPreviewError()) {
         <p class="feedback feedback--error" role="alert">{{ locationPreviewError() }}</p>
       }
-      @if (locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
+      @if (!actionInProgress() && locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
         <p class="permission-note" aria-live="polite">Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</p>
+      } @else if (!actionInProgress() && locationPreviewInProgress()) {
+        <p class="permission-note" role="status" aria-live="polite">Mencari lokasi perangkat…</p>
       }
 
       <button mat-stroked-button data-action="location-preview" type="button" [disabled]="locationRequestInProgress()" (click)="showLocationPreview()">
-        @if (locationPreviewInProgress()) { Memeriksa lokasi… } @else if (locationPreview()) { Perbarui lokasi } @else { Tampilkan lokasi saya }
+        @if (locationPreviewInProgress()) { Meningkatkan akurasi… } @else if (locationPreview()) { Perbarui lokasi } @else { Tampilkan lokasi saya }
       </button>
     </section>
 

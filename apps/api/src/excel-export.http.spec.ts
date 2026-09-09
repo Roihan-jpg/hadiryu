@@ -69,7 +69,7 @@ describe('Excel monthly report export HTTP API', () => {
 
     const result = await request(app)
       .post('/api/admin/reports/monthly/2026/8/export')
-      .set('Cookie', 'absensi_access=token')
+      .set('Cookie', 'absensi_session=token')
       .buffer(true)
       .parse((response, callback) => {
         const chunks: Buffer[] = [];
@@ -95,7 +95,7 @@ describe('Excel monthly report export HTTP API', () => {
 
     const result = await request(app)
       .post('/api/admin/reports/monthly/2026/13/export')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
 
     expect(result.status).toBe(400);
     expect(result.body.error.code).toBe('VALIDATION_ERROR');
@@ -107,7 +107,7 @@ describe('Excel monthly report export HTTP API', () => {
 
     const result = await request(app)
       .post('/api/admin/reports/monthly/2026/8/export')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
 
     expect(result.status).toBe(403);
     expect(excelExportService.calls).toEqual([]);

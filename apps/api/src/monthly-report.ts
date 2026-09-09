@@ -1,12 +1,15 @@
 import {
   DefaultReportPeriodSchema,
   MonthlyReportPreviewSchema,
+  MonthlyReportReadinessSchema,
   MonthlyReportParamsSchema,
   type CalendarException,
   type LeaveType,
   type MonthlyReportDay,
   type MonthlyReportParams,
   type MonthlyReportPreview,
+  type MonthlyReportReadiness,
+  type MonthlyReportReadinessIssue,
   type ScheduleRule,
   type SecurityRoster,
 } from '@absensi/contracts';
@@ -26,6 +29,7 @@ export interface MonthlyReportSourceTeacher {
   teacherNip: string;
   teacherFullName: string;
   role?: 'USER' | 'SECURITY_GUARD';
+  createdDate: string;
 }
 
 interface MonthlyReportSourceAttendanceBase {
@@ -90,6 +94,7 @@ export interface MonthlyReportRepository {
 }
 
 export interface MonthlyReportService {
+  readiness(input: MonthlyReportParams): Promise<MonthlyReportReadiness>;
   preview(input: MonthlyReportParams): Promise<MonthlyReportPreview>;
 }
 
@@ -128,6 +133,118 @@ function effectiveSchedule(
   );
 }
 
+function effectiveSecuritySettings(
+  source: MonthlyReportSource,
+  workDate: string,
+): NonNullable<MonthlyReportSource['securitySettings']>[number] | null {
+  return (
+    source.securitySettings
+      ?.filter(
+        (item) =>
+          item.roster.effectiveFrom <= workDate &&
+          (item.roster.effectiveTo === null || workDate <= item.roster.effectiveTo),
+      )
+      .sort((left, right) =>
+        right.roster.effectiveFrom.localeCompare(left.roster.effectiveFrom),
+      )[0] ?? null
+  );
+}
+
+function nextLocalDate(workDate: string): string {
+  const [year, month, day] = workDate.split('-').map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day! + 1))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function missingRanges(
+  dates: readonly string[],
+): Array<{ startDate: string; endDate: string }> {
+  const ranges: Array<{ startDate: string; endDate: string }> = [];
+  for (const workDate of dates) {
+    const current = ranges.at(-1);
+    if (current && nextLocalDate(current.endDate) === workDate) {
+      current.endDate = workDate;
+    } else {
+      ranges.push({ startDate: workDate, endDate: workDate });
+    }
+  }
+  return ranges;
+}
+
+function isRelevantOnDate(
+  teacher: MonthlyReportSourceTeacher,
+  workDate: string,
+): boolean {
+  return teacher.createdDate <= workDate;
+}
+
+function buildReadiness(
+  input: MonthlyReportParams,
+  dates: readonly string[],
+  source: MonthlyReportSource,
+): MonthlyReportReadiness {
+  const exceptionByDate = new Map(
+    source.calendarExceptions.map((exception) => [exception.workDate, exception]),
+  );
+  const schoolMissingDates = dates.filter((workDate) => {
+    const hasRelevantTeacher = source.teachers.some(
+      (teacher) =>
+        teacher.role !== 'SECURITY_GUARD' && isRelevantOnDate(teacher, workDate),
+    );
+    if (!hasRelevantTeacher) return false;
+    const calendarDay = resolveCalendarDay(
+      workDate,
+      exceptionByDate.get(workDate) ?? null,
+    );
+    return (
+      calendarDay.isWorkingDay &&
+      calendarDay.scheduleType !== null &&
+      effectiveSchedule(source.schedules, calendarDay.scheduleType, workDate) === null
+    );
+  });
+  const securityMissingDates = dates.filter((workDate) => {
+    const hasRelevantGuard = source.teachers.some(
+      (teacher) =>
+        teacher.role === 'SECURITY_GUARD' && isRelevantOnDate(teacher, workDate),
+    );
+    return hasRelevantGuard && effectiveSecuritySettings(source, workDate) === null;
+  });
+  const issues: MonthlyReportReadinessIssue[] = [];
+  if (schoolMissingDates.length > 0) {
+    issues.push({
+      code: 'SCHOOL_SCHEDULE_COVERAGE_MISSING',
+      source: 'SCHOOL_SCHEDULE',
+      missingRanges: missingRanges(schoolMissingDates),
+    });
+  }
+  if (securityMissingDates.length > 0) {
+    issues.push({
+      code: 'SECURITY_SCHEDULE_COVERAGE_MISSING',
+      source: 'SECURITY_SCHEDULE',
+      missingRanges: missingRanges(securityMissingDates),
+    });
+  }
+  return MonthlyReportReadinessSchema.parse({
+    status: issues.length === 0 ? 'READY' : 'BLOCKED',
+    year: input.year,
+    month: input.month,
+    startDate: dates[0]!,
+    endDate: dates.at(-1)!,
+    issues,
+  });
+}
+
+function assertReportReady(readiness: MonthlyReportReadiness): void {
+  if (readiness.status === 'READY') return;
+  throw new AppError(
+    422,
+    'REPORT_CONFIGURATION_MISSING',
+    'Konfigurasi laporan belum tersedia untuk seluruh periode',
+    { issues: readiness.issues },
+  );
+}
+
 function configurationMissing(message: string, workDate: string): AppError {
   return new AppError(422, 'REPORT_CONFIGURATION_MISSING', message, { workDate });
 }
@@ -142,7 +259,15 @@ function resolveReportDays(
   return dates.map((workDate) => {
     const exception = exceptionByDate.get(workDate) ?? null;
     const calendarDay = resolveCalendarDay(workDate, exception);
-    if (!calendarDay.isWorkingDay || calendarDay.scheduleType === null) {
+    const hasRelevantTeacher = source.teachers.some(
+      (teacher) =>
+        teacher.role !== 'SECURITY_GUARD' && isRelevantOnDate(teacher, workDate),
+    );
+    if (
+      !hasRelevantTeacher ||
+      !calendarDay.isWorkingDay ||
+      calendarDay.scheduleType === null
+    ) {
       return {
         workDate,
         schedule: null,
@@ -176,11 +301,28 @@ function resolveTeacherReportDays(
   teacher: MonthlyReportSourceTeacher,
   schoolDays: readonly ResolvedReportDay[],
 ): ResolvedReportDay[] {
-  if (teacher.role !== 'SECURITY_GUARD') return [...schoolDays];
+  if (teacher.role !== 'SECURITY_GUARD') {
+    return schoolDays.map((day) =>
+      isRelevantOnDate(teacher, day.workDate)
+        ? day
+        : {
+            workDate: day.workDate,
+            schedule: null,
+            scheduleType: null,
+            calendarExceptionName: null,
+          },
+    );
+  }
   return dates.map((workDate) => {
-    const settings = source.securitySettings
-      ?.filter((item) => item.roster.effectiveFrom <= workDate && (item.roster.effectiveTo === null || workDate <= item.roster.effectiveTo))
-      .sort((left, right) => right.roster.effectiveFrom.localeCompare(left.roster.effectiveFrom))[0];
+    if (!isRelevantOnDate(teacher, workDate)) {
+      return {
+        workDate,
+        schedule: null,
+        scheduleType: null,
+        calendarExceptionName: null,
+      };
+    }
+    const settings = effectiveSecuritySettings(source, workDate);
     if (!settings) throw configurationMissing('Jadwal Satpam belum tersedia untuk periode laporan', workDate);
     const assignment = resolveSecurityAssignment(settings.roster, workDate, teacher.teacherId);
     if (assignment.status === 'OFF' || assignment.status === 'UNASSIGNED') {
@@ -343,11 +485,17 @@ export function createMonthlyReportService(
   now: () => Date = () => new Date(),
 ): MonthlyReportService {
   return {
+    async readiness(input) {
+      const dates = reportDates(input.year, input.month);
+      const source = await repository.loadMonth(dates[0]!, dates.at(-1)!);
+      return buildReadiness(input, dates, source);
+    },
     async preview(input) {
       const dates = reportDates(input.year, input.month);
       const startDate = dates[0]!;
       const endDate = dates.at(-1)!;
       const source = await repository.loadMonth(startDate, endDate);
+      assertReportReady(buildReadiness(input, dates, source));
       const pendingLeaveCount = source.leaves.filter(
         (leave) => leave.status === 'PENDING',
       ).length;
@@ -440,7 +588,10 @@ export function createMonthlyReportService(
             0,
           );
           return {
-            ...teacher,
+            teacherId: teacher.teacherId,
+            teacherNip: teacher.teacherNip,
+            teacherFullName: teacher.teacherFullName,
+            role: teacher.role,
             days,
             totalWorkDeficitMinutes,
             lateDayCount,
@@ -476,6 +627,27 @@ export function registerMonthlyReportRoutes(
       }).formatToParts(new Date());
       const value = (type: 'year' | 'month') => Number(parts.find((part) => part.type === type)?.value);
       response.status(200).json(DefaultReportPeriodSchema.parse({ year: value('year'), month: value('month') }));
+    },
+  );
+  app.get(
+    '/api/admin/reports/monthly/:year/:month/readiness',
+    createSessionGuard(authService),
+    requireRole('SUPER_ADMIN'),
+    async (request, response, next) => {
+      try {
+        const parsed = MonthlyReportParamsSchema.safeParse(request.params);
+        if (!parsed.success) {
+          throw new AppError(
+            400,
+            'VALIDATION_ERROR',
+            'Periode laporan bulanan tidak valid',
+            parsed.error.flatten(),
+          );
+        }
+        response.status(200).json(await monthlyReportService.readiness(parsed.data));
+      } catch (error) {
+        next(error);
+      }
     },
   );
   app.get(

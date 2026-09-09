@@ -17,12 +17,12 @@ export class PreciseLocationError extends Error {
 }
 
 export interface LocationAccuracyProgress {
+  location: LocationInput;
   bestAccuracyMeters: number;
   maxAccuracyMeters: number;
 }
 
 const LOCATION_SEARCH_TIMEOUT_MS = 30_000;
-const LOCATION_PREVIEW_TIMEOUT_MS = 10_000;
 
 function locationInput(position: GeolocationPosition): LocationInput {
   return {
@@ -38,23 +38,6 @@ function providerError(error: GeolocationPositionError): PreciseLocationError {
   );
 }
 
-export function acquireLocationPreview(
-  geolocation: Geolocation,
-  enableHighAccuracy = true,
-): Promise<LocationInput> {
-  return new Promise((resolve, reject) => {
-    geolocation.getCurrentPosition(
-      (position) => resolve(locationInput(position)),
-      (error) => reject(providerError(error)),
-      {
-        enableHighAccuracy,
-        maximumAge: 0,
-        timeout: LOCATION_PREVIEW_TIMEOUT_MS,
-      },
-    );
-  });
-}
-
 export function acquirePreciseLocation(
   geolocation: Geolocation,
   maxAccuracyMeters: number,
@@ -66,6 +49,11 @@ export function acquirePreciseLocation(
       geolocation.getCurrentPosition(
         (position) => {
           const location = locationInput(position);
+          onProgress?.({
+            location,
+            bestAccuracyMeters: location.accuracyMeters,
+            maxAccuracyMeters,
+          });
           if (location.accuracyMeters <= maxAccuracyMeters) resolve(location);
           else reject(new PreciseLocationError('INACCURATE', location.accuracyMeters));
         },
@@ -99,6 +87,7 @@ export function acquirePreciseLocation(
         if (!best || candidate.accuracyMeters < best.accuracyMeters) {
           best = candidate;
           onProgress?.({
+            location: candidate,
             bestAccuracyMeters: candidate.accuracyMeters,
             maxAccuracyMeters,
           });

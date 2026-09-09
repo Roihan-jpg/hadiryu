@@ -108,7 +108,7 @@ describe('security audit HTTP baseline', () => {
     const response = await request(createApp({ logger }))
       .get('/api/auth/me')
       .set('X-Request-ID', 'req_security-13')
-      .set('Cookie', 'absensi_access=secret-cookie');
+      .set('Cookie', 'absensi_session=secret-cookie');
 
     expect(response.status).toBe(500);
     expect(response.headers['x-request-id']).toBe('req_security-13');
@@ -141,7 +141,7 @@ describe('security audit HTTP baseline', () => {
     const response = await request(createApp({ authService, logger }))
       .post('/api/auth/login')
       .set('X-Request-ID', 'invalid request id with spaces')
-      .send({ nip: '1987013', password: 'submitted-password' });
+      .send({ nip: '1987013', password: 'Submit12' });
 
     expect(response.status).toBe(500);
     expect(response.body).toEqual({
@@ -154,7 +154,7 @@ describe('security audit HTTP baseline', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     const serialized = JSON.stringify(logger.records);
-    expect(serialized).not.toContain('submitted-password');
+    expect(serialized).not.toContain('Submit12');
     expect(serialized).not.toContain('server-secret');
     expect(serialized).not.toContain('upstream-token');
     expect(logger.records).toEqual(
@@ -204,7 +204,7 @@ describe('security audit HTTP baseline', () => {
     const rejectedCsrf = await request(app)
       .post('/api/auth/login')
       .set('Origin', 'https://absensi.example.sch.id')
-      .send({ nip: '1987013', password: 'valid-password' });
+      .send({ nip: '1987013', password: 'Valid123' });
     expect(rejectedCsrf.status).toBe(403);
     expect(rejectedCsrf.body.error.code).toBe('CSRF_PROTECTION_REQUIRED');
 
@@ -212,7 +212,7 @@ describe('security audit HTTP baseline', () => {
       .post('/api/auth/login')
       .set('Origin', 'https://absensi.example.sch.id')
       .set('X-Requested-With', 'XMLHttpRequest')
-      .send({ nip: '1987013', password: 'valid-password' });
+      .send({ nip: '1987013', password: 'Valid123' });
 
     expect(accepted.status).toBe(200);
     expect(accepted.headers['access-control-allow-origin']).toBe(
@@ -223,12 +223,9 @@ describe('security audit HTTP baseline', () => {
     expect(accepted.headers['x-frame-options']).toBe('DENY');
     expect(accepted.headers['referrer-policy']).toBe('no-referrer');
     expect(accepted.headers['x-powered-by']).toBeUndefined();
-    expect(accepted.headers['set-cookie']).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/^absensi_access=.*;.*HttpOnly.*Secure.*SameSite=Strict/i),
-        expect.stringMatching(/^absensi_refresh=.*;.*HttpOnly.*Secure.*SameSite=Strict/i),
-      ]),
-    );
+    expect(accepted.headers['set-cookie']).toEqual([
+      expect.stringMatching(/^absensi_session=.*;.*HttpOnly.*Secure.*SameSite=Strict/i),
+    ]);
   });
 
   it('rate limits authentication with a safe structured 429 response', async () => {
@@ -246,7 +243,7 @@ describe('security audit HTTP baseline', () => {
         .post('/api/auth/login')
         .set('Origin', 'https://absensi.example.sch.id')
         .set('X-Requested-With', 'XMLHttpRequest')
-        .send({ nip: '1987013', password: 'rate-limit-password' });
+        .send({ nip: '1987013', password: 'Rate1234' });
 
     expect((await sendLogin()).status).toBe(200);
     const limited = await sendLogin();
@@ -259,7 +256,7 @@ describe('security audit HTTP baseline', () => {
       },
     });
     expect(limited.headers['retry-after']).toBeDefined();
-    expect(JSON.stringify(logger.records)).not.toContain('rate-limit-password');
+    expect(JSON.stringify(logger.records)).not.toContain('Rate1234');
   });
 
   it('rate limits attendance writes without calling the domain service again', async () => {
@@ -284,7 +281,7 @@ describe('security audit HTTP baseline', () => {
         .post('/api/attendance/check-in')
         .set('Origin', 'https://absensi.example.sch.id')
         .set('X-Requested-With', 'XMLHttpRequest')
-        .set('Cookie', 'absensi_access=access-token')
+        .set('Cookie', 'absensi_session=access-token')
         .send({ latitude: -6.2, longitude: 106.816666, accuracyMeters: 10 });
 
     expect((await checkIn()).status).toBe(200);
@@ -300,7 +297,7 @@ describe('security audit HTTP baseline', () => {
       createApp({ authService: new FakeAuthService() }),
     )
       .get('/api/admin/teachers')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(403);
     expect(response.body).toEqual({

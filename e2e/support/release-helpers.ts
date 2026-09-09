@@ -61,9 +61,9 @@ export async function changeInitialPassword(
     await page.goto('/change-password');
   }
   await expect(page).toHaveURL(/\/change-password$/);
-  await page.getByLabel('Password saat ini').fill(currentPassword);
+  await page.getByLabel('Password saat ini', { exact: true }).fill(currentPassword);
   await page.getByLabel('Password baru', { exact: true }).fill(newPassword);
-  await page.getByLabel('Ulangi password baru').fill(newPassword);
+  await page.getByLabel('Ulangi password baru', { exact: true }).fill(newPassword);
   await page.getByRole('button', { name: 'Simpan password baru' }).click();
   await expect(page).not.toHaveURL(/\/change-password$/);
 }

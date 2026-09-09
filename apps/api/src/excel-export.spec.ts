@@ -8,11 +8,13 @@ import type {
   MonthlyReportDay,
   MonthlyReportParams,
   MonthlyReportPreview,
+  MonthlyReportReadiness,
   MonthlyReportTeacher,
 } from '@absensi/contracts';
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from './auth.js';
 import {
   createExcelExportService,
   type ExcelExportAudit,
@@ -153,6 +155,17 @@ function preview(year: number, month: number): MonthlyReportPreview {
 class FakeMonthlyReportService implements MonthlyReportService {
   constructor(private readonly result: MonthlyReportPreview) {}
   calls: MonthlyReportParams[] = [];
+
+  async readiness(input: MonthlyReportParams): Promise<MonthlyReportReadiness> {
+    return {
+      status: 'READY',
+      year: input.year,
+      month: input.month,
+      startDate: this.result.startDate,
+      endDate: this.result.endDate,
+      issues: [],
+    };
+  }
 
   async preview(input: MonthlyReportParams): Promise<MonthlyReportPreview> {
     this.calls.push(input);
@@ -309,6 +322,72 @@ describe('Excel monthly report exporter', () => {
     expect(
       (sheet.getCell('B4').fill as ExcelJS.FillPattern).fgColor?.argb,
     ).toBe('FFFF0000');
+  });
+
+  it('renders mixed Guru and Satpam slots with independent day styles', async () => {
+    const report = preview(2026, 8);
+    const guard = teacher(2026, 8, {
+      teacherId: '50000000-0000-4000-8000-000000000002',
+      teacherNip: 'SATPAM-1',
+      teacherFullName: 'Budi',
+      role: 'SECURITY_GUARD',
+    });
+    guard.days = reportDates(2026, 8).map(nonWorkingDay);
+    guard.days[1] = {
+      workDate: '2026-08-02',
+      scheduleType: 'SECURITY_NIGHT',
+      status: 'WORKED',
+      attendanceId: '40000000-0000-4000-8000-000000000099',
+      checkInAt: '2026-08-02T11:00:00.000Z',
+      checkOutAt: '2026-08-03T00:00:00.000Z',
+      workStart: '18:00',
+      workEnd: '06:00',
+      targetMinutes: 720,
+      workedMinutes: 720,
+      arrivalLateMinutes: 0,
+      workDeficitMinutes: 0,
+      leaveType: null,
+      calendarExceptionName: null,
+    };
+    report.teachers.push(guard);
+    const service = createExcelExportService(
+      new FakeMonthlyReportService(report),
+      new FakeAuditRepository(),
+      { templatePath },
+    );
+
+    const result = await service.export({ year: 2026, month: 8 }, teacherId);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(toArrayBuffer(result.buffer));
+    const sheet = workbook.getWorksheet('Sheet1')!;
+
+    expect(sheet.getCell('G1').value).toBe('Budi (Satpam)');
+    expect(sheet.getCell('A4').fill).toEqual(sheet.getCell('B4').fill);
+    expect(sheet.getCell('G4').fill).toEqual(sheet.getCell('B6').fill);
+    expect(sheet.getCell('G4').fill).not.toEqual(sheet.getCell('B4').fill);
+    expect(excelMinutes(sheet.getCell('G4').value)).toBe(18 * 60);
+    expect(excelMinutes(sheet.getCell('H4').value)).toBe(7 * 60);
+  });
+
+  it('keeps direct export fail-closed when report configuration is incomplete', async () => {
+    const calculator = new FakeMonthlyReportService(preview(2026, 9));
+    calculator.preview = async () => {
+      throw new AppError(
+        422,
+        'REPORT_CONFIGURATION_MISSING',
+        'Konfigurasi laporan belum tersedia untuk seluruh periode',
+      );
+    };
+    const audit = new FakeAuditRepository();
+    const service = createExcelExportService(calculator, audit, { templatePath });
+
+    await expect(
+      service.export({ year: 2026, month: 9 }, teacherId),
+    ).rejects.toMatchObject({
+      status: 422,
+      code: 'REPORT_CONFIGURATION_MISSING',
+    });
+    expect(audit.calls).toEqual([]);
   });
 
   it('uses all 56 built-in slots and adds one styled four-teacher block for teacher 57', async () => {

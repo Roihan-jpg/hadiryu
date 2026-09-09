@@ -200,6 +200,13 @@ const unavailableAdminAttendanceService: AdminAttendanceService = {
 };
 
 const unavailableMonthlyReportService: MonthlyReportService = {
+  async readiness() {
+    throw new AppError(
+      500,
+      'MONTHLY_REPORT_NOT_CONFIGURED',
+      'Laporan bulanan belum dikonfigurasi',
+    );
+  },
   async preview() {
     throw new AppError(
       500,

@@ -117,8 +117,27 @@ select set_config(
   true
 );
 
-select is((select count(*) from public.profiles), 2::bigint, 'SUPER_ADMIN can read profiles');
-select is((select count(*) from public.audit_logs), 1::bigint, 'SUPER_ADMIN can read audit logs');
+select is(
+  (
+    select count(*)
+    from public.profiles
+    where id in (
+      '00000000-0000-0000-0000-000000000101',
+      '00000000-0000-0000-0000-000000000102'
+    )
+  ),
+  2::bigint,
+  'SUPER_ADMIN can read profiles'
+);
+select is(
+  (
+    select count(*)
+    from public.audit_logs
+    where action = 'SECURITY_REGRESSION_FIXTURE'
+  ),
+  1::bigint,
+  'SUPER_ADMIN can read audit logs'
+);
 
 select * from finish();
 rollback;

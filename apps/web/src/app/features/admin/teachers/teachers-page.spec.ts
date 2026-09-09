@@ -92,6 +92,18 @@ describe('TeachersPage', () => {
     expect(fixture.nativeElement.querySelector('.table-frame')?.tabIndex).toBe(0);
   });
 
+  it('renders a complete mobile account card without relying on horizontal scrolling', () => {
+    const mobileList = fixture.nativeElement.querySelector('.mobile-account-list');
+    const mobileCard = mobileList?.querySelector('.mobile-account-card');
+
+    expect(mobileList).toBeTruthy();
+    expect(mobileCard?.textContent).toContain('Guru Contoh');
+    expect(mobileCard?.textContent).toContain('19870001');
+    expect(mobileCard?.textContent).toContain('Belum diisi');
+    expect(mobileCard?.textContent).toContain('Aktif');
+    expect(mobileCard?.querySelectorAll('.mobile-account-actions button')).toHaveLength(3);
+  });
+
   it('restarts at page one when applying a trimmed search', async () => {
     fixture.componentInstance.searchControl.setValue('  Siti  ');
     await fixture.componentInstance.applySearch();

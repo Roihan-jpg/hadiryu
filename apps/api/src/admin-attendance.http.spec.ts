@@ -130,7 +130,7 @@ describe('admin attendance HTTP API', () => {
       .get(
         '/api/admin/attendance?workDate=2026-08-25&status=LATE&search=Guru&page=2&pageSize=10',
       )
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
 
     expect(result.status).toBe(200);
     expect(adminAttendanceService.listCalls).toEqual([
@@ -150,11 +150,11 @@ describe('admin attendance HTTP API', () => {
 
     const valid = await request(app)
       .post(`/api/admin/attendance/${attendanceId}/notes`)
-      .set('Cookie', 'absensi_access=token')
+      .set('Cookie', 'absensi_session=token')
       .send({ note: 'Dokumen sudah diperiksa' });
     const correction = await request(app)
       .post(`/api/admin/attendance/${attendanceId}/notes`)
-      .set('Cookie', 'absensi_access=token')
+      .set('Cookie', 'absensi_session=token')
       .send({
         note: 'Koreksi waktu',
         checkInAt: '2026-08-25T00:01:00.000Z',
@@ -178,10 +178,10 @@ describe('admin attendance HTTP API', () => {
 
     const denied = await request(teacherApp)
       .get('/api/admin/attendance')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
     const invalidId = await request(adminApp)
       .post('/api/admin/attendance/bukan-uuid/notes')
-      .set('Cookie', 'absensi_access=token')
+      .set('Cookie', 'absensi_session=token')
       .send({ note: 'Tidak tersimpan' });
 
     expect(denied.status).toBe(403);

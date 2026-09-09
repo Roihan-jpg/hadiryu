@@ -214,8 +214,13 @@ describe('Supabase monthly report integration', () => {
   });
 
   it('loads period data, blocks Pending leave, and excludes inactive teachers', async () => {
+    const repository = new SupabaseMonthlyReportRepository(config);
+    const source = await repository.loadMonth('2026-08-01', '2026-08-31');
+    expect(
+      source.teachers.find((item) => item.teacherId === teacherId)?.createdDate,
+    ).toBe('2026-08-01');
     const service = createMonthlyReportService(
-      new SupabaseMonthlyReportRepository(config),
+      repository,
       () => new Date('2026-09-01T00:00:00.000Z'),
     );
 

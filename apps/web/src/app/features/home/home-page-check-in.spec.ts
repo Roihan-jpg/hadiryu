@@ -119,7 +119,10 @@ describe('HomePage check-in', () => {
     fixture.detectChanges();
   }
 
-  afterEach(() => TestBed.resetTestingModule());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    TestBed.resetTestingModule();
+  });
 
   it('loads today without requesting location when the page opens', async () => {
     await setup();
@@ -171,6 +174,27 @@ describe('HomePage check-in', () => {
     expect(fixture.nativeElement.textContent).toContain('15 meter');
   });
 
+  it('reuses a ready preview for check-in without requesting location again', async () => {
+    await setup();
+    fetchToday.mockResolvedValue({ ...ready, state: 'CHECKED_IN', attendance: checkedIn });
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    geolocation.successes[0]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
+    await preview;
+
+    const attendance = fixture.componentInstance.checkIn();
+    await attendance;
+
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(checkIn).toHaveBeenCalledWith({
+      latitude: -6.2,
+      longitude: 106.816666,
+      accuracyMeters: 10,
+    });
+  });
+
   it('shows a preview from the first location fix even when it is not accurate enough for attendance', async () => {
     await setup({
       ...ready,
@@ -189,22 +213,85 @@ describe('HomePage check-in', () => {
     expect(fixture.nativeElement.textContent).toContain('113.221889');
     expect(fixture.nativeElement.textContent).toContain('83 meter');
     expect(fixture.nativeElement.querySelector('app-teacher-location-map')).not.toBeNull();
-    expect(fixture.nativeElement.textContent).not.toContain('syarat maksimal 10 meter');
+    expect(fixture.nativeElement.textContent).toContain('syarat maksimal 10 meter');
+    expect(fixture.nativeElement.textContent).toContain('Belum siap');
   });
 
-  it('blocks attendance while a location preview request is active', async () => {
+  it('joins an active preview and submits automatically when its location is ready', async () => {
     await setup();
 
     const preview = fixture.componentInstance.showLocationPreview();
-    await fixture.componentInstance.checkIn();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('button[data-action="check-in"]').disabled,
+    ).toBe(false);
+
+    const attendance = fixture.componentInstance.checkIn();
+    fixture.detectChanges();
 
     expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
     expect(checkIn).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Menunggu lokasi siap');
 
     geolocation.successes[0]?.({
       coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
     } as GeolocationPosition);
+    await Promise.all([preview, attendance]);
+
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(checkIn).toHaveBeenCalledWith({
+      latitude: -6.2,
+      longitude: 106.816666,
+      accuracyMeters: 10,
+    });
+  });
+
+  it('refreshes a ready location when its 60-second cache has expired', async () => {
+    await setup();
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    geolocation.successes[0]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
     await preview;
+
+    now += 60_000;
+    const attendance = fixture.componentInstance.checkIn();
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(2);
+    geolocation.successes[1]?.({
+      coords: { latitude: -6.21, longitude: 106.82, accuracy: 9 },
+    } as GeolocationPosition);
+    await attendance;
+
+    expect(checkIn).toHaveBeenCalledWith({
+      latitude: -6.21,
+      longitude: 106.82,
+      accuracyMeters: 9,
+    });
+  });
+
+  it('marks the displayed location as needing refresh after 60 seconds', async () => {
+    await setup();
+    vi.useFakeTimers();
+    try {
+      const preview = fixture.componentInstance.showLocationPreview();
+      geolocation.successes[0]?.({
+        coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+      } as GeolocationPosition);
+      await preview;
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Siap digunakan');
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Perlu diperbarui');
+      expect(fixture.nativeElement.textContent).toContain('sudah kedaluwarsa');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows a preview-specific timeout without leaving a stale map', async () => {

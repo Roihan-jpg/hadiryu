@@ -202,27 +202,53 @@ function ensureSecondSectionCapacity(
   return requiredGroups;
 }
 
+type DayFills = {
+  weekday: ExcelJS.Fill;
+  saturday: ExcelJS.Fill;
+  nonWorking: ExcelJS.Fill;
+};
+
+function fillForDay(day: MonthlyReportDay, fills: DayFills): ExcelJS.Fill {
+  return day.status === 'NON_WORKING_DAY'
+    ? fills.nonWorking
+    : day.scheduleType === 'SATURDAY'
+      ? fills.saturday
+      : fills.weekday;
+}
+
 function setDayFill(
   sheet: ExcelJS.Worksheet,
   row: number,
-  baseColumn: number,
+  startColumn: number,
+  columnCount: number,
   day: MonthlyReportDay,
-  fills: { weekday: ExcelJS.Fill; saturday: ExcelJS.Fill; nonWorking: ExcelJS.Fill },
+  fills: DayFills,
 ): void {
-  const fill =
-    day.status === 'NON_WORKING_DAY'
-      ? fills.nonWorking
-      : day.scheduleType === 'SATURDAY'
-        ? fills.saturday
-        : fills.weekday;
-  for (
-    let column = baseColumn + 1;
-    column < baseColumn + COLUMNS_PER_GROUP;
-    column += 1
-  ) {
+  const fill = fillForDay(day, fills);
+  for (let column = startColumn; column < startColumn + columnCount; column += 1) {
     const cell = sheet.getCell(row, column);
     cell.style = { ...structuredClone(cell.style), fill: cloneFill(fill) };
   }
+}
+
+function setCalendarDateFill(
+  sheet: ExcelJS.Worksheet,
+  row: number,
+  column: number,
+  workDate: string,
+  schoolDay: MonthlyReportDay | undefined,
+  fills: DayFills,
+): void {
+  const weekday = new Date(`${workDate}T00:00:00.000Z`).getUTCDay();
+  const fill = schoolDay?.calendarExceptionName
+    ? fillForDay(schoolDay, fills)
+    : weekday === 0
+      ? fills.nonWorking
+      : weekday === 6
+        ? fills.saturday
+        : fills.weekday;
+  const cell = sheet.getCell(row, column);
+  cell.style = { ...structuredClone(cell.style), fill: cloneFill(fill) };
 }
 
 function writeDay(
@@ -262,15 +288,21 @@ function writeTeacher(
   layout: SectionLayout,
   teacherColumn: number,
   teacher: MonthlyReportTeacher,
+  fills: DayFills,
 ): void {
-  sheet.getCell(layout.headerRow, teacherColumn).value = teacher.teacherFullName;
+  sheet.getCell(layout.headerRow, teacherColumn).value =
+    teacher.role === 'SECURITY_GUARD'
+      ? `${teacher.teacherFullName} (Satpam)`
+      : teacher.teacherFullName;
   ['SCAN IN', 'SCAN OUT', 'JAM KERJA', 'MENIT', 'KEKURANGAN'].forEach(
     (label, index) => {
       sheet.getCell(layout.subheaderRow, teacherColumn + index).value = label;
     },
   );
   teacher.days.forEach((day, index) => {
-    writeDay(sheet, layout.dayStartRow + index, teacherColumn, day);
+    const row = layout.dayStartRow + index;
+    setDayFill(sheet, row, teacherColumn, COLUMNS_PER_TEACHER, day, fills);
+    writeDay(sheet, row, teacherColumn, day);
   });
 
   const totals = [
@@ -292,9 +324,12 @@ function writeGroup(
   layout: SectionLayout,
   baseColumn: number,
   teachers: readonly MonthlyReportTeacher[],
-  fills: { weekday: ExcelJS.Fill; saturday: ExcelJS.Fill; nonWorking: ExcelJS.Fill },
+  fills: DayFills,
 ): void {
   const days = teachers[0]?.days ?? [];
+  const schoolTeacher = teachers.find(
+    (teacher) => teacher.role !== 'SECURITY_GUARD',
+  );
   sheet.getCell(layout.headerRow, baseColumn).value = 'TGL';
   sheet.getCell(layout.subheaderRow, baseColumn).value = 'TGL';
   for (let index = 0; index < DAILY_ROW_CAPACITY; index += 1) {
@@ -303,7 +338,14 @@ function writeGroup(
     const row = layout.dayStartRow + index;
     sheet.getCell(row, baseColumn).value = excelDate(day.workDate);
     setNumberFormat(sheet.getCell(row, baseColumn), 'd-mmm');
-    setDayFill(sheet, row, baseColumn, day, fills);
+    setCalendarDateFill(
+      sheet,
+      row,
+      baseColumn,
+      day.workDate,
+      schoolTeacher?.days[index],
+      fills,
+    );
   }
   teachers.forEach((teacher, index) => {
     writeTeacher(
@@ -311,6 +353,7 @@ function writeGroup(
       layout,
       baseColumn + 1 + index * COLUMNS_PER_TEACHER,
       teacher,
+      fills,
     );
   });
 }

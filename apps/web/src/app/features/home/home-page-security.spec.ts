@@ -25,7 +25,16 @@ const dashboard: SecurityGuardDashboardResponse = {
   locationRequirement: { maxAccuracyMeters: 15 },
 };
 
+class FakeGeolocation {
+  success?: PositionCallback;
+  readonly getCurrentPosition = vi.fn((success: PositionCallback) => {
+    this.success = success;
+  });
+}
+
 describe('HomePage Satpam dashboard', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
   it('shows a status-first overnight timeline and Satpam self-service routes', async () => {
     await TestBed.configureTestingModule({
       imports: [HomePage],
@@ -48,5 +57,53 @@ describe('HomePage Satpam dashboard', () => {
     expect(text).toContain('Shift Malam');
     expect(text).toContain('Hari berikutnya');
     expect(fixture.nativeElement.querySelector('a[href="/satpam/riwayat"]')).not.toBeNull();
+  });
+
+  it('reuses the same ready preview when a Satpam checks in', async () => {
+    const geolocation = new FakeGeolocation();
+    const checkIn = vi.fn(async () => ({
+      id: '40000000-0000-4000-8000-000000000002',
+      workDate: today.workDate,
+      checkInAt: '2026-09-07T11:05:00.000Z',
+      latitude: -6.2,
+      longitude: 106.816666,
+      accuracyMeters: 10,
+      distanceMeters: 0,
+      workStart: '18:00',
+      workEnd: '06:00',
+      checkoutClose: '08:00',
+      targetMinutes: 720,
+      arrivalLateMinutes: 5,
+      status: 'CHECKED_IN' as const,
+    }));
+    await TestBed.configureTestingModule({
+      imports: [HomePage],
+      providers: [
+        provideRouter([]),
+        provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
+        { provide: AuthService, useValue: { user: signal(guard).asReadonly(), logout: vi.fn() } },
+        { provide: AttendanceService, useValue: { fetchToday: vi.fn(async () => today), checkIn, checkout: vi.fn() } },
+        { provide: SecurityDashboardService, useValue: { getDashboard: vi.fn(async () => dashboard) } },
+        { provide: GEOLOCATION, useValue: geolocation },
+        { provide: GEOLOCATION_PERMISSIONS, useValue: null },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(HomePage);
+    fixture.detectChanges();
+    await vi.waitFor(() => expect(fixture.componentInstance.today()).not.toBeNull());
+
+    const preview = fixture.componentInstance.showLocationPreview();
+    geolocation.success?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
+    await preview;
+    await fixture.componentInstance.checkIn();
+
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(checkIn).toHaveBeenCalledWith({
+      latitude: -6.2,
+      longitude: 106.816666,
+      accuracyMeters: 10,
+    });
   });
 });

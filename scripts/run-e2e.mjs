@@ -55,6 +55,11 @@ if (mode === 'local') {
     process.env,
     true,
   );
+  run(
+    'node_modules/supabase/dist/supabase.js',
+    ['db', 'reset', '--local'],
+    process.env,
+  );
   const status = run(
     'node_modules/supabase/dist/supabase.js',
     ['status', '-o', 'env'],

@@ -2,6 +2,7 @@ import type {
   AuthUser,
   MonthlyReportParams,
   MonthlyReportPreview,
+  MonthlyReportReadiness,
 } from '@absensi/contracts';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
@@ -51,6 +52,22 @@ class FakeAuthService implements AuthService {
 
 class FakeMonthlyReportService implements MonthlyReportService {
   calls: MonthlyReportParams[] = [];
+  readinessCalls: MonthlyReportParams[] = [];
+  async readiness(input: MonthlyReportParams): Promise<MonthlyReportReadiness> {
+    this.readinessCalls.push(input);
+    return {
+      status: 'BLOCKED',
+      year: input.year,
+      month: input.month,
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      issues: [{
+        code: 'SECURITY_SCHEDULE_COVERAGE_MISSING',
+        source: 'SECURITY_SCHEDULE',
+        missingRanges: [{ startDate: '2026-09-01', endDate: '2026-09-06' }],
+      }],
+    };
+  }
   async preview(input: MonthlyReportParams): Promise<MonthlyReportPreview> {
     this.calls.push(input);
     return { ...preview, ...input };
@@ -69,12 +86,28 @@ function testApp(user: AuthUser) {
 }
 
 describe('monthly report preview HTTP API', () => {
+  it('returns structured readiness without invoking the preview calculator', async () => {
+    const { app, monthlyReportService } = testApp(admin);
+
+    const result = await request(app)
+      .get('/api/admin/reports/monthly/2026/9/readiness')
+      .set('Cookie', 'absensi_session=token');
+
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      status: 'BLOCKED',
+      issues: [{ code: 'SECURITY_SCHEDULE_COVERAGE_MISSING' }],
+    });
+    expect(monthlyReportService.readinessCalls).toEqual([{ year: 2026, month: 9 }]);
+    expect(monthlyReportService.calls).toEqual([]);
+  });
+
   it('returns a backend-calculated preview to SuperAdmin', async () => {
     const { app, monthlyReportService } = testApp(admin);
 
     const result = await request(app)
       .get('/api/admin/reports/monthly/2026/8/preview')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
 
     expect(result.status).toBe(200);
     expect(result.body).toEqual(preview);
@@ -86,7 +119,7 @@ describe('monthly report preview HTTP API', () => {
 
     const result = await request(app)
       .get('/api/admin/reports/monthly/2026/13/preview')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
 
     expect(result.status).toBe(400);
     expect(result.body.error.code).toBe('VALIDATION_ERROR');
@@ -96,7 +129,7 @@ describe('monthly report preview HTTP API', () => {
   it('requires the SuperAdmin role', async () => {
     const result = await request(testApp(teacher).app)
       .get('/api/admin/reports/monthly/2026/8/preview')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
 
     expect(result.status).toBe(403);
   });

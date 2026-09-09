@@ -175,7 +175,7 @@ describe('schedule-geofence HTTP API', () => {
     userAuth.authenticatedUser = { ...admin, role: 'USER' };
     const forbidden = await request(testApp(userAuth).app)
       .get('/api/admin/settings/geofence?effectiveOn=2026-08-25')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(anonymous.status).toBe(401);
     expect(forbidden.status).toBe(403);
@@ -186,7 +186,7 @@ describe('schedule-geofence HTTP API', () => {
     const { app, settingsService } = testApp();
     const response = await request(app)
       .get('/api/admin/settings/schedules?effectiveOn=2026-08-31')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(200);
     expect(settingsService.scheduleDate).toBe('2026-08-31');
@@ -198,18 +198,18 @@ describe('schedule-geofence HTTP API', () => {
     const { app, settingsService } = testApp();
     const invalid = await request(app)
       .post('/api/admin/settings/schedules')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({
         ...scheduleInput,
         weekday: { ...scheduleInput.weekday, workStart: '05:00' },
       });
     const response = await request(app)
       .post('/api/admin/settings/schedules')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send(scheduleInput);
     const clientDated = await request(app)
       .post('/api/admin/settings/schedules')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ ...scheduleInput, effectiveFrom: effectiveOn });
 
     expect(invalid.status).toBe(400);
@@ -225,14 +225,14 @@ describe('schedule-geofence HTTP API', () => {
     const { app, settingsService } = testApp();
     const loaded = await request(app)
       .get('/api/admin/settings/geofence?effectiveOn=2026-08-31')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
     const created = await request(app)
       .post('/api/admin/settings/geofence')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send(geofenceInput);
     const clientDated = await request(app)
       .post('/api/admin/settings/geofence')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ ...geofenceInput, effectiveFrom: effectiveOn });
 
     expect(loaded.status).toBe(200);
@@ -249,10 +249,10 @@ describe('schedule-geofence HTTP API', () => {
     const { app } = testApp();
     const missingDate = await request(app)
       .get('/api/admin/settings/schedules')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
     const multipleLocations = await request(app)
       .post('/api/admin/settings/geofence')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ ...geofenceInput, locations: [geofenceInput] });
 
     expect(missingDate.status).toBe(400);

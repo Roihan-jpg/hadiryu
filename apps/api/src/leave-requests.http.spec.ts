@@ -47,8 +47,8 @@ function testApp(user: AuthUser) {
 describe('leave requests HTTP API', () => {
   it('accepts a valid teacher request and rejects date ranges before the service', async () => {
     const { app, leaveRequestService } = testApp(teacher);
-    const valid = await request(app).post('/api/leave-requests').set('Cookie', 'absensi_access=token').send({ leaveDate: '2026-08-26', leaveType: 'SICK', reason: 'Perlu berobat' });
-    const invalid = await request(app).post('/api/leave-requests').set('Cookie', 'absensi_access=token').send({ leaveDate: '2026-08-26', leaveEndDate: '2026-08-27', leaveType: 'SICK', reason: 'Perlu berobat' });
+    const valid = await request(app).post('/api/leave-requests').set('Cookie', 'absensi_session=token').send({ leaveDate: '2026-08-26', leaveType: 'SICK', reason: 'Perlu berobat' });
+    const invalid = await request(app).post('/api/leave-requests').set('Cookie', 'absensi_session=token').send({ leaveDate: '2026-08-26', leaveEndDate: '2026-08-27', leaveType: 'SICK', reason: 'Perlu berobat' });
     expect(valid.status).toBe(201);
     expect(valid.body.leaveRequest).toMatchObject({ status: 'PENDING' });
     expect(invalid.status).toBe(400);
@@ -57,19 +57,19 @@ describe('leave requests HTTP API', () => {
 
   it('lists own requests with a status filter and lets only a teacher cancel', async () => {
     const { app, leaveRequestService } = testApp(teacher);
-    const result = await request(app).get('/api/leave-requests?page=2&pageSize=10&status=REJECTED').set('Cookie', 'absensi_access=token');
+    const result = await request(app).get('/api/leave-requests?page=2&pageSize=10&status=REJECTED').set('Cookie', 'absensi_session=token');
     expect(result.status).toBe(200);
     expect(leaveRequestService.listOwnCalls).toEqual([{ page: 2, pageSize: 10, status: 'REJECTED' }]);
     const adminApp = testApp(admin).app;
-    const denied = await request(adminApp).post(`/api/leave-requests/${leaveRequest.id}/cancel`).set('Cookie', 'absensi_access=token').send({});
+    const denied = await request(adminApp).post(`/api/leave-requests/${leaveRequest.id}/cancel`).set('Cookie', 'absensi_session=token').send({});
     expect(denied.status).toBe(403);
   });
 
   it('allows SuperAdmin to filter, approve, and rejects malformed decisions', async () => {
     const { app, leaveRequestService } = testApp(admin);
-    const listed = await request(app).get('/api/admin/leave-requests?status=PENDING&leaveDate=2026-08-26&search=Guru').set('Cookie', 'absensi_access=token');
-    const approved = await request(app).post(`/api/admin/leave-requests/${leaveRequest.id}/approve`).set('Cookie', 'absensi_access=token').send({ decisionNote: 'Disetujui' });
-    const invalid = await request(app).post(`/api/admin/leave-requests/${leaveRequest.id}/reject`).set('Cookie', 'absensi_access=token').send({ decisionNote: '' });
+    const listed = await request(app).get('/api/admin/leave-requests?status=PENDING&leaveDate=2026-08-26&search=Guru').set('Cookie', 'absensi_session=token');
+    const approved = await request(app).post(`/api/admin/leave-requests/${leaveRequest.id}/approve`).set('Cookie', 'absensi_session=token').send({ decisionNote: 'Disetujui' });
+    const invalid = await request(app).post(`/api/admin/leave-requests/${leaveRequest.id}/reject`).set('Cookie', 'absensi_session=token').send({ decisionNote: '' });
     expect(listed.status).toBe(200);
     expect(leaveRequestService.listAdminCalls[0]).toMatchObject({ status: 'PENDING', leaveDate: '2026-08-26', search: 'Guru' });
     expect(approved.body.leaveRequest.status).toBe('APPROVED');
@@ -81,14 +81,14 @@ describe('leave requests HTTP API', () => {
     const adminApp = testApp(admin).app;
     const deniedAdminList = await request(teacherApp)
       .get('/api/admin/leave-requests')
-      .set('Cookie', 'absensi_access=token');
+      .set('Cookie', 'absensi_session=token');
     const deniedTeacherCreate = await request(adminApp)
       .post('/api/leave-requests')
-      .set('Cookie', 'absensi_access=token')
+      .set('Cookie', 'absensi_session=token')
       .send({ leaveDate: '2026-08-26', leaveType: 'SICK', reason: 'Sakit' });
     const invalidId = await request(teacherApp)
       .post('/api/leave-requests/bukan-uuid/cancel')
-      .set('Cookie', 'absensi_access=token')
+      .set('Cookie', 'absensi_session=token')
       .send({});
 
     expect(deniedAdminList.status).toBe(403);

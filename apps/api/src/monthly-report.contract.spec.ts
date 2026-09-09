@@ -1,6 +1,7 @@
 import {
   MonthlyReportParamsSchema,
   MonthlyReportPreviewSchema,
+  MonthlyReportReadinessSchema,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
 
@@ -82,6 +83,37 @@ describe('monthly report contracts', () => {
         generatedAt: '2028-03-01T00:00:00.000Z',
         teachers: [],
         formula: '=SUM(A1:A29)',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('represents report readiness with structured missing schedule ranges', () => {
+    const blocked = MonthlyReportReadinessSchema.parse({
+      status: 'BLOCKED',
+      year: 2026,
+      month: 9,
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      issues: [
+        {
+          code: 'SECURITY_SCHEDULE_COVERAGE_MISSING',
+          source: 'SECURITY_SCHEDULE',
+          missingRanges: [
+            { startDate: '2026-09-01', endDate: '2026-09-06' },
+          ],
+        },
+      ],
+    });
+
+    expect(blocked.status).toBe('BLOCKED');
+    expect(blocked.issues[0]?.missingRanges[0]).toEqual({
+      startDate: '2026-09-01',
+      endDate: '2026-09-06',
+    });
+    expect(
+      MonthlyReportReadinessSchema.safeParse({
+        ...blocked,
+        status: 'READY',
       }).success,
     ).toBe(false);
   });

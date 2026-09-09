@@ -72,12 +72,12 @@ class FakeAuthService implements AuthService {
 }
 
 describe('auth HTTP API', () => {
-  it('logs in with NIP and stores both tokens only in HttpOnly cookies', async () => {
+  it('logs in with NIP and stores the application session only in an HttpOnly cookie', async () => {
     const authService = new FakeAuthService();
 
     const response = await request(createApp({ authService }))
       .post('/api/auth/login')
-      .send({ nip: ' 001234567890 ', password: 'rahasia-sementara' });
+      .send({ nip: ' 001234567890 ', password: 'Rahasia1' });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ user });
@@ -86,20 +86,10 @@ describe('auth HTTP API', () => {
     const setCookies = Array.isArray(setCookieHeader)
       ? setCookieHeader
       : [setCookieHeader];
-    expect(setCookies).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/^absensi_access=access-token;.*HttpOnly.*SameSite=Strict/i),
-        expect.stringMatching(
-          /^absensi_refresh=refresh-token-baru;.*HttpOnly.*SameSite=Strict/i,
-        ),
-      ]),
+    expect(setCookies).toHaveLength(1);
+    expect(setCookies[0]).toMatch(
+      /^absensi_session=access-token;.*Max-Age=.*HttpOnly.*SameSite=Strict/i,
     );
-    expect(
-      setCookies.find(
-        (cookie): cookie is string =>
-          cookie?.startsWith('absensi_refresh=') ?? false,
-      ),
-    ).toContain('Max-Age=');
     expect(JSON.stringify(response.body)).not.toContain('token');
   });
 
@@ -127,12 +117,12 @@ describe('auth HTTP API', () => {
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('loads me from an authenticated access cookie', async () => {
+  it('loads me from an authenticated application-session cookie', async () => {
     const response = await request(createApp({
       authService: new FakeAuthService(),
     }))
       .get('/api/auth/me')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ user });
@@ -146,22 +136,10 @@ describe('auth HTTP API', () => {
 
     const response = await request(createApp({ authService }))
       .get('/api/auth/me')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('ACCOUNT_INACTIVE');
-  });
-
-  it('rotates a refresh token and overwrites the cookie pair', async () => {
-    const authService = new FakeAuthService();
-
-    const response = await request(createApp({ authService }))
-      .post('/api/auth/refresh')
-      .set('Cookie', 'absensi_refresh=refresh-token-lama');
-
-    expect(response.status).toBe(200);
-    expect(authService.refreshInput).toBe('refresh-token-lama');
-    expect(response.headers['set-cookie']).toHaveLength(2);
   });
 
   it('allows a first-login user to change password then clears the flag', async () => {
@@ -169,18 +147,15 @@ describe('auth HTTP API', () => {
 
     const response = await request(createApp({ authService }))
       .post('/api/auth/change-password')
-      .set(
-        'Cookie',
-        'absensi_access=access-token; absensi_refresh=refresh-token',
-      )
-      .send({ currentPassword: 'password-lama', newPassword: 'password-baru' });
+      .set('Cookie', 'absensi_session=access-token')
+      .send({ currentPassword: 'Lama1234', newPassword: 'Baru1234' });
 
     expect(response.status).toBe(200);
     expect(response.body.user.mustChangePassword).toBe(false);
-    expect(authService.changePasswordInput?.newPassword).toBe('password-baru');
+    expect(authService.changePasswordInput?.newPassword).toBe('Baru1234');
   });
 
-  it('clears both cookies on logout even when the session is already invalid', async () => {
+  it('clears the application-session cookie on logout even when the session is already invalid', async () => {
     const authService = new FakeAuthService();
     authService.logout = async () => {
       throw new AppError(401, 'AUTH_REQUIRED', 'Sesi tidak valid');
@@ -188,16 +163,13 @@ describe('auth HTTP API', () => {
 
     const response = await request(createApp({ authService }))
       .post('/api/auth/logout')
-      .set('Cookie', 'absensi_access=expired; absensi_refresh=invalid');
+      .set('Cookie', 'absensi_session=expired');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ success: true });
-    expect(response.headers['set-cookie']).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/^absensi_access=;/),
-        expect.stringMatching(/^absensi_refresh=;/),
-      ]),
-    );
+    expect(response.headers['set-cookie']).toEqual([
+      expect.stringMatching(/^absensi_session=;/),
+    ]);
   });
 });
 
@@ -219,12 +191,13 @@ describe('auth authorization guards', () => {
 
   it('limits a first-login user to auth completion endpoints', async () => {
     const authService = new FakeAuthService();
+    authService.authenticatedUser = { ...user, mustChangePassword: true };
 
     const response = await request(
       guardApp(authService, requirePasswordChanged),
     )
       .get('/protected')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
@@ -232,12 +205,13 @@ describe('auth authorization guards', () => {
 
   it('keeps the password-change restriction when a role guard is used alone', async () => {
     const authService = new FakeAuthService();
+    authService.authenticatedUser = { ...user, mustChangePassword: true };
 
     const response = await request(
       guardApp(authService, requireRole('USER')),
     )
       .get('/protected')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
@@ -254,7 +228,7 @@ describe('auth authorization guards', () => {
       guardApp(authService, requireRole('SUPER_ADMIN')),
     )
       .get('/protected')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('ROLE_FORBIDDEN');
@@ -272,7 +246,7 @@ describe('auth authorization guards', () => {
       guardApp(authService, requireRole('SUPER_ADMIN')),
     )
       .get('/protected')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(204);
   });

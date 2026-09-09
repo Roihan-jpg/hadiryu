@@ -39,6 +39,29 @@ async function mockAdminApi(page: import('@playwright/test').Page): Promise<void
   }));
 }
 
+async function mockTeachersApi(page: import('@playwright/test').Page): Promise<void> {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: { user: admin } }));
+  await page.route('**/api/admin/teachers**', (route) => route.fulfill({
+    json: {
+      data: [
+        {
+          id: '50000000-0000-4000-8000-000000000010',
+          nip: '19870001',
+          fullName: 'Guru Aminah',
+          whatsappNumber: '+628123456789',
+          role: 'USER',
+          isActive: true,
+          mustChangePassword: false,
+          temporaryPasswordExpiresAt: null,
+          createdAt: '2026-09-04T01:00:00.000Z',
+          updatedAt: '2026-09-04T01:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+    },
+  }));
+}
+
 for (const viewport of [
   { name: 'desktop-1440', width: 1440, height: 900 },
   { name: 'tablet-1024', width: 1024, height: 768 },
@@ -67,3 +90,17 @@ for (const viewport of [
     }
   });
 }
+
+test('master akun keeps identity and actions visible without mobile overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTeachersApi(page);
+  await page.goto('/admin/teachers');
+
+  const accountCard = page.locator('.mobile-account-card');
+  await expect(accountCard).toBeVisible();
+  await expect(accountCard.getByText('Guru Aminah')).toBeVisible();
+  await expect(accountCard.getByText('19870001')).toBeVisible();
+  await expect(accountCard.getByRole('button', { name: 'Reset password' })).toBeVisible();
+  await expect(page.locator('.table-frame table')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

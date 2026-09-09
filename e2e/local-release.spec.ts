@@ -82,7 +82,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   });
   await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
   await page.goto(`${APP_BASE_URL}/admin/settings`);
-  await page.getByRole('button', { name: 'Geofence', exact: true }).click();
+  await page.getByRole('tab', { name: 'Geofence', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Geofence global' })).toBeVisible();
   await expect(page.locator('app-admin-geofence-map')).toBeVisible();
   await expect(page.getByText('4 titik batas', { exact: true })).toBeVisible();
@@ -175,7 +175,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await page.getByLabel('Jenis izin').click();
   await page.getByRole('option', { name: 'Dinas Luar' }).click();
   await page.getByLabel('Alasan').fill('Verifikasi release readiness E2E');
-  await page.getByLabel(/Lampiran opsional/).setInputFiles({
+  await page.getByLabel(/Lampiran pendukung/).setInputFiles({
     name: 'bukti-izin.pdf',
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF-1.7\nE2E'),

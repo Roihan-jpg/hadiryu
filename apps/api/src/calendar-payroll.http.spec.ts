@@ -100,7 +100,7 @@ describe('calendar HTTP API', () => {
     userAuth.authenticatedUser = { ...admin, role: 'USER' };
     const forbidden = await request(testApp(userAuth).app)
       .get('/api/admin/settings/calendar')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(anonymous.status).toBe(401);
     expect(forbidden.status).toBe(403);
@@ -110,18 +110,18 @@ describe('calendar HTTP API', () => {
     const { app, settingsService } = testApp();
     const listed = await request(app)
       .get('/api/admin/settings/calendar')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
     const created = await request(app)
       .post('/api/admin/settings/calendar')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send(exceptionInput);
     const updated = await request(app)
       .patch(`/api/admin/settings/calendar/${exception.id}`)
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ ...exceptionInput, name: 'Libur Nasional' });
     const deleted = await request(app)
       .delete(`/api/admin/settings/calendar/${exception.id}`)
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(listed.status).toBe(200);
     expect(listed.body.exceptions).toHaveLength(1);
@@ -141,10 +141,10 @@ describe('calendar HTTP API', () => {
     const { app } = testApp();
     const loaded = await request(app)
       .get('/api/admin/settings/payroll?effectiveOn=2026-08-01')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
     const created = await request(app)
       .post('/api/admin/settings/payroll')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({});
 
     expect(loaded.status).toBe(404);

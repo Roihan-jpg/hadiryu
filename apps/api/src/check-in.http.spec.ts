@@ -113,7 +113,7 @@ describe('check-in HTTP API', () => {
     adminAuth.authenticatedUser = { ...teacher, role: 'SUPER_ADMIN' };
     const forbidden = await request(testApp(adminAuth).app)
       .post('/api/attendance/check-in')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ latitude: -6.2, longitude: 106.816666, accuracyMeters: 10 });
 
     expect(anonymous.status).toBe(401);
@@ -124,7 +124,7 @@ describe('check-in HTTP API', () => {
   it('returns the dashboard state from server-resolved today', async () => {
     const response = await request(testApp().app)
       .get('/api/attendance/today')
-      .set('Cookie', 'absensi_access=access-token');
+      .set('Cookie', 'absensi_session=access-token');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(today);
@@ -134,7 +134,7 @@ describe('check-in HTTP API', () => {
     const { app, attendanceService } = testApp();
     const invalid = await request(app)
       .post('/api/attendance/check-in')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({
         latitude: -6.2,
         longitude: 106.816666,
@@ -152,19 +152,19 @@ describe('check-in HTTP API', () => {
     const input = { latitude: -6.2, longitude: 106.816666, accuracyMeters: 10 };
     const first = await request(app)
       .post('/api/attendance/check-in')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send(input);
     const repeated = await request(app)
       .post('/api/attendance/check-in')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send(input);
 
     expect(first.status).toBe(200);
     expect(repeated.status).toBe(200);
     expect(repeated.body).toEqual(first.body);
     expect(attendanceService.checkInCalls).toEqual([
-      { teacherId: teacher.id, location: input },
-      { teacherId: teacher.id, location: input },
+      { teacherId: teacher, location: input },
+      { teacherId: teacher, location: input },
     ]);
   });
 
@@ -178,7 +178,7 @@ describe('check-in HTTP API', () => {
     );
     const response = await request(app)
       .post('/api/attendance/check-in')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ latitude: -6.19, longitude: 106.816666, accuracyMeters: 10 });
 
     expect(response.status).toBe(422);

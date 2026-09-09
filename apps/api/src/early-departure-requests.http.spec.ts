@@ -93,7 +93,7 @@ describe('early departure request HTTP API', () => {
 
     const created = await request(app)
       .post('/api/early-departure-requests')
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({
         reason: 'Keperluan keluarga',
         latitude: -8.1328,
@@ -101,18 +101,18 @@ describe('early departure request HTTP API', () => {
         accuracyMeters: 10,
       });
     expect(created.status).toBe(201);
-    expect(service.createdFor).toBe(teacher.id);
+    expect(service.createdFor).toEqual(teacher);
 
     const forbidden = await request(app)
       .post(`/api/admin/early-departure-requests/${pending.id}/approve`)
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({});
     expect(forbidden.status).toBe(403);
 
     authService.authenticatedUser = admin;
     const approved = await request(app)
       .post(`/api/admin/early-departure-requests/${pending.id}/approve`)
-      .set('Cookie', 'absensi_access=access-token')
+      .set('Cookie', 'absensi_session=access-token')
       .send({ decisionNote: 'Disetujui' });
     expect(approved.status).toBe(200);
     expect(service.approvedBy).toBe(admin.id);
