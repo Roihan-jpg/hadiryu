@@ -90,6 +90,7 @@ describe('SupabaseSettingsService schedule-geofence integration', () => {
       id: adminId, nip, full_name: 'Admin T05', role: 'SUPER_ADMIN', is_active: true, must_change_password: false,
     });
     if (profileError) throw profileError;
+    runSql('delete from public.reporting_settings;');
   }, 120_000);
 
   afterAll(async () => {
@@ -98,6 +99,7 @@ describe('SupabaseSettingsService schedule-geofence integration', () => {
       delete from public.audit_logs where actor_id = '${adminId}';
       delete from public.schedule_rules where effective_from in ('${today}', '${futureDate}');
       delete from public.geofence_rules where effective_from in ('${today}', '${futureDate}');
+      delete from public.reporting_settings;
       update public.schedule_rules set effective_to = null where id in ('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002');
       update public.geofence_rules set effective_to = null where id = '20000000-0000-4000-8000-000000000001';
       delete from public.profiles where id = '${adminId}';`);
@@ -119,6 +121,22 @@ describe('SupabaseSettingsService schedule-geofence integration', () => {
     expect(historical.saturday?.targetMinutes).toBe(215);
     const { count } = await client.from('schedule_rules').select('*', { count: 'exact', head: true }).eq('effective_from', today);
     expect(count).toBe(2);
+  });
+
+  it('stores the report operational start separately and audits changes', async () => {
+    const initial = await service.getReportingSettings();
+    expect(initial).toEqual({ operationalStartDate: null, locked: false });
+
+    const saved = await service.saveReportingSettings(adminId, {
+      operationalStartDate: futureDate,
+    });
+    expect(saved).toEqual({ operationalStartDate: futureDate, locked: false });
+    const { count } = await client
+      .from('audit_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('actor_id', adminId)
+      .eq('action', 'REPORTING_SETTINGS_SAVED');
+    expect(count).toBe(1);
   });
 
   it('cancels and audits pending future schedule versions', async () => {
@@ -188,7 +206,12 @@ describe('SupabaseSettingsService schedule-geofence integration', () => {
         maxAccuracyMeters: 15,
       },
     });
+    const { error: reportingError } = await publicClient.rpc('save_reporting_settings', {
+      p_actor_id: adminId,
+      p_operational_start_date: futureDate,
+    });
     expect(scheduleError).toBeTruthy();
     expect(geofenceError).toBeTruthy();
+    expect(reportingError).toBeTruthy();
   });
 });

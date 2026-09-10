@@ -33,6 +33,8 @@ export class SupabaseExcelExportAuditRepository
         generator: audit.generator,
         period: audit.period,
         teacherCount: audit.teacherCount,
+        documentStatus: audit.documentStatus,
+        issueCount: audit.issueCount,
         templateChecksum: audit.templateChecksum,
         exportedAt: audit.exportedAt,
       },

@@ -3,6 +3,8 @@ import {
   SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
   SaveSecurityScheduleSettingsRequestSchema,
+  SaveReportingSettingsRequestSchema,
+  ReportingSettingsResponseSchema,
   SecurityScheduleSettingsResponseSchema,
   ScheduleSettingsQuerySchema,
 } from '@absensi/contracts';
@@ -19,6 +21,19 @@ const weekday = {
 };
 
 describe('schedule-geofence contracts', () => {
+  it('uses an explicit operational start date for report relevance', () => {
+    expect(SaveReportingSettingsRequestSchema.parse({
+      operationalStartDate: '2026-10-01',
+    })).toEqual({ operationalStartDate: '2026-10-01' });
+    expect(ReportingSettingsResponseSchema.parse({
+      operationalStartDate: '2026-10-01',
+      locked: false,
+    })).toEqual({ operationalStartDate: '2026-10-01', locked: false });
+    expect(SaveReportingSettingsRequestSchema.safeParse({
+      operationalStartDate: '2026-02-30',
+    }).success).toBe(false);
+  });
+
   it('accepts schedule settings without a client-controlled effective date', () => {
     expect(
       SaveScheduleSettingsRequestSchema.parse({

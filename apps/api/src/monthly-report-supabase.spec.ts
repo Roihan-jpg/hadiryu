@@ -213,7 +213,7 @@ describe('Supabase monthly report integration', () => {
     await client.auth.admin.deleteUser(adminId);
   });
 
-  it('loads period data, blocks Pending leave, and excludes inactive teachers', async () => {
+  it('loads period data, reports Pending leave, and excludes inactive teachers', async () => {
     const repository = new SupabaseMonthlyReportRepository(config);
     const source = await repository.loadMonth('2026-08-01', '2026-08-31');
     expect(
@@ -224,9 +224,14 @@ describe('Supabase monthly report integration', () => {
       () => new Date('2026-09-01T00:00:00.000Z'),
     );
 
-    await expect(service.preview({ year: 2026, month: 8 })).rejects.toMatchObject({
-      code: 'PENDING_LEAVE_EXISTS',
-    });
+    const draft = await service.preview({ year: 2026, month: 8 });
+    expect(draft.documentStatus).toBe('DRAFT');
+    expect(draft.issues).toContainEqual(expect.objectContaining({
+      category: 'STAFF_DATA',
+      code: 'PENDING_LEAVE',
+      teacherId,
+      workDate: '2026-08-04',
+    }));
 
     runSql(`delete from public.leave_requests
       where teacher_id = '${teacherId}' and leave_date = '2026-08-04';`);

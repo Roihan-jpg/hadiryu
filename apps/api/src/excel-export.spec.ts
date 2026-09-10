@@ -14,7 +14,6 @@ import type {
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 
-import { AppError } from './auth.js';
 import {
   createExcelExportService,
   type ExcelExportAudit,
@@ -148,6 +147,8 @@ function preview(year: number, month: number): MonthlyReportPreview {
     startDate: dates[0]!,
     endDate: dates.at(-1)!,
     generatedAt: '2030-01-01T00:00:00.000Z',
+    documentStatus: 'FINAL',
+    issues: [],
     teachers: [teacher(year, month)],
   };
 }
@@ -257,14 +258,17 @@ describe('Excel monthly report exporter', () => {
       const sheet = workbook.getWorksheet('Sheet1')!;
 
       expect(sha256(templateAfter)).toBe(sha256(templateBefore));
-      expect(workbook.worksheets.map((item) => item.name)).toEqual(['Sheet1']);
+      expect(workbook.worksheets.map((item) => item.name)).toEqual([
+        'Sheet1',
+        'Data Belum Lengkap',
+      ]);
       expect(sheet.getCell(1, 2).value).toBe('Guru Satu');
       expect(sheet.getCell(2 + dayCount, 1).value).not.toBeNull();
       expect(sheet.getCell(3 + dayCount, 1).value).toBeNull();
       expect(sheet.getCell(79, 2).value).toBeNull();
       expect(workbookProblems(workbook)).toEqual([]);
       expect(result.fileName).toBe(
-        `laporan-absensi-${year}-${String(month).padStart(2, '0')}.xlsx`,
+        `laporan-absensi-FINAL-${year}-${String(month).padStart(2, '0')}.xlsx`,
       );
       expect(calculator.calls).toEqual([{ year, month }]);
       expect(audit.calls).toEqual([
@@ -273,6 +277,8 @@ describe('Excel monthly report exporter', () => {
           generator: 'exceljs@4.4.0',
           period: `${year}-${String(month).padStart(2, '0')}`,
           teacherCount: 1,
+          documentStatus: 'FINAL',
+          issueCount: 0,
           templateChecksum: sha256(templateBefore),
           exportedAt: '2030-01-02T03:04:05.000Z',
         },
@@ -369,25 +375,53 @@ describe('Excel monthly report exporter', () => {
     expect(excelMinutes(sheet.getCell('H4').value)).toBe(7 * 60);
   });
 
-  it('keeps direct export fail-closed when report configuration is incomplete', async () => {
-    const calculator = new FakeMonthlyReportService(preview(2026, 9));
-    calculator.preview = async () => {
-      throw new AppError(
-        422,
-        'REPORT_CONFIGURATION_MISSING',
-        'Konfigurasi laporan belum tersedia untuk seluruh periode',
-      );
+  it('exports incomplete configuration as a draft with an actionable issue sheet', async () => {
+    const report = preview(2026, 9);
+    report.documentStatus = 'DRAFT';
+    report.issues = [{
+      category: 'CONFIGURATION',
+      code: 'SECURITY_SCHEDULE_COVERAGE_MISSING',
+      source: 'SECURITY_SCHEDULE',
+      missingRanges: [{ startDate: '2026-09-01', endDate: '2026-09-06' }],
+    }];
+    report.teachers[0]!.days[0] = {
+      workDate: '2026-09-01',
+      scheduleType: null,
+      status: 'CONFIGURATION_MISSING',
+      attendanceId: null,
+      checkInAt: null,
+      checkOutAt: null,
+      workStart: null,
+      workEnd: null,
+      targetMinutes: null,
+      workedMinutes: null,
+      arrivalLateMinutes: null,
+      workDeficitMinutes: null,
+      leaveType: null,
+      calendarExceptionName: null,
     };
+    const calculator = new FakeMonthlyReportService(report);
     const audit = new FakeAuditRepository();
     const service = createExcelExportService(calculator, audit, { templatePath });
 
-    await expect(
-      service.export({ year: 2026, month: 9 }, teacherId),
-    ).rejects.toMatchObject({
-      status: 422,
-      code: 'REPORT_CONFIGURATION_MISSING',
+    const result = await service.export({ year: 2026, month: 9 }, teacherId);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(toArrayBuffer(result.buffer));
+    const main = workbook.getWorksheet('Sheet1')!;
+    const issues = workbook.getWorksheet('Data Belum Lengkap')!;
+
+    expect(result.fileName).toBe('laporan-absensi-DRAFT-2026-09.xlsx');
+    expect(main.getCell('D3').value).toBeNull();
+    expect(main.getCell('E3').value).toBeNull();
+    expect(main.getCell('F3').value).toBeNull();
+    expect(issues.getCell('A1').value).toBe('DATA BELUM LENGKAP');
+    expect(issues.getCell('E5').value).toBe('Jadwal Satpam belum tersedia');
+    expect(issues.getCell('F5').value).toBe('Atur jadwal Satpam lalu ekspor ulang');
+    expect(issues.getCell('G5').value).toBeNull();
+    expect(audit.calls[0]).toMatchObject({
+      documentStatus: 'DRAFT',
+      issueCount: 1,
     });
-    expect(audit.calls).toEqual([]);
   });
 
   it('uses all 56 built-in slots and adds one styled four-teacher block for teacher 57', async () => {

@@ -1,6 +1,6 @@
 begin;
 
-select plan(59);
+select plan(62);
 
 select has_type('public', 'user_role', 'user_role enum exists');
 select has_type('public', 'schedule_type', 'schedule_type enum exists');
@@ -21,6 +21,7 @@ select has_table('public', 'leave_requests', 'leave_requests table exists');
 select has_table('public', 'attendance_admin_notes', 'attendance_admin_notes table exists');
 select has_table('public', 'audit_logs', 'audit_logs table exists');
 select has_table('public', 'early_departure_requests', 'early departure requests table exists');
+select has_table('public', 'reporting_settings', 'reporting settings table exists');
 
 select col_is_pk('public', 'profiles', 'id', 'profiles.id is the primary key');
 select col_is_fk('public', 'app_accounts', 'profile_id', 'app_accounts.profile_id references profiles');
@@ -55,11 +56,12 @@ select is(
         'leave_requests',
         'attendance_admin_notes',
         'audit_logs',
-        'early_departure_requests'
+        'early_departure_requests',
+        'reporting_settings'
       )
       and table_class.relrowsecurity
   ),
-  10::bigint,
+  11::bigint,
   'RLS is enabled on every exposed application table'
 );
 
@@ -269,6 +271,30 @@ insert into public.attendance_records (
     5,
     'CHECKED_IN'
   );
+
+select is(
+  (
+    select operational_start_date
+    from public.save_reporting_settings(
+      '00000000-0000-0000-0000-000000000102',
+      '2026-08-01'
+    )
+  ),
+  '2026-08-01'::date,
+  'report operational start can be configured before production lock'
+);
+
+select throws_ok(
+  $$
+    select public.save_reporting_settings(
+      '00000000-0000-0000-0000-000000000102',
+      '2026-09-01'
+    )
+  $$,
+  'P0001',
+  'REPORTING_OPERATIONAL_START_LOCKED',
+  'report operational start is locked after attendance exists'
+);
 
 insert into public.leave_requests (teacher_id, leave_date, leave_type, reason)
 values

@@ -116,6 +116,33 @@
           }
         </article>
 
+        <article class="geofence-summary reporting-summary">
+          <div class="summary-title">
+            <h3>Mulai operasional laporan</h3>
+            <strong>{{ reportingSettings()?.locked ? 'Terkunci' : 'Dapat diatur' }}</strong>
+          </div>
+          <p class="empty-inline">
+            Tanggal sebelum batas ini tidak dianggap sebagai data kosong. Cocok untuk memisahkan data development/UAT dari penggunaan production.
+          </p>
+          <form [formGroup]="reportingForm" (ngSubmit)="saveReportingSettings()" novalidate>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Tanggal mulai</mat-label>
+              <input matInput type="date" name="operationalStartDate" formControlName="operationalStartDate" autocomplete="off" />
+              <mat-error>Tanggal wajib diisi.</mat-error>
+            </mat-form-field>
+            <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null || reportingSettings()?.locked">
+              {{ actionInProgress() === 'reporting' ? 'Menyimpan…' : 'Simpan tanggal mulai' }}
+            </button>
+          </form>
+          <p class="version-range">
+            @if (reportingSettings()?.locked) {
+              Absensi production sudah tercatat, sehingga batas awal tidak dapat diubah.
+            } @else {
+              Setelah absensi production tercatat, tanggal ini dikunci agar laporan historis konsisten.
+            }
+          </p>
+        </article>
+
       </div>
     </section>
     }
@@ -175,7 +202,7 @@
 
   @if (activeTab() === 'security') {
   <section class="setting-section security-tab" aria-labelledby="security-schedule-title">
-    <div class="section-heading"><div><p class="section-kicker">Berlaku hari ini</p><h2 id="security-schedule-title">Jadwal dan rotasi Satpam</h2></div><p>Rotasi berjalan setiap hari, termasuk Minggu dan hari libur sekolah.</p></div>
+    <div class="section-heading"><div><p class="section-kicker">Tanggal server saat disimpan · menjadi Hari 1</p><h2 id="security-schedule-title">Jadwal dan rotasi Satpam</h2></div><p>Rotasi berjalan setiap hari, termasuk Minggu dan hari libur sekolah. Menyimpan pada hari yang berbeda memulai ulang urutan dari Hari 1.</p></div>
     <form [formGroup]="securityScheduleForm" (ngSubmit)="saveSecuritySchedules()" novalidate>
       @for (shift of [{ key: 'dayShift', label: 'Shift Pagi · mulai 06.00', overnight: false }, { key: 'nightShift', label: 'Shift Malam · mulai 18.00, selesai hari berikutnya', overnight: true }]; track shift.key) {
         <fieldset [formGroupName]="shift.key"><legend>{{ shift.label }}</legend><div class="time-form-grid">
@@ -198,7 +225,7 @@
         </div>
       }
       @if (isHistoricalInspection()) { <div class="history-actions"><p>Versi historis hanya dapat dibaca.</p><button mat-stroked-button type="button" (click)="copyHistoricalToToday()">Salin ke konfigurasi hari ini</button></div> }
-      <div class="form-actions"><span>Tiga Satpam harus aktif dan berbeda. Riwayat sebelum hari ini tidak berubah.</span><button mat-flat-button type="submit" [disabled]="actionInProgress() !== null || securityGuards().length < 3 || isHistoricalInspection()">{{ actionInProgress() === 'security' ? 'Menyimpan…' : 'Simpan jadwal Satpam' }}</button></div>
+      <div class="form-actions"><span>Konfirmasi akan tampil sebelum rotasi direset ke Hari 1. Riwayat sebelum hari ini tidak berubah.</span><button mat-flat-button type="submit" [disabled]="actionInProgress() !== null || securityGuards().length < 3 || isHistoricalInspection()">{{ actionInProgress() === 'security' ? 'Menyimpan…' : 'Simpan jadwal Satpam' }}</button></div>
     </form>
   </section>
   }

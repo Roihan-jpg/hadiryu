@@ -5,6 +5,7 @@ import {
   SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
   SaveSecurityScheduleSettingsRequestSchema,
+  SaveReportingSettingsRequestSchema,
   ScheduleSettingsResponseSchema,
   ScheduleSettingsQuerySchema,
   type AuthUser,
@@ -19,6 +20,8 @@ import {
   type ScheduleSettingsResponse,
   type SaveSecurityScheduleSettingsRequest,
   type SecurityScheduleSettingsResponse,
+  type SaveReportingSettingsRequest,
+  type ReportingSettingsResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
 import { z } from 'zod';
@@ -79,6 +82,11 @@ export function resolveGeofenceSettings(
 }
 
 export interface SettingsService {
+  getReportingSettings(): Promise<ReportingSettingsResponse>;
+  saveReportingSettings(
+    actorId: string,
+    input: SaveReportingSettingsRequest,
+  ): Promise<ReportingSettingsResponse>;
   getSchedules(effectiveOn: string): Promise<ScheduleSettingsResponse>;
   saveSchedules(
     actorId: string,
@@ -125,6 +133,28 @@ export function registerSettingsRoutes(
   settingsService: SettingsService,
 ): void {
   const adminGuards = [createSessionGuard(authService), requireRole('SUPER_ADMIN')];
+
+  app.get('/api/admin/settings/reporting', ...adminGuards, async (_request, response, next) => {
+    try {
+      response.status(200).json(await settingsService.getReportingSettings());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/admin/settings/reporting', ...adminGuards, async (request, response, next) => {
+    try {
+      const parsed = SaveReportingSettingsRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        throw validationError('Tanggal mulai operasional laporan tidak valid', parsed.error.flatten());
+      }
+      response.status(201).json(
+        await settingsService.saveReportingSettings(actorId(request), parsed.data),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.get(
     '/api/admin/settings/schedules',

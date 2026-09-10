@@ -154,6 +154,18 @@ h1 {
   grid-column: 1 / -1;
 }
 
+.reporting-summary form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.reporting-summary mat-form-field {
+  min-width: min(100%, 16rem);
+}
+
 .summary-title {
   display: flex;
   align-items: baseline;

@@ -61,6 +61,29 @@ describe('SettingsService', () => {
     await expect(geofencePromise).resolves.toEqual(geofence);
   });
 
+  it('loads and saves the report operational start date', async () => {
+    const getPromise = service.getReportingSettings();
+    const getRequest = http.expectOne('/api/admin/settings/reporting');
+    expect(getRequest.request.method).toBe('GET');
+    getRequest.flush({ operationalStartDate: null, locked: false });
+    await expect(getPromise).resolves.toEqual({
+      operationalStartDate: null,
+      locked: false,
+    });
+
+    const savePromise = service.saveReportingSettings({
+      operationalStartDate: '2026-10-01',
+    });
+    const saveRequest = http.expectOne('/api/admin/settings/reporting');
+    expect(saveRequest.request.method).toBe('POST');
+    expect(saveRequest.request.body).toEqual({ operationalStartDate: '2026-10-01' });
+    saveRequest.flush({ operationalStartDate: '2026-10-01', locked: false });
+    await expect(savePromise).resolves.toEqual({
+      operationalStartDate: '2026-10-01',
+      locked: false,
+    });
+  });
+
   it('posts schedule and geofence settings without client dates', async () => {
     const scheduleInput: SaveScheduleSettingsRequest = {
       weekday: {

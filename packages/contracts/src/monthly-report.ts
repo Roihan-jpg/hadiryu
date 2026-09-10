@@ -51,7 +51,7 @@ export const MonthlyReportReadinessSchema = z.discriminatedUnion('status', [
     issues: z.tuple([]),
   }),
   z.strictObject({
-    status: z.literal('BLOCKED'),
+    status: z.literal('READY_WITH_WARNINGS'),
     ...MonthlyReportReadinessFields,
     issues: z.array(MonthlyReportReadinessIssueSchema).min(1),
   }),
@@ -62,9 +62,12 @@ export type MonthlyReportReadiness = z.infer<
 
 export const MonthlyReportDayStatusSchema = z.enum([
   'WORKED',
+  'IN_PROGRESS',
   'INCOMPLETE',
   'LEAVE',
   'ABSENT',
+  'CONFIGURATION_MISSING',
+  'NOT_YET_OCCURRED',
   'NON_WORKING_DAY',
 ]);
 export type MonthlyReportDayStatus = z.infer<
@@ -124,6 +127,18 @@ const IncompleteDaySchema = z.strictObject({
   leaveType: z.null(),
 });
 
+const InProgressDaySchema = z.strictObject({
+  ...WorkingDayBase,
+  status: z.literal('IN_PROGRESS'),
+  attendanceId: z.uuid(),
+  checkInAt: z.iso.datetime({ offset: true }),
+  checkOutAt: z.null(),
+  workedMinutes: z.null(),
+  arrivalLateMinutes: z.number().int().nonnegative(),
+  workDeficitMinutes: z.null(),
+  leaveType: z.null(),
+});
+
 const LeaveDaySchema = z
   .strictObject({
     ...WorkingDayBase,
@@ -158,11 +173,42 @@ const AbsentDaySchema = z
     path: ['workDeficitMinutes'],
   });
 
+const ConfigurationMissingDaySchema = z.strictObject({
+  ...CommonDayFields,
+  scheduleType: ScheduleTypeSchema.nullable(),
+  status: z.literal('CONFIGURATION_MISSING'),
+  attendanceId: z.null(),
+  checkInAt: z.null(),
+  checkOutAt: z.null(),
+  workStart: z.null(),
+  workEnd: z.null(),
+  targetMinutes: z.null(),
+  workedMinutes: z.null(),
+  arrivalLateMinutes: z.null(),
+  workDeficitMinutes: z.null(),
+  leaveType: z.null(),
+});
+
+const NotYetOccurredDaySchema = z.strictObject({
+  ...WorkingDayBase,
+  status: z.literal('NOT_YET_OCCURRED'),
+  attendanceId: z.null(),
+  checkInAt: z.null(),
+  checkOutAt: z.null(),
+  workedMinutes: z.null(),
+  arrivalLateMinutes: z.null(),
+  workDeficitMinutes: z.null(),
+  leaveType: z.null(),
+});
+
 export const MonthlyReportDaySchema = z.discriminatedUnion('status', [
   WorkedDaySchema,
+  InProgressDaySchema,
   IncompleteDaySchema,
   LeaveDaySchema,
   AbsentDaySchema,
+  ConfigurationMissingDaySchema,
+  NotYetOccurredDaySchema,
   NonWorkingDaySchema,
 ]);
 export type MonthlyReportDay = z.infer<typeof MonthlyReportDaySchema>;
@@ -181,7 +227,7 @@ export const MonthlyReportTeacherSchema = z
   })
   .superRefine((teacher, context) => {
     const total = teacher.days.reduce(
-      (sum, day) => sum + day.workDeficitMinutes,
+      (sum, day) => sum + (day.workDeficitMinutes ?? 0),
       0,
     );
     if (teacher.totalWorkDeficitMinutes !== total) {
@@ -193,6 +239,41 @@ export const MonthlyReportTeacherSchema = z
     }
   });
 export type MonthlyReportTeacher = z.infer<typeof MonthlyReportTeacherSchema>;
+
+export const MonthlyReportConfigurationIssueSchema = z.strictObject({
+  category: z.literal('CONFIGURATION'),
+  ...MonthlyReportReadinessIssueSchema.shape,
+});
+
+export const MonthlyReportStaffDataIssueSchema = z.strictObject({
+  category: z.literal('STAFF_DATA'),
+  code: z.enum([
+    'NO_ATTENDANCE',
+    'INCOMPLETE_ATTENDANCE',
+    'PENDING_LEAVE',
+    'PENDING_EARLY_DEPARTURE',
+  ]),
+  teacherId: z.uuid(),
+  teacherNip: z.string().trim().min(1),
+  teacherFullName: z.string().trim().min(1).max(200),
+  teacherRole: StaffRoleSchema,
+  teacherWhatsapp: z.string().trim().min(1).nullable(),
+  workDate: LocalDateSchema,
+});
+
+export const MonthlyReportPeriodIssueSchema = z.strictObject({
+  category: z.literal('PERIOD'),
+  code: z.literal('REPORT_PERIOD_IN_PROGRESS'),
+  currentDate: LocalDateSchema,
+  periodEndDate: LocalDateSchema,
+});
+
+export const MonthlyReportIssueSchema = z.discriminatedUnion('category', [
+  MonthlyReportConfigurationIssueSchema,
+  MonthlyReportStaffDataIssueSchema,
+  MonthlyReportPeriodIssueSchema,
+]);
+export type MonthlyReportIssue = z.infer<typeof MonthlyReportIssueSchema>;
 
 function calendarDates(year: number, month: number): string[] {
   const dayCount = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -210,6 +291,8 @@ export const MonthlyReportPreviewSchema = z
     startDate: LocalDateSchema,
     endDate: LocalDateSchema,
     generatedAt: z.iso.datetime({ offset: true }),
+    documentStatus: z.enum(['DRAFT', 'FINAL']),
+    issues: z.array(MonthlyReportIssueSchema),
     teachers: z.array(MonthlyReportTeacherSchema),
   })
   .superRefine((report, context) => {
@@ -226,6 +309,16 @@ export const MonthlyReportPreviewSchema = z
         code: 'custom',
         message: 'Tanggal akhir tidak sesuai periode laporan',
         path: ['endDate'],
+      });
+    }
+    if (
+      (report.documentStatus === 'FINAL' && report.issues.length > 0) ||
+      (report.documentStatus === 'DRAFT' && report.issues.length === 0)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Status dokumen wajib sesuai dengan jumlah catatan laporan',
+        path: ['documentStatus'],
       });
     }
     for (let index = 0; index < report.teachers.length; index += 1) {

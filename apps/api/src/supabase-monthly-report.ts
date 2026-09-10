@@ -24,6 +24,7 @@ const ProfileRowSchema = z.strictObject({
   id: z.uuid(),
   nip: z.string(),
   full_name: z.string(),
+  whatsapp_number: z.string().nullable(),
   role: z.enum(['USER', 'SECURITY_GUARD']),
   created_at: z.string(),
 });
@@ -92,6 +93,9 @@ const EarlyDepartureRowSchema = z.strictObject({
   requested_at: z.string(),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
 });
+const ReportingSettingsRowSchema = z.strictObject({
+  operational_start_date: z.string(),
+});
 
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
@@ -152,6 +156,7 @@ function toTeacher(value: unknown): MonthlyReportSourceTeacher {
     teacherNip: row.nip,
     teacherFullName: row.full_name,
     role: row.role,
+    teacherWhatsapp: row.whatsapp_number,
     createdDate: jakartaDate(row.created_at),
   };
 }
@@ -262,11 +267,12 @@ export class SupabaseMonthlyReportRepository
       attendanceRows,
       leaveRows,
       earlyDepartureRows,
+      reportingSettingsResult,
     ] = await Promise.all([
       loadAllPages(async (from, to) =>
         this.client
           .from('profiles')
-          .select('id,nip,full_name,role,created_at')
+          .select('id,nip,full_name,whatsapp_number,role,created_at')
           .in('role', ['USER', 'SECURITY_GUARD'])
           .eq('is_active', true)
           .lt('created_at', `${nextMonthDate}T00:00:00+07:00`)
@@ -335,7 +341,23 @@ export class SupabaseMonthlyReportRepository
           .order('teacher_id', { ascending: true })
           .range(from, to),
       ),
+      this.client
+        .from('reporting_settings')
+        .select('operational_start_date')
+        .eq('singleton', true)
+        .maybeSingle(),
     ]);
+
+    if (reportingSettingsResult.error) {
+      throw new AppError(
+        500,
+        'MONTHLY_REPORT_LOOKUP_FAILED',
+        'Pengaturan laporan bulanan tidak dapat dimuat',
+      );
+    }
+    const operationalStartDate = reportingSettingsResult.data
+      ? ReportingSettingsRowSchema.parse(reportingSettingsResult.data).operational_start_date
+      : null;
 
     const teachers = teacherRows.map(toTeacher);
     const teacherIds = new Set(teachers.map((teacher) => teacher.teacherId));
@@ -365,6 +387,7 @@ export class SupabaseMonthlyReportRepository
       earlyDepartures: earlyDepartureRows
         .map(toEarlyDeparture)
         .filter((request) => teacherIds.has(request.teacherId)),
+      operationalStartDate,
     };
   }
 }

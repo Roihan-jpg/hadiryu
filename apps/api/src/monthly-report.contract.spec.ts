@@ -54,6 +54,8 @@ describe('monthly report contracts', () => {
       startDate: '2028-02-01',
       endDate: '2028-02-29',
       generatedAt: '2028-03-01T00:00:00.000Z',
+      documentStatus: 'FINAL',
+      issues: [],
       teachers: [
         {
           teacherId: '50000000-0000-4000-8000-000000000001',
@@ -87,9 +89,9 @@ describe('monthly report contracts', () => {
     ).toBe(false);
   });
 
-  it('represents report readiness with structured missing schedule ranges', () => {
-    const blocked = MonthlyReportReadinessSchema.parse({
-      status: 'BLOCKED',
+  it('represents schedule gaps as non-blocking readiness warnings', () => {
+    const warning = MonthlyReportReadinessSchema.parse({
+      status: 'READY_WITH_WARNINGS',
       year: 2026,
       month: 9,
       startDate: '2026-09-01',
@@ -105,16 +107,79 @@ describe('monthly report contracts', () => {
       ],
     });
 
-    expect(blocked.status).toBe('BLOCKED');
-    expect(blocked.issues[0]?.missingRanges[0]).toEqual({
+    expect(warning.status).toBe('READY_WITH_WARNINGS');
+    expect(warning.issues[0]?.missingRanges[0]).toEqual({
       startDate: '2026-09-01',
       endDate: '2026-09-06',
     });
     expect(
       MonthlyReportReadinessSchema.safeParse({
-        ...blocked,
+        ...warning,
         status: 'READY',
       }).success,
     ).toBe(false);
+  });
+
+  it('keeps unavailable configuration distinct from a zero-valued workday', () => {
+    const days: Array<Record<string, unknown>> = Array.from(
+      { length: 30 },
+      (_, index) => ({
+        workDate: `2026-09-${String(index + 1).padStart(2, '0')}`,
+        scheduleType: null,
+        status: 'NON_WORKING_DAY',
+        attendanceId: null,
+        checkInAt: null,
+        checkOutAt: null,
+        workStart: null,
+        workEnd: null,
+        targetMinutes: 0,
+        workedMinutes: 0,
+        arrivalLateMinutes: 0,
+        workDeficitMinutes: 0,
+        leaveType: null,
+        calendarExceptionName: null,
+      }),
+    );
+    days[0] = {
+      ...days[0],
+      status: 'CONFIGURATION_MISSING',
+      targetMinutes: null,
+      workedMinutes: null,
+      arrivalLateMinutes: null,
+      workDeficitMinutes: null,
+    };
+
+    const result = MonthlyReportPreviewSchema.parse({
+      year: 2026,
+      month: 9,
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      generatedAt: '2026-10-01T00:00:00.000Z',
+      documentStatus: 'DRAFT',
+      issues: [{
+        category: 'CONFIGURATION',
+        code: 'SECURITY_SCHEDULE_COVERAGE_MISSING',
+        source: 'SECURITY_SCHEDULE',
+        missingRanges: [{ startDate: '2026-09-01', endDate: '2026-09-01' }],
+      }],
+      teachers: [{
+        teacherId: '50000000-0000-4000-8000-000000000001',
+        teacherNip: 'SATPAM-1',
+        teacherFullName: 'Satpam Satu',
+        role: 'SECURITY_GUARD',
+        days,
+        totalWorkDeficitMinutes: 0,
+        lateDayCount: 0,
+        absentDayCount: 0,
+        rejectedEarlyDepartureMinutes: 0,
+      }],
+    });
+
+    expect(result.documentStatus).toBe('DRAFT');
+    expect(result.teachers[0]?.days[0]).toMatchObject({
+      status: 'CONFIGURATION_MISSING',
+      targetMinutes: null,
+      workDeficitMinutes: null,
+    });
   });
 });

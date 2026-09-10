@@ -8,6 +8,8 @@ import type {
   SaveSecurityScheduleSettingsRequest,
   SecurityScheduleSettingsResponse,
   ScheduleSettingsResponse,
+  ReportingSettingsResponse,
+  SaveReportingSettingsRequest,
 } from '@absensi/contracts';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
@@ -19,6 +21,31 @@ import { queryKeys } from '../../../core/query/query-keys';
 export class SettingsService {
   private readonly http = inject(HttpClient);
   private readonly queries = inject(QueryGateway);
+
+  async getReportingSettings(): Promise<ReportingSettingsResponse> {
+    return this.queries.get(queryKeys.settings('reporting'), async () => {
+      const value = await firstValueFrom(this.http.get<unknown>(
+        '/api/admin/settings/reporting',
+        { withCredentials: true },
+      ));
+      const { ReportingSettingsResponseSchema } = await import('@absensi/contracts');
+      return ReportingSettingsResponseSchema.parse(value);
+    });
+  }
+
+  async saveReportingSettings(
+    input: SaveReportingSettingsRequest,
+  ): Promise<ReportingSettingsResponse> {
+    return this.queries.write(async () => {
+      const value = await firstValueFrom(this.http.post<unknown>(
+        '/api/admin/settings/reporting',
+        input,
+        { withCredentials: true },
+      ));
+      const { ReportingSettingsResponseSchema } = await import('@absensi/contracts');
+      return ReportingSettingsResponseSchema.parse(value);
+    }, [queryKeys.settings()]);
+  }
 
   async getSchedules(effectiveOn: string): Promise<ScheduleSettingsResponse> {
     return this.queries.get(queryKeys.settings(`schedules:${effectiveOn}`), async () => {

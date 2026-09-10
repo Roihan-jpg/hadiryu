@@ -30,6 +30,8 @@ const preview: MonthlyReportPreview = {
   startDate: '2026-08-01',
   endDate: '2026-08-31',
   generatedAt: '2026-09-01T00:00:00.000Z',
+  documentStatus: 'FINAL',
+  issues: [],
   teachers: [],
 };
 
@@ -56,7 +58,7 @@ class FakeMonthlyReportService implements MonthlyReportService {
   async readiness(input: MonthlyReportParams): Promise<MonthlyReportReadiness> {
     this.readinessCalls.push(input);
     return {
-      status: 'BLOCKED',
+      status: 'READY_WITH_WARNINGS',
       year: input.year,
       month: input.month,
       startDate: '2026-09-01',
@@ -95,7 +97,7 @@ describe('monthly report preview HTTP API', () => {
 
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({
-      status: 'BLOCKED',
+      status: 'READY_WITH_WARNINGS',
       issues: [{ code: 'SECURITY_SCHEDULE_COVERAGE_MISSING' }],
     });
     expect(monthlyReportService.readinessCalls).toEqual([{ year: 2026, month: 9 }]);

@@ -131,6 +131,12 @@ const unavailableTeacherService: TeacherService = {
 };
 
 const unavailableSettingsService: SettingsService = {
+  async getReportingSettings() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan laporan belum dikonfigurasi');
+  },
+  async saveReportingSettings() {
+    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan laporan belum dikonfigurasi');
+  },
   async getSchedules() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },

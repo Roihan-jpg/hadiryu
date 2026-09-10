@@ -180,11 +180,49 @@ describe('monthly report calculator', () => {
     });
     expect(result.teachers[0]?.totalWorkDeficitMinutes).toBe(
       result.teachers[0]?.days.reduce(
-        (total, day) => total + day.workDeficitMinutes,
+        (total, day) => total + (day.workDeficitMinutes ?? 0),
         0,
       ),
     );
     expect(result.teachers[0]?.absentDayCount).toBeGreaterThan(0);
+  });
+
+  it('does not flag future dates or an open attendance as missing data', async () => {
+    const repository = new FakeMonthlyReportRepository(source({
+      attendances: [{
+        id: '40000000-0000-4000-8000-000000000010',
+        teacherId: '50000000-0000-4000-8000-000000000001',
+        workDate: '2026-06-10',
+        checkInAt: '2026-06-10T00:00:00.000Z',
+        checkOutAt: null,
+        workStart: '07:00',
+        workEnd: '15:35',
+        checkoutClose: '17:00',
+        targetMinutes: 515,
+        workedMinutes: null,
+        arrivalLateMinutes: 0,
+        workDeficitMinutes: null,
+        scheduleType: 'WEEKDAY',
+        status: 'CHECKED_IN',
+      }],
+    }));
+    const reportService = createMonthlyReportService(
+      repository,
+      () => new Date('2026-06-10T01:00:00.000Z'),
+    );
+
+    const report = await reportService.preview({ year: 2026, month: 6 });
+    expect(report.teachers[0]?.days[9]).toMatchObject({
+      status: 'IN_PROGRESS',
+      workDeficitMinutes: null,
+    });
+    expect(report.teachers[0]?.days[10]).toMatchObject({
+      status: 'NOT_YET_OCCURRED',
+      workDeficitMinutes: null,
+    });
+    expect(report.issues.every((issue) =>
+      issue.category !== 'STAFF_DATA' || issue.workDate < '2026-06-10',
+    )).toBe(true);
   });
 
   it('uses a working-day override and sorts teachers by name then NIP', async () => {
@@ -238,7 +276,7 @@ describe('monthly report calculator', () => {
     });
   });
 
-  it('blocks the entire preview while any leave in the month is Pending', async () => {
+  it('returns a draft and identifies the staff member when leave is Pending', async () => {
     const repository = new FakeMonthlyReportRepository(
       source({
         leaves: [
@@ -252,12 +290,18 @@ describe('monthly report calculator', () => {
       }),
     );
 
-    await expect(
-      service(repository).preview({ year: 2026, month: 6 }),
-    ).rejects.toMatchObject({
-      status: 409,
-      code: 'PENDING_LEAVE_EXISTS',
-      details: { pendingLeaveCount: 1 },
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+
+    expect(report.documentStatus).toBe('DRAFT');
+    expect(report.issues).toContainEqual({
+      category: 'STAFF_DATA',
+      code: 'PENDING_LEAVE',
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      teacherNip: '1987001',
+      teacherFullName: 'Guru Satu',
+      teacherRole: 'USER',
+      teacherWhatsapp: null,
+      workDate: '2026-06-03',
     });
   });
 
@@ -364,7 +408,7 @@ describe('monthly report calculator', () => {
     expect(report.teachers[0]?.rejectedEarlyDepartureMinutes).toBe(515);
   });
 
-  it('blocks preview while an early departure request is Pending', async () => {
+  it('returns a draft when an early departure request is Pending', async () => {
     const repository = new FakeMonthlyReportRepository(
       source({
         earlyDepartures: [
@@ -379,29 +423,43 @@ describe('monthly report calculator', () => {
       }),
     );
 
-    await expect(
-      service(repository).preview({ year: 2026, month: 6 }),
-    ).rejects.toMatchObject({
-      status: 409,
-      code: 'PENDING_EARLY_DEPARTURE_EXISTS',
-      details: { pendingEarlyDepartureCount: 1 },
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+
+    expect(report.documentStatus).toBe('DRAFT');
+    expect(report.issues).toContainEqual({
+      category: 'STAFF_DATA',
+      code: 'PENDING_EARLY_DEPARTURE',
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      teacherNip: '1987001',
+      teacherFullName: 'Guru Satu',
+      teacherRole: 'USER',
+      teacherWhatsapp: null,
+      workDate: '2026-06-01',
     });
   });
 
-  it('fails explicitly when historical schedule configuration is missing', async () => {
+  it('keeps historical schedule gaps blank and exportable as a draft', async () => {
     const repository = new FakeMonthlyReportRepository(
       source({ schedules: [] }),
     );
 
-    await expect(
-      service(repository).preview({ year: 2026, month: 6 }),
-    ).rejects.toMatchObject({
-      status: 422,
-      code: 'REPORT_CONFIGURATION_MISSING',
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+
+    expect(report.documentStatus).toBe('DRAFT');
+    expect(report.issues).toContainEqual({
+      category: 'CONFIGURATION',
+      code: 'SCHOOL_SCHEDULE_COVERAGE_MISSING',
+      source: 'SCHOOL_SCHEDULE',
+      missingRanges: expect.any(Array),
+    });
+    expect(report.teachers[0]?.days[0]).toMatchObject({
+      status: 'CONFIGURATION_MISSING',
+      targetMinutes: null,
+      workDeficitMinutes: null,
     });
   });
 
-  it('blocks a month and reports the exact gap before the first Satpam roster', async () => {
+  it('warns about the exact gap before the first Satpam roster and still previews', async () => {
     const guardId = '50000000-0000-4000-8000-000000000002';
     const repository = new FakeMonthlyReportRepository(source({
       teachers: [{
@@ -427,7 +485,7 @@ describe('monthly report calculator', () => {
     const readiness = await service(repository).readiness({ year: 2026, month: 9 });
 
     expect(readiness).toEqual({
-      status: 'BLOCKED',
+      status: 'READY_WITH_WARNINGS',
       year: 2026,
       month: 9,
       startDate: '2026-09-01',
@@ -438,12 +496,11 @@ describe('monthly report calculator', () => {
         missingRanges: [{ startDate: '2026-09-01', endDate: '2026-09-06' }],
       }],
     });
-    await expect(
-      service(repository).preview({ year: 2026, month: 9 }),
-    ).rejects.toMatchObject({
-      status: 422,
-      code: 'REPORT_CONFIGURATION_MISSING',
-      details: { issues: readiness.issues },
+    const report = await service(repository).preview({ year: 2026, month: 9 });
+    expect(report.documentStatus).toBe('DRAFT');
+    expect(report.teachers[0]?.days[0]).toMatchObject({
+      status: 'CONFIGURATION_MISSING',
+      targetMinutes: null,
     });
   });
 
@@ -473,6 +530,39 @@ describe('monthly report calculator', () => {
     await expect(
       service(repository).readiness({ year: 2026, month: 9 }),
     ).resolves.toMatchObject({ status: 'READY', issues: [] });
+  });
+
+  it('does not require report data before the configured operational start date', async () => {
+    const guardId = '50000000-0000-4000-8000-000000000002';
+    const repository = new FakeMonthlyReportRepository(source({
+      operationalStartDate: '2026-09-07',
+      teachers: [{
+        teacherId: guardId,
+        teacherNip: 'SATPAM-1',
+        teacherFullName: 'Satpam Satu',
+        role: 'SECURITY_GUARD',
+        createdDate: '2026-09-01',
+      }],
+      securitySettings: [{
+        dayShift: { ...weekday, scheduleType: 'SECURITY_DAY', effectiveFrom: '2026-09-07' },
+        nightShift: { ...weekday, scheduleType: 'SECURITY_NIGHT', effectiveFrom: '2026-09-07' },
+        roster: {
+          dayOneMorningGuardId: guardId,
+          dayOneNightGuardId: '60000000-0000-4000-8000-000000000002',
+          dayOneOffGuardId: '60000000-0000-4000-8000-000000000003',
+          effectiveFrom: '2026-09-07',
+          effectiveTo: null,
+        },
+      }],
+    }));
+
+    await expect(
+      service(repository).readiness({ year: 2026, month: 9 }),
+    ).resolves.toMatchObject({ status: 'READY', issues: [] });
+    const report = await service(repository).preview({ year: 2026, month: 9 });
+    expect(report.teachers[0]?.days.slice(0, 6).every(
+      (day) => day.status === 'NON_WORKING_DAY',
+    )).toBe(true);
   });
 
   it('keeps a started Satpam shift from its attendance snapshot after the same-day roster changes', async () => {

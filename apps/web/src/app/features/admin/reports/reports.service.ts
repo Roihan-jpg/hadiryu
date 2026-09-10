@@ -48,7 +48,10 @@ export class ReportsService {
     const url = URL.createObjectURL(response.body ?? new Blob());
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `laporan-absensi-${year}-${String(month).padStart(2, '0')}.xlsx`;
+    const contentDisposition = response.headers.get('Content-Disposition') ?? '';
+    const serverFileName = /filename="?([^";]+)"?/i.exec(contentDisposition)?.[1];
+    anchor.download = serverFileName ??
+      `laporan-absensi-${year}-${String(month).padStart(2, '0')}.xlsx`;
     anchor.click();
     URL.revokeObjectURL(url);
   }

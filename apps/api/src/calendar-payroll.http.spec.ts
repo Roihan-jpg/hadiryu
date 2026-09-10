@@ -49,6 +49,8 @@ class FakeAuthService implements AuthService {
 }
 
 class FakeSettingsService implements SettingsService {
+  async getReportingSettings(): Promise<never> { throw new Error('not used'); }
+  async saveReportingSettings(): Promise<never> { throw new Error('not used'); }
   calendar: CalendarExceptionsResponse = { exceptions: [exception] };
   calendarCreate?: { actorId: string; input: CalendarExceptionInput };
   calendarUpdate?: { actorId: string; id: string; input: CalendarExceptionInput };

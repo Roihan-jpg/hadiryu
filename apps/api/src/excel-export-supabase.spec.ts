@@ -143,6 +143,8 @@ describe('Supabase Excel export audit integration', () => {
       generator: 'exceljs@4.4.0',
       period: '2026-08',
       teacherCount: 57,
+      documentStatus: 'DRAFT',
+      issueCount: 3,
       templateChecksum: 'a'.repeat(64),
       exportedAt: '2030-01-02T03:04:05.000Z',
     };
@@ -165,6 +167,8 @@ describe('Supabase Excel export audit integration', () => {
         generator: audit.generator,
         period: audit.period,
         teacherCount: audit.teacherCount,
+        documentStatus: audit.documentStatus,
+        issueCount: audit.issueCount,
         templateChecksum: audit.templateChecksum,
         exportedAt: audit.exportedAt,
       },

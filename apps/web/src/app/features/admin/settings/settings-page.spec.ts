@@ -4,6 +4,7 @@ import type {
   GeofenceSettingsResponse,
   ScheduleSettingsResponse,
   SecurityScheduleSettingsResponse,
+  ReportingSettingsResponse,
 } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -58,6 +59,10 @@ const geofence: GeofenceSettingsResponse = {
   },
 };
 const calendar: CalendarExceptionsResponse = { exceptions: [] };
+const reportingSettings: ReportingSettingsResponse = {
+  operationalStartDate: '2026-09-07',
+  locked: false,
+};
 const guardIds = [
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
@@ -91,6 +96,8 @@ describe('SettingsPage', () => {
   const getSchedules = vi.fn(async () => schedules);
   const getGeofence = vi.fn(async () => geofence);
   const getSecuritySchedules = vi.fn(async () => securitySchedules);
+  const getReportingSettings = vi.fn(async () => reportingSettings);
+  const saveReportingSettings = vi.fn(async () => reportingSettings);
   const saveSecuritySchedules = vi.fn(async () => ({ ...securitySchedules, effectiveOn: '2026-09-01' }));
   const saveSchedules = vi.fn(
     async () => ({
@@ -118,6 +125,8 @@ describe('SettingsPage', () => {
     getSchedules.mockClear();
     getGeofence.mockClear();
     getSecuritySchedules.mockClear();
+    getReportingSettings.mockClear();
+    saveReportingSettings.mockClear();
     saveSecuritySchedules.mockClear();
     saveSchedules.mockClear();
     saveGeofence.mockClear();
@@ -130,6 +139,8 @@ describe('SettingsPage', () => {
         {
           provide: SettingsService,
           useValue: {
+            getReportingSettings,
+            saveReportingSettings,
             getSchedules,
             getSecuritySchedules,
             saveSecuritySchedules,
@@ -177,6 +188,8 @@ describe('SettingsPage', () => {
     expect(text).toContain('Sabtu');
     expect(text).toContain('515 menit');
     expect(text).toContain('Lingkaran lama');
+    expect(text).toContain('Mulai operasional laporan');
+    expect(fixture.componentInstance.reportingForm.controls.operationalStartDate.value).toBe('2026-09-07');
     expect(text).not.toContain('Upah kinerja');
     expect(fixture.nativeElement.querySelector('[name="scheduleEffectiveFrom"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[name="geofenceEffectiveFrom"]')).toBeNull();
@@ -205,8 +218,30 @@ describe('SettingsPage', () => {
     expect(fixture.componentInstance.securityScheduleForm.controls.nightShift.valid).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('Hari berikutnya');
     expect(fixture.nativeElement.textContent).toContain('Preview rotasi tiga hari');
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
     await fixture.componentInstance.saveSecuritySchedules();
     expect(saveSecuritySchedules).toHaveBeenCalled();
+  });
+
+  it('requires confirmation because saving resets the Satpam rotation to Day 1', async () => {
+    fixture.componentInstance.selectTab('security');
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+
+    await fixture.componentInstance.saveSecuritySchedules();
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Hari 1 rotasi Satpam'));
+    expect(saveSecuritySchedules).not.toHaveBeenCalled();
+  });
+
+  it('saves the operational report start date separately from schedules', async () => {
+    fixture.componentInstance.reportingForm.controls.operationalStartDate.setValue('2026-10-01');
+
+    await fixture.componentInstance.saveReportingSettings();
+
+    expect(saveReportingSettings).toHaveBeenCalledWith({
+      operationalStartDate: '2026-10-01',
+    });
   });
 
   it('focuses the first invalid field within the night checkout segment', async () => {

@@ -52,6 +52,8 @@ export interface ExcelExportAudit {
   generator: 'exceljs@4.4.0';
   period: string;
   teacherCount: number;
+  documentStatus: 'DRAFT' | 'FINAL';
+  issueCount: number;
   templateChecksum: string;
   exportedAt: string;
 }
@@ -206,10 +208,13 @@ type DayFills = {
   weekday: ExcelJS.Fill;
   saturday: ExcelJS.Fill;
   nonWorking: ExcelJS.Fill;
+  warning: ExcelJS.Fill;
 };
 
 function fillForDay(day: MonthlyReportDay, fills: DayFills): ExcelJS.Fill {
-  return day.status === 'NON_WORKING_DAY'
+  return day.status === 'CONFIGURATION_MISSING'
+    ? fills.warning
+    : day.status === 'NON_WORKING_DAY'
     ? fills.nonWorking
     : day.scheduleType === 'SATURDAY'
       ? fills.saturday
@@ -269,7 +274,11 @@ function writeDay(
   setNumberFormat(workedMinutes, '0');
   setNumberFormat(deficitMinutes, '0');
 
-  if (day.status === 'NON_WORKING_DAY') return;
+  if (
+    day.status === 'NON_WORKING_DAY' ||
+    day.status === 'CONFIGURATION_MISSING' ||
+    day.status === 'NOT_YET_OCCURRED'
+  ) return;
   if (day.status === 'LEAVE') {
     checkIn.value = LEAVE_CODES[day.leaveType];
   } else if (day.checkInAt !== null) {
@@ -278,9 +287,13 @@ function writeDay(
   if (day.checkOutAt !== null) {
     checkOut.value = jakartaTimeFraction(day.checkOutAt);
   }
-  duration.value = day.workedMinutes / (24 * 60);
-  workedMinutes.value = day.workedMinutes;
-  deficitMinutes.value = day.workDeficitMinutes;
+  if (day.workedMinutes !== null) {
+    duration.value = day.workedMinutes / (24 * 60);
+    workedMinutes.value = day.workedMinutes;
+  }
+  if (day.workDeficitMinutes !== null) {
+    deficitMinutes.value = day.workDeficitMinutes;
+  }
 }
 
 function writeTeacher(
@@ -389,6 +402,136 @@ function validateWorkbook(workbook: ExcelJS.Workbook): void {
   }
 }
 
+function issueProblem(code: MonthlyReportPreview['issues'][number]['code']): string {
+  const labels: Record<typeof code, string> = {
+    SCHOOL_SCHEDULE_COVERAGE_MISSING: 'Jadwal Guru belum tersedia',
+    SECURITY_SCHEDULE_COVERAGE_MISSING: 'Jadwal Satpam belum tersedia',
+    NO_ATTENDANCE: 'Data absensi tidak ditemukan',
+    INCOMPLETE_ATTENDANCE: 'Checkout belum tersedia',
+    PENDING_LEAVE: 'Izin masih menunggu keputusan',
+    PENDING_EARLY_DEPARTURE: 'Pulang awal masih menunggu keputusan',
+    REPORT_PERIOD_IN_PROGRESS: 'Periode laporan masih berjalan',
+  };
+  return labels[code];
+}
+
+function issueAction(issue: MonthlyReportPreview['issues'][number]): string {
+  if (issue.category === 'PERIOD') {
+    return 'Ekspor ulang setelah periode berakhir';
+  }
+  if (issue.category === 'CONFIGURATION') {
+    return issue.source === 'SECURITY_SCHEDULE'
+      ? 'Atur jadwal Satpam lalu ekspor ulang'
+      : 'Atur jadwal Guru lalu ekspor ulang';
+  }
+  const contact = issue.teacherWhatsapp ? ` (${issue.teacherWhatsapp})` : '';
+  return issue.code === 'PENDING_LEAVE' || issue.code === 'PENDING_EARLY_DEPARTURE'
+    ? `Selesaikan keputusan admin${contact}`
+    : `Konfirmasi kepada staf${contact}; perbaiki Sheet1 bila perlu`;
+}
+
+function issueDate(issue: MonthlyReportPreview['issues'][number]): string {
+  if (issue.category === 'STAFF_DATA') return issue.workDate;
+  if (issue.category === 'PERIOD') {
+    return `${issue.currentDate} s.d. ${issue.periodEndDate}`;
+  }
+  return issue.missingRanges
+        .map((range) => range.startDate === range.endDate
+          ? range.startDate
+          : `${range.startDate} s.d. ${range.endDate}`)
+        .join(', ');
+}
+
+function addIssueSheet(
+  workbook: ExcelJS.Workbook,
+  report: MonthlyReportPreview,
+): void {
+  const stale = workbook.getWorksheet('Data Belum Lengkap');
+  if (stale) workbook.removeWorksheet(stale.id);
+  const sheet = workbook.addWorksheet('Data Belum Lengkap', {
+    views: [{ state: 'frozen', ySplit: 4 }],
+  });
+  sheet.mergeCells('A1:G1');
+  sheet.getCell('A1').value = 'DATA BELUM LENGKAP';
+  sheet.mergeCells('A2:G2');
+  sheet.getCell('A2').value = report.documentStatus === 'DRAFT'
+    ? 'DRAFT — periksa catatan berikut. Edit manual di Sheet1 tidak tersimpan ke sistem dan total tidak dihitung ulang otomatis.'
+    : 'FINAL — tidak ada catatan yang perlu ditindaklanjuti.';
+  sheet.mergeCells('A3:G3');
+  sheet.getCell('A3').value = `Periode ${period(report.year, report.month)} · dibuat ${report.generatedAt}`;
+  const headers = [
+    'Nama',
+    'Peran',
+    'NIP',
+    'Tanggal / rentang',
+    'Masalah',
+    'Tindak lanjut',
+    'Catatan admin',
+  ];
+  sheet.getRow(4).values = headers;
+  report.issues.forEach((issue, index) => {
+    const row = sheet.getRow(5 + index);
+    row.values = issue.category === 'STAFF_DATA'
+      ? [
+          issue.teacherFullName,
+          issue.teacherRole === 'SECURITY_GUARD' ? 'Satpam' : 'Guru',
+          issue.teacherNip,
+          issueDate(issue),
+          issueProblem(issue.code),
+          issueAction(issue),
+          null,
+        ]
+      : issue.category === 'CONFIGURATION' ? [
+          null,
+          'Konfigurasi',
+          null,
+          issueDate(issue),
+          issueProblem(issue.code),
+          issueAction(issue),
+          null,
+        ] : [
+          null,
+          'Periode',
+          null,
+          issueDate(issue),
+          issueProblem(issue.code),
+          issueAction(issue),
+          null,
+        ];
+  });
+  sheet.columns = [
+    { width: 28 },
+    { width: 16 },
+    { width: 18 },
+    { width: 25 },
+    { width: 34 },
+    { width: 42 },
+    { width: 36 },
+  ];
+  sheet.getRow(1).height = 28;
+  sheet.getCell('A1').font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 };
+  sheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF477F79' } };
+  sheet.getCell('A2').font = { bold: true, color: { argb: report.documentStatus === 'DRAFT' ? 'FF8A531B' : 'FF2E625D' } };
+  sheet.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: report.documentStatus === 'DRAFT' ? 'FFFFF0D6' : 'FFE4F1EF' } };
+  sheet.getCell('A3').font = { color: { argb: 'FF74817D' }, italic: true };
+  sheet.getRow(4).eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FF34413E' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4EEE6' } };
+    cell.alignment = { vertical: 'middle', wrapText: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFE8E0D6' } } };
+  });
+  for (let rowNumber = 5; rowNumber < 5 + report.issues.length; rowNumber += 1) {
+    sheet.getRow(rowNumber).eachCell({ includeEmpty: true }, (cell) => {
+      cell.alignment = { vertical: 'top', wrapText: true };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFE8E0D6' } } };
+    });
+  }
+  sheet.autoFilter = {
+    from: { row: 4, column: 1 },
+    to: { row: Math.max(4, 4 + report.issues.length), column: 7 },
+  };
+}
+
 function populateWorkbook(
   workbook: ExcelJS.Workbook,
   report: MonthlyReportPreview,
@@ -410,6 +553,11 @@ function populateWorkbook(
     weekday: cloneFill(sheet.getCell('B4').fill),
     saturday: cloneFill(sheet.getCell('B7').fill),
     nonWorking: cloneFill(sheet.getCell('B8').fill),
+    warning: {
+      type: 'pattern' as const,
+      pattern: 'solid' as const,
+      fgColor: { argb: 'FFFFF0D6' },
+    },
   };
   const requiredSecondSectionGroups = ensureSecondSectionCapacity(
     sheet,
@@ -455,6 +603,7 @@ function populateWorkbook(
       fills,
     );
   }
+  addIssueSheet(workbook, report);
 }
 
 export function createExcelExportService(
@@ -481,12 +630,14 @@ export function createExcelExportService(
         generator: 'exceljs@4.4.0',
         period: reportPeriod,
         teacherCount: report.teachers.length,
+        documentStatus: report.documentStatus,
+        issueCount: report.issues.length,
         templateChecksum,
         exportedAt: now().toISOString(),
       });
       return {
         buffer,
-        fileName: `laporan-absensi-${reportPeriod}.xlsx`,
+        fileName: `laporan-absensi-${report.documentStatus}-${reportPeriod}.xlsx`,
       };
     },
   };

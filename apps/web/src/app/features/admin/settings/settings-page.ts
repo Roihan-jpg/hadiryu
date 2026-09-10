@@ -10,6 +10,8 @@ import {
   type ScheduleSettingsResponse,
   SaveSecurityScheduleSettingsRequestSchema,
   type SecurityScheduleSettingsResponse,
+  SaveReportingSettingsRequestSchema,
+  type ReportingSettingsResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
@@ -174,6 +176,12 @@ export class SettingsPage implements OnInit {
     dayOneNightGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     dayOneOffGuardId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   }, { validators: distinctRosterValidator });
+  readonly reportingForm = new FormGroup({
+    operationalStartDate: new FormControl(this.minimumEffectiveDate, {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
+  });
   readonly geofenceForm = new FormGroup({
     maxAccuracyMeters: new FormControl(15, {
       nonNullable: true,
@@ -200,13 +208,14 @@ export class SettingsPage implements OnInit {
       : null });
   readonly schedules = signal<ScheduleSettingsResponse | null>(null);
   readonly securitySchedules = signal<SecurityScheduleSettingsResponse | null>(null);
+  readonly reportingSettings = signal<ReportingSettingsResponse | null>(null);
   readonly securityGuards = signal<ReadonlyArray<{ id: string; fullName: string }>>([]);
   readonly geofence = signal<GeofenceSettingsResponse | null>(null);
   readonly calendar = signal<CalendarExceptionsResponse | null>(null);
   readonly editingCalendarId = signal<string | null>(null);
   readonly loading = signal(true);
   readonly actionInProgress = signal<
-    'schedule' | 'security' | 'geofence' | 'calendar' | null
+    'reporting' | 'schedule' | 'security' | 'geofence' | 'calendar' | null
   >(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -317,6 +326,9 @@ export class SettingsPage implements OnInit {
     }
     const parsed = SaveSecurityScheduleSettingsRequestSchema.safeParse(this.securityScheduleForm.getRawValue());
     if (!parsed.success) { this.errorMessage.set('Isi dua jadwal dan pilih tiga Satpam berbeda.'); return; }
+    if (!window.confirm(
+      'Simpan perubahan? Tanggal server saat penyimpanan akan menjadi Hari 1 rotasi Satpam. Riwayat sebelumnya tetap sama.',
+    )) return;
     this.actionInProgress.set('security'); this.clearFeedback();
     try {
       const saved = await this.service.saveSecuritySchedules(parsed.data);
@@ -326,6 +338,36 @@ export class SettingsPage implements OnInit {
     } catch (error) {
       this.errorMessage.set(this.errorText(error, 'Jadwal Satpam tidak dapat disimpan.'));
     } finally { this.actionInProgress.set(null); }
+  }
+
+  async saveReportingSettings(): Promise<void> {
+    if (this.actionInProgress() !== null || this.reportingSettings()?.locked) return;
+    if (this.reportingForm.invalid) {
+      this.reportingForm.markAllAsTouched();
+      focusFirstInvalidControl(this.host.nativeElement);
+      return;
+    }
+    const input = SaveReportingSettingsRequestSchema.parse(
+      this.reportingForm.getRawValue(),
+    );
+    this.actionInProgress.set('reporting');
+    this.clearFeedback();
+    try {
+      const saved = await this.service.saveReportingSettings(input);
+      this.reportingSettings.set(saved);
+      this.reportingForm.patchValue({
+        operationalStartDate: saved.operationalStartDate ?? input.operationalStartDate,
+      });
+      this.successMessage.set(
+        'Tanggal mulai operasional laporan berhasil disimpan.',
+      );
+    } catch (error) {
+      this.errorMessage.set(
+        this.errorText(error, 'Tanggal mulai operasional tidak dapat disimpan.'),
+      );
+    } finally {
+      this.actionInProgress.set(null);
+    }
   }
 
   async saveGeofence(): Promise<void> {
@@ -471,18 +513,25 @@ export class SettingsPage implements OnInit {
     this.clearFeedback();
     this.loadErrorMessage.set('');
     try {
-      const [schedules, securitySchedules, geofence, calendar, guards] = await Promise.all([
+      const [reportingSettings, schedules, securitySchedules, geofence, calendar, guards] = await Promise.all([
+        this.service.getReportingSettings(),
         this.service.getSchedules(effectiveOn),
         this.service.getSecuritySchedules(effectiveOn),
         this.service.getGeofence(effectiveOn),
         this.service.getCalendarExceptions(),
         this.teachersService.list({ page: 1, pageSize: 100, role: 'SECURITY_GUARD' }),
       ]);
+      this.reportingSettings.set(reportingSettings);
       this.schedules.set(schedules);
       this.securitySchedules.set(securitySchedules);
       this.securityGuards.set(guards.data.map((guard) => ({ id: guard.id, fullName: guard.fullName })));
       this.geofence.set(geofence);
       this.calendar.set(calendar);
+      if (reportingSettings.operationalStartDate) {
+        this.reportingForm.patchValue({
+          operationalStartDate: reportingSettings.operationalStartDate,
+        });
+      }
       void this.syncQuery();
       if (schedules.weekday) {
         this.scheduleForm.controls.weekday.patchValue(

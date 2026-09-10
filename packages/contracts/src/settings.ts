@@ -320,3 +320,18 @@ export const CalendarDayResolutionSchema = z.strictObject({
   exception: CalendarExceptionSchema.nullable(),
 });
 export type CalendarDayResolution = z.infer<typeof CalendarDayResolutionSchema>;
+
+export const SaveReportingSettingsRequestSchema = z.strictObject({
+  operationalStartDate: LocalDateSchema,
+});
+export type SaveReportingSettingsRequest = z.infer<
+  typeof SaveReportingSettingsRequestSchema
+>;
+
+export const ReportingSettingsResponseSchema = z.strictObject({
+  operationalStartDate: LocalDateSchema.nullable(),
+  locked: z.boolean(),
+});
+export type ReportingSettingsResponse = z.infer<
+  typeof ReportingSettingsResponseSchema
+>;

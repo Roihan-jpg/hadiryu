@@ -4,6 +4,8 @@ import type {
   SaveGeofenceSettingsRequest,
   SaveScheduleSettingsRequest,
   ScheduleSettingsResponse,
+  SaveReportingSettingsRequest,
+  ReportingSettingsResponse,
 } from '@absensi/contracts';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
@@ -106,10 +108,23 @@ class FakeAuthService implements AuthService {
 }
 
 class FakeSettingsService implements SettingsService {
+  reportingSave?: { actorId: string; input: SaveReportingSettingsRequest };
   scheduleDate?: string;
   scheduleSave?: { actorId: string; input: SaveScheduleSettingsRequest };
   geofenceDate?: string;
   geofenceSave?: { actorId: string; input: SaveGeofenceSettingsRequest };
+
+  async getReportingSettings(): Promise<ReportingSettingsResponse> {
+    return { operationalStartDate: '2026-10-01', locked: false };
+  }
+
+  async saveReportingSettings(
+    actorId: string,
+    input: SaveReportingSettingsRequest,
+  ): Promise<ReportingSettingsResponse> {
+    this.reportingSave = { actorId, input };
+    return { operationalStartDate: input.operationalStartDate, locked: false };
+  }
 
   async getSchedules(effectiveOn: string): Promise<ScheduleSettingsResponse> {
     this.scheduleDate = effectiveOn;
@@ -167,6 +182,25 @@ function testApp(authService = new FakeAuthService()) {
 }
 
 describe('schedule-geofence HTTP API', () => {
+  it('reads and saves the operational report start date', async () => {
+    const { app, settingsService } = testApp();
+    const getResult = await request(app)
+      .get('/api/admin/settings/reporting')
+      .set('Cookie', 'absensi_session=valid');
+    expect(getResult.status).toBe(200);
+    expect(getResult.body).toEqual({ operationalStartDate: '2026-10-01', locked: false });
+
+    const saveResult = await request(app)
+      .post('/api/admin/settings/reporting')
+      .set('Cookie', 'absensi_session=valid')
+      .send({ operationalStartDate: '2026-10-01' });
+    expect(saveResult.status).toBe(201);
+    expect(settingsService.reportingSave).toEqual({
+      actorId: admin.id,
+      input: { operationalStartDate: '2026-10-01' },
+    });
+  });
+
   it('requires an authenticated SUPER_ADMIN for operational settings', async () => {
     const anonymous = await request(testApp().app).get(
       '/api/admin/settings/schedules?effectiveOn=2026-08-25',

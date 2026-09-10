@@ -15,6 +15,9 @@ import {
   type SaveSecurityScheduleSettingsRequest,
   type SecurityScheduleSettingsResponse,
   SecurityScheduleSettingsResponseSchema,
+  ReportingSettingsResponseSchema,
+  type ReportingSettingsResponse,
+  type SaveReportingSettingsRequest,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -98,6 +101,9 @@ const CalendarExceptionResultRowSchema = z.union([
   CalendarExceptionRowSchema,
   CalendarExceptionRpcRowSchema,
 ]);
+const ReportingSettingsRowSchema = z.strictObject({
+  operational_start_date: z.string(),
+});
 
 function clientOptions() {
   return {
@@ -210,6 +216,17 @@ function calendarMutationError(error: { code?: string; message?: string } | null
   );
 }
 
+function reportingMutationError(error: { code?: string; message?: string } | null): AppError {
+  const locked = error?.message?.includes('REPORTING_OPERATIONAL_START_LOCKED');
+  return new AppError(
+    locked ? 409 : 500,
+    locked ? 'REPORTING_OPERATIONAL_START_LOCKED' : 'SETTINGS_UPDATE_FAILED',
+    locked
+      ? 'Tanggal mulai operasional terkunci karena absensi production sudah tercatat'
+      : 'Pengaturan laporan tidak dapat disimpan',
+  );
+}
+
 export function toSecurityScheduleSettings(
   value: unknown,
   effectiveOn: string,
@@ -253,6 +270,47 @@ export class SupabaseSettingsService implements SettingsService {
 
   constructor(config: SupabaseAuthConfig) {
     this.client = createClient(config.url, config.secretKey, clientOptions());
+  }
+
+  async getReportingSettings(): Promise<ReportingSettingsResponse> {
+    const { data, error } = await this.client
+      .from('reporting_settings')
+      .select('operational_start_date')
+      .eq('singleton', true)
+      .maybeSingle();
+    if (error) {
+      throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Pengaturan laporan tidak dapat dimuat');
+    }
+    if (!data) {
+      return ReportingSettingsResponseSchema.parse({
+        operationalStartDate: null,
+        locked: false,
+      });
+    }
+    const row = ReportingSettingsRowSchema.parse(data);
+    const { count, error: attendanceError } = await this.client
+      .from('attendance_records')
+      .select('id', { count: 'exact', head: true })
+      .gte('work_date', row.operational_start_date);
+    if (attendanceError) {
+      throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Status pengaturan laporan tidak dapat dimuat');
+    }
+    return ReportingSettingsResponseSchema.parse({
+      operationalStartDate: row.operational_start_date,
+      locked: (count ?? 0) > 0,
+    });
+  }
+
+  async saveReportingSettings(
+    actorId: string,
+    input: SaveReportingSettingsRequest,
+  ): Promise<ReportingSettingsResponse> {
+    const { error } = await this.client.rpc('save_reporting_settings', {
+      p_actor_id: actorId,
+      p_operational_start_date: input.operationalStartDate,
+    });
+    if (error) throw reportingMutationError(error);
+    return this.getReportingSettings();
   }
 
   async getSchedules(effectiveOn: string): Promise<ScheduleSettingsResponse> {

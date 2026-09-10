@@ -6,6 +6,7 @@ import {
   type CalendarException,
   type LeaveType,
   type MonthlyReportDay,
+  type MonthlyReportIssue,
   type MonthlyReportParams,
   type MonthlyReportPreview,
   type MonthlyReportReadiness,
@@ -29,6 +30,7 @@ export interface MonthlyReportSourceTeacher {
   teacherNip: string;
   teacherFullName: string;
   role?: 'USER' | 'SECURITY_GUARD';
+  teacherWhatsapp?: string | null;
   createdDate: string;
 }
 
@@ -82,6 +84,7 @@ export interface MonthlyReportSource {
   attendances: MonthlyReportSourceAttendance[];
   leaves: MonthlyReportSourceLeave[];
   earlyDepartures: MonthlyReportSourceEarlyDeparture[];
+  operationalStartDate?: string | null;
   securitySettings?: Array<{
     dayShift: ScheduleRule;
     nightShift: ScheduleRule;
@@ -103,6 +106,7 @@ interface ResolvedReportDay {
   schedule: ScheduleRule | null;
   scheduleType: ScheduleRule['scheduleType'] | null;
   calendarExceptionName: string | null;
+  configurationMissing: boolean;
 }
 
 function reportDates(year: number, month: number): string[] {
@@ -175,8 +179,11 @@ function missingRanges(
 function isRelevantOnDate(
   teacher: MonthlyReportSourceTeacher,
   workDate: string,
+  operationalStartDate?: string | null,
 ): boolean {
-  return teacher.createdDate <= workDate;
+  return teacher.createdDate <= workDate &&
+    (operationalStartDate === null || operationalStartDate === undefined ||
+      operationalStartDate <= workDate);
 }
 
 function buildReadiness(
@@ -190,7 +197,8 @@ function buildReadiness(
   const schoolMissingDates = dates.filter((workDate) => {
     const hasRelevantTeacher = source.teachers.some(
       (teacher) =>
-        teacher.role !== 'SECURITY_GUARD' && isRelevantOnDate(teacher, workDate),
+        teacher.role !== 'SECURITY_GUARD' &&
+        isRelevantOnDate(teacher, workDate, source.operationalStartDate),
     );
     if (!hasRelevantTeacher) return false;
     const calendarDay = resolveCalendarDay(
@@ -206,7 +214,8 @@ function buildReadiness(
   const securityMissingDates = dates.filter((workDate) => {
     const hasRelevantGuard = source.teachers.some(
       (teacher) =>
-        teacher.role === 'SECURITY_GUARD' && isRelevantOnDate(teacher, workDate),
+        teacher.role === 'SECURITY_GUARD' &&
+        isRelevantOnDate(teacher, workDate, source.operationalStartDate),
     );
     return hasRelevantGuard && effectiveSecuritySettings(source, workDate) === null;
   });
@@ -226,27 +235,13 @@ function buildReadiness(
     });
   }
   return MonthlyReportReadinessSchema.parse({
-    status: issues.length === 0 ? 'READY' : 'BLOCKED',
+    status: issues.length === 0 ? 'READY' : 'READY_WITH_WARNINGS',
     year: input.year,
     month: input.month,
     startDate: dates[0]!,
     endDate: dates.at(-1)!,
     issues,
   });
-}
-
-function assertReportReady(readiness: MonthlyReportReadiness): void {
-  if (readiness.status === 'READY') return;
-  throw new AppError(
-    422,
-    'REPORT_CONFIGURATION_MISSING',
-    'Konfigurasi laporan belum tersedia untuk seluruh periode',
-    { issues: readiness.issues },
-  );
-}
-
-function configurationMissing(message: string, workDate: string): AppError {
-  return new AppError(422, 'REPORT_CONFIGURATION_MISSING', message, { workDate });
 }
 
 function resolveReportDays(
@@ -261,7 +256,8 @@ function resolveReportDays(
     const calendarDay = resolveCalendarDay(workDate, exception);
     const hasRelevantTeacher = source.teachers.some(
       (teacher) =>
-        teacher.role !== 'SECURITY_GUARD' && isRelevantOnDate(teacher, workDate),
+        teacher.role !== 'SECURITY_GUARD' &&
+        isRelevantOnDate(teacher, workDate, source.operationalStartDate),
     );
     if (
       !hasRelevantTeacher ||
@@ -273,6 +269,7 @@ function resolveReportDays(
         schedule: null,
         scheduleType: null,
         calendarExceptionName: exception?.name ?? null,
+        configurationMissing: false,
       };
     }
     const schedule = effectiveSchedule(
@@ -280,17 +277,12 @@ function resolveReportDays(
       calendarDay.scheduleType,
       workDate,
     );
-    if (!schedule) {
-      throw configurationMissing(
-        `Jadwal ${calendarDay.scheduleType} belum tersedia untuk periode laporan`,
-        workDate,
-      );
-    }
     return {
       workDate,
       schedule,
       scheduleType: calendarDay.scheduleType,
       calendarExceptionName: exception?.name ?? null,
+      configurationMissing: schedule === null,
     };
   });
 }
@@ -303,33 +295,43 @@ function resolveTeacherReportDays(
 ): ResolvedReportDay[] {
   if (teacher.role !== 'SECURITY_GUARD') {
     return schoolDays.map((day) =>
-      isRelevantOnDate(teacher, day.workDate)
+      isRelevantOnDate(teacher, day.workDate, source.operationalStartDate)
         ? day
         : {
             workDate: day.workDate,
             schedule: null,
             scheduleType: null,
             calendarExceptionName: null,
+            configurationMissing: false,
           },
     );
   }
   return dates.map((workDate) => {
-    if (!isRelevantOnDate(teacher, workDate)) {
+    if (!isRelevantOnDate(teacher, workDate, source.operationalStartDate)) {
       return {
         workDate,
         schedule: null,
         scheduleType: null,
         calendarExceptionName: null,
+        configurationMissing: false,
       };
     }
     const settings = effectiveSecuritySettings(source, workDate);
-    if (!settings) throw configurationMissing('Jadwal Satpam belum tersedia untuk periode laporan', workDate);
+    if (!settings) {
+      return {
+        workDate,
+        schedule: null,
+        scheduleType: null,
+        calendarExceptionName: null,
+        configurationMissing: true,
+      };
+    }
     const assignment = resolveSecurityAssignment(settings.roster, workDate, teacher.teacherId);
     if (assignment.status === 'OFF' || assignment.status === 'UNASSIGNED') {
-      return { workDate, schedule: null, scheduleType: null, calendarExceptionName: null };
+      return { workDate, schedule: null, scheduleType: null, calendarExceptionName: null, configurationMissing: false };
     }
     const schedule = assignment.status === 'DAY' ? settings.dayShift : settings.nightShift;
-    return { workDate, schedule, scheduleType: schedule.scheduleType, calendarExceptionName: null };
+    return { workDate, schedule, scheduleType: schedule.scheduleType, calendarExceptionName: null, configurationMissing: false };
   });
 }
 
@@ -356,10 +358,49 @@ function nonWorkingDay(day: ResolvedReportDay): MonthlyReportDay {
   };
 }
 
+function configurationMissingDay(day: ResolvedReportDay): MonthlyReportDay {
+  return {
+    workDate: day.workDate,
+    scheduleType: day.scheduleType,
+    status: 'CONFIGURATION_MISSING',
+    attendanceId: null,
+    checkInAt: null,
+    checkOutAt: null,
+    workStart: null,
+    workEnd: null,
+    targetMinutes: null,
+    workedMinutes: null,
+    arrivalLateMinutes: null,
+    workDeficitMinutes: null,
+    leaveType: null,
+    calendarExceptionName: day.calendarExceptionName,
+  };
+}
+
+function jakartaDate(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const part = (type: 'year' | 'month' | 'day') =>
+    parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function checkoutCloseAt(attendance: MonthlyReportSourceAttendance): Date {
+  const closeDate = attendance.scheduleType === 'SECURITY_NIGHT'
+    ? nextLocalDate(attendance.workDate)
+    : attendance.workDate;
+  return new Date(`${closeDate}T${attendance.checkoutClose}:00+07:00`);
+}
+
 function attendanceDay(
   day: ResolvedReportDay,
   attendance: MonthlyReportSourceAttendance,
   earlyDeparture: MonthlyReportSourceEarlyDeparture | undefined,
+  generatedAt: Date,
 ): MonthlyReportDay {
   const common = {
     workDate: day.workDate,
@@ -406,6 +447,15 @@ function attendanceDay(
       workDeficitMinutes: attendance.workDeficitMinutes,
     };
   }
+  if (generatedAt <= checkoutCloseAt(attendance)) {
+    return {
+      ...common,
+      status: 'IN_PROGRESS',
+      checkOutAt: null,
+      workedMinutes: null,
+      workDeficitMinutes: null,
+    };
+  }
   return {
     ...common,
     status: 'INCOMPLETE',
@@ -448,6 +498,7 @@ function rejectedEarlyDepartureMinutes(
 function scheduledDay(
   day: ResolvedReportDay,
   leave: MonthlyReportSourceLeave | undefined,
+  today: string,
 ): MonthlyReportDay {
   const schedule = day.schedule!;
   const common = {
@@ -469,6 +520,16 @@ function scheduledDay(
       workedMinutes: schedule.targetMinutes,
       workDeficitMinutes: 0,
       leaveType: leave.leaveType,
+    };
+  }
+  if (day.workDate >= today) {
+    return {
+      ...common,
+      status: 'NOT_YET_OCCURRED',
+      workedMinutes: null,
+      arrivalLateMinutes: null,
+      workDeficitMinutes: null,
+      leaveType: null,
     };
   }
   return {
@@ -495,29 +556,9 @@ export function createMonthlyReportService(
       const startDate = dates[0]!;
       const endDate = dates.at(-1)!;
       const source = await repository.loadMonth(startDate, endDate);
-      assertReportReady(buildReadiness(input, dates, source));
-      const pendingLeaveCount = source.leaves.filter(
-        (leave) => leave.status === 'PENDING',
-      ).length;
-      if (pendingLeaveCount > 0) {
-        throw new AppError(
-          409,
-          'PENDING_LEAVE_EXISTS',
-          'Selesaikan seluruh izin Pending sebelum membuat laporan',
-          { pendingLeaveCount },
-        );
-      }
-      const pendingEarlyDepartureCount = source.earlyDepartures.filter(
-        (request) => request.status === 'PENDING',
-      ).length;
-      if (pendingEarlyDepartureCount > 0) {
-        throw new AppError(
-          409,
-          'PENDING_EARLY_DEPARTURE_EXISTS',
-          'Selesaikan seluruh permohonan pulang awal Pending sebelum membuat laporan',
-          { pendingEarlyDepartureCount },
-        );
-      }
+      const generatedAt = now();
+      const today = jakartaDate(generatedAt);
+      const readiness = buildReadiness(input, dates, source);
 
       const resolvedDays = resolveReportDays(dates, source);
       const attendanceByTeacherDate = new Map(
@@ -531,9 +572,26 @@ export function createMonthlyReportService(
           .filter((leave) => leave.status === 'APPROVED')
           .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave]),
       );
+      const pendingLeaveByTeacherDate = new Map(
+        source.leaves
+          .filter((leave) => leave.status === 'PENDING')
+          .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave]),
+      );
       const earlyDepartureByAttendanceId = new Map(
         source.earlyDepartures.map((request) => [request.attendanceId, request]),
       );
+      const issues: MonthlyReportIssue[] = readiness.issues.map((issue) => ({
+        category: 'CONFIGURATION',
+        ...issue,
+      }));
+      if (endDate >= today) {
+        issues.push({
+          category: 'PERIOD',
+          code: 'REPORT_PERIOD_IN_PROGRESS',
+          currentDate: today,
+          periodEndDate: endDate,
+        });
+      }
       const teachers = [...source.teachers]
         .sort(
           (left, right) =>
@@ -551,29 +609,64 @@ export function createMonthlyReportService(
                 day,
                 attendance,
                 earlyDepartureByAttendanceId.get(attendance.id),
+                generatedAt,
               );
             }
+            if (day.configurationMissing) return configurationMissingDay(day);
             if (!day.schedule) return nonWorkingDay(day);
             return scheduledDay(
               day,
               approvedLeaveByTeacherDate.get(
                 sourceKey(teacher.teacherId, day.workDate),
               ),
+              today,
             );
           });
+          for (const day of days) {
+            if (day.workDate >= today) continue;
+            const key = sourceKey(teacher.teacherId, day.workDate);
+            const pendingLeave = pendingLeaveByTeacherDate.get(key);
+            const attendance = attendanceByTeacherDate.get(key);
+            const pendingEarlyDeparture = attendance
+              ? earlyDepartureByAttendanceId.get(attendance.id)?.status === 'PENDING'
+              : source.earlyDepartures.some((request) =>
+                  request.teacherId === teacher.teacherId &&
+                  request.workDate === day.workDate &&
+                  request.status === 'PENDING')
+                ? true
+                : false;
+            const commonIssue = {
+              category: 'STAFF_DATA' as const,
+              teacherId: teacher.teacherId,
+              teacherNip: teacher.teacherNip,
+              teacherFullName: teacher.teacherFullName,
+              teacherRole: teacher.role ?? 'USER' as const,
+              teacherWhatsapp: teacher.teacherWhatsapp ?? null,
+              workDate: day.workDate,
+            };
+            if (pendingLeave) {
+              issues.push({ ...commonIssue, code: 'PENDING_LEAVE' });
+            } else if (pendingEarlyDeparture) {
+              issues.push({ ...commonIssue, code: 'PENDING_EARLY_DEPARTURE' });
+            } else if (day.status === 'INCOMPLETE') {
+              issues.push({ ...commonIssue, code: 'INCOMPLETE_ATTENDANCE' });
+            } else if (day.status === 'ABSENT') {
+              issues.push({ ...commonIssue, code: 'NO_ATTENDANCE' });
+            }
+          }
           const totalWorkDeficitMinutes = days.reduce(
-            (total, day) => total + day.workDeficitMinutes,
+            (total, day) => total + (day.workDeficitMinutes ?? 0),
             0,
           );
           const lateDayCount = days.filter(
-            (day) => day.arrivalLateMinutes > 0,
+            (day) => (day.arrivalLateMinutes ?? 0) > 0,
           ).length;
           const absentDayCount = days.filter(
             (day) => day.status === 'ABSENT',
           ).length;
           const rejectedEarlyDepartureMinutesTotal = days.reduce(
             (total, day) => {
-              if (!day.attendanceId || day.workEnd === null) return total;
+              if (!day.attendanceId || day.workEnd === null || day.targetMinutes === null) return total;
               const request = earlyDepartureByAttendanceId.get(day.attendanceId);
               return request?.status === 'REJECTED'
                 ? total +
@@ -605,7 +698,9 @@ export function createMonthlyReportService(
         month: input.month,
         startDate,
         endDate,
-        generatedAt: now().toISOString(),
+        generatedAt: generatedAt.toISOString(),
+        documentStatus: issues.length === 0 ? 'FINAL' : 'DRAFT',
+        issues,
         teachers,
       });
     },
