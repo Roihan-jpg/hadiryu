@@ -221,7 +221,7 @@
       @if (securityScheduleForm.hasError('duplicateRoster')) { <p class="field-error" role="alert">Pilih tiga Satpam yang berbeda.</p> }
       @if (securitySchedules()?.preview?.length) {
         <div class="rotation-preview" aria-labelledby="rotation-preview-title"><h3 id="rotation-preview-title">Preview rotasi tiga hari</h3>
-          @for (day of securitySchedules()!.preview; track day.workDate) { <article><strong>Hari {{ day.rotationDay }} · {{ dateLabel(day.workDate) }}</strong><span>Pagi · {{ guardName(day.morningGuardId) }}</span><span>Malam · {{ guardName(day.nightGuardId) }}</span><span>Libur · {{ guardName(day.offGuardId) }}</span></article> }
+          @for (day of securitySchedules()!.preview; track day.workDate) { <article>{{ dateLabel(day.workDate) }}<span>Pagi · {{ guardName(day.morningGuardId) }}</span><span>Malam · {{ guardName(day.nightGuardId) }}</span><span>Libur · {{ guardName(day.offGuardId) }}</span></article> }
         </div>
       }
       @if (isHistoricalInspection()) { <div class="history-actions"><p>Versi historis hanya dapat dibaca.</p><button mat-stroked-button type="button" (click)="copyHistoricalToToday()">Salin ke konfigurasi hari ini</button></div> }

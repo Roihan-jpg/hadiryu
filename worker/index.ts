@@ -12,6 +12,7 @@ import { createMonthlyReportService } from '../apps/api/src/monthly-report.js';
 import { createStructuredLogger } from '../apps/api/src/observability.js';
 import { SupabaseProfileService } from '../apps/api/src/profile.js';
 import { SupabaseRequestAttachmentService } from '../apps/api/src/request-attachments.js';
+import { createSecurityDashboardService } from '../apps/api/src/security-dashboard.js';
 import { SupabaseAdminAttendanceRepository } from '../apps/api/src/supabase-admin-attendance.js';
 import { SupabaseAttendanceRepository } from '../apps/api/src/supabase-attendance.js';
 import { SupabaseAuditLogRepository } from '../apps/api/src/supabase-audit-logs.js';
@@ -42,7 +43,9 @@ const supabaseConfig: SupabaseAuthConfig = {
 const authService = new SupabaseAuthService(supabaseConfig);
 const teacherService = new SupabaseTeacherService(supabaseConfig);
 const settingsService = new SupabaseSettingsService(supabaseConfig);
-const attendanceService = createAttendanceService(new SupabaseAttendanceRepository(supabaseConfig));
+const attendanceRepository = new SupabaseAttendanceRepository(supabaseConfig);
+const attendanceService = createAttendanceService(attendanceRepository);
+const securityDashboardService = createSecurityDashboardService(attendanceRepository);
 const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
 const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
 const leaveRequestService = createLeaveRequestService(
@@ -75,6 +78,7 @@ createApp({
   excelExportService,
   requestAttachmentService,
   auditLogService,
+  securityDashboardService,
   profileService: new SupabaseProfileService(supabaseConfig),
   logger: createStructuredLogger(),
   secureCookies: true,
