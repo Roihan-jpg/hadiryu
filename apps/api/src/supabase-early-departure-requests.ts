@@ -188,6 +188,9 @@ export class SupabaseEarlyDepartureRequestRepository
     if (error?.message.includes('NOT_EARLY_DEPARTURE')) {
       throw new AppError(422, 'NOT_EARLY_DEPARTURE', 'Jam kerja sudah selesai');
     }
+    if (error?.message.includes('EARLY_DEPARTURE_MONTHLY_LIMIT_REACHED')) {
+      throw new AppError(409, 'EARLY_DEPARTURE_MONTHLY_LIMIT_REACHED', 'Kuota pulang awal bulan ini sudah habis');
+    }
     throw databaseError(
       'EARLY_DEPARTURE_SAVE_FAILED',
       'Permohonan pulang awal tidak dapat disimpan',

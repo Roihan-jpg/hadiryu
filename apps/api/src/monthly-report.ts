@@ -24,6 +24,7 @@ import {
 } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
 import { resolveSecurityAssignment } from './security-duty.js';
+import { adjustedAttendanceMetrics } from './attendance-adjustments.js';
 
 export interface MonthlyReportSourceTeacher {
   teacherId: string;
@@ -45,6 +46,7 @@ interface MonthlyReportSourceAttendanceBase {
   targetMinutes: number;
   arrivalLateMinutes: number;
   scheduleType?: ScheduleRule['scheduleType'];
+  workStartAt?: string;
   workEndAt?: string;
 }
 
@@ -399,9 +401,14 @@ function checkoutCloseAt(attendance: MonthlyReportSourceAttendance): Date {
 function attendanceDay(
   day: ResolvedReportDay,
   attendance: MonthlyReportSourceAttendance,
+  lateArrivalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | null,
   earlyDeparture: MonthlyReportSourceEarlyDeparture | undefined,
   generatedAt: Date,
 ): MonthlyReportDay {
+  const adjusted = adjustedAttendanceMetrics(attendance, {
+    lateArrivalStatus,
+    earlyDepartureStatus: earlyDeparture?.status ?? null,
+  });
   const common = {
     workDate: day.workDate,
     scheduleType: attendance.scheduleType ?? day.scheduleType!,
@@ -410,41 +417,33 @@ function attendanceDay(
     workStart: attendance.workStart,
     workEnd: attendance.workEnd,
     targetMinutes: attendance.targetMinutes,
-    arrivalLateMinutes: attendance.arrivalLateMinutes,
+    arrivalLateMinutes: adjusted.arrivalLateMinutes,
     leaveType: null,
     calendarExceptionName: day.calendarExceptionName,
   };
   if (attendance.status === 'COMPLETED') {
-    if (earlyDeparture?.status === 'APPROVED') {
-      return {
-        ...common,
-        status: 'WORKED',
-        checkOutAt: attendance.checkOutAt,
-        workedMinutes: attendance.targetMinutes,
-        workDeficitMinutes: 0,
-      };
-    }
-    if (earlyDeparture?.status === 'REJECTED') {
-      const emptyMinutes = rejectedEarlyDepartureMinutes(
-        earlyDeparture.requestedAt,
-        attendance.workEnd,
-        attendance.targetMinutes,
-        attendance.workEndAt,
-      );
-      return {
-        ...common,
-        status: 'WORKED',
-        checkOutAt: attendance.checkOutAt,
-        workedMinutes: Math.max(0, attendance.targetMinutes - emptyMinutes),
-        workDeficitMinutes: emptyMinutes,
-      };
-    }
+    const rejectedWorkedMinutes = earlyDeparture?.status === 'REJECTED'
+      ? Math.min(
+          adjusted.workedMinutes ?? 0,
+          Math.max(
+            0,
+            attendance.targetMinutes -
+              rejectedEarlyDepartureMinutes(
+                earlyDeparture.requestedAt,
+                attendance.workEnd,
+                attendance.targetMinutes,
+                attendance.workEndAt,
+              ),
+          ),
+        )
+      : adjusted.workedMinutes ?? attendance.workedMinutes;
+    const effectiveWorkedMinutes = rejectedWorkedMinutes ?? 0;
     return {
       ...common,
       status: 'WORKED',
       checkOutAt: attendance.checkOutAt,
-      workedMinutes: attendance.workedMinutes,
-      workDeficitMinutes: attendance.workDeficitMinutes,
+      workedMinutes: effectiveWorkedMinutes,
+      workDeficitMinutes: Math.max(0, attendance.targetMinutes - effectiveWorkedMinutes),
     };
   }
   if (generatedAt <= checkoutCloseAt(attendance)) {
@@ -569,8 +568,17 @@ export function createMonthlyReportService(
       );
       const approvedLeaveByTeacherDate = new Map(
         source.leaves
-          .filter((leave) => leave.status === 'APPROVED')
+          .filter((leave) => leave.status === 'APPROVED' && leave.leaveType !== 'LATE_ARRIVAL')
           .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave]),
+      );
+      const lateArrivalByTeacherDate = new Map(
+        source.leaves
+          .filter(
+            (leave) =>
+              leave.leaveType === 'LATE_ARRIVAL' &&
+              (leave.status === 'PENDING' || leave.status === 'APPROVED'),
+          )
+          .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave.status]),
       );
       const pendingLeaveByTeacherDate = new Map(
         source.leaves
@@ -608,6 +616,7 @@ export function createMonthlyReportService(
               return attendanceDay(
                 day,
                 attendance,
+                lateArrivalByTeacherDate.get(sourceKey(teacher.teacherId, day.workDate)) ?? null,
                 earlyDepartureByAttendanceId.get(attendance.id),
                 generatedAt,
               );

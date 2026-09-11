@@ -25,15 +25,21 @@ import {
 } from './auth.js';
 import { resolveCalendarDay } from './calendar-payroll.js';
 import { resolveSecurityAssignment } from './security-duty.js';
+import { adjustedAttendanceMetrics } from './attendance-adjustments.js';
 
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 const AttendanceIdSchema = z.uuid();
 
 export interface AdminAttendanceSourceAttendance {
   id: string;
+  workDate?: string;
   checkInAt: string;
   checkOutAt: string | null;
   checkoutClose: string;
+  workStart?: string;
+  workEnd?: string;
+  workStartAt?: string;
+  workEndAt?: string;
   checkoutCloseAt?: string;
   targetMinutes: number;
   workedMinutes: number | null;
@@ -41,6 +47,8 @@ export interface AdminAttendanceSourceAttendance {
   arrivalLateMinutes: number;
   status: 'CHECKED_IN' | 'COMPLETED';
   scheduleType?: 'WEEKDAY' | 'SATURDAY' | 'SECURITY_DAY' | 'SECURITY_NIGHT';
+  lateArrivalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | null;
+  earlyDepartureStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
 }
 
 export interface AdminAttendanceSource {
@@ -130,13 +138,41 @@ function toRecord(
   securityDuty?: { isWorkingDay: boolean; scheduleType: 'SECURITY_DAY' | 'SECURITY_NIGHT' | null },
 ): AdminAttendanceRecord {
   const attendance = source.attendance;
+  const adjusted = attendance
+    ? adjustedAttendanceMetrics(attendance.status === 'COMPLETED'
+      ? {
+          ...attendance,
+          workDate: attendance.workDate ?? workDate,
+          workStart: attendance.workStart ?? attendance.checkoutClose,
+          workEnd: attendance.workEnd ?? attendance.checkoutClose,
+          status: attendance.status,
+          checkOutAt: attendance.checkOutAt,
+          workedMinutes: attendance.workedMinutes,
+          workDeficitMinutes: attendance.workDeficitMinutes,
+          arrivalLateMinutes: attendance.arrivalLateMinutes,
+        }
+      : {
+          ...attendance,
+          workDate: attendance.workDate ?? workDate,
+          workStart: attendance.workStart ?? attendance.checkoutClose,
+          workEnd: attendance.workEnd ?? attendance.checkoutClose,
+          status: attendance.status,
+          checkOutAt: null,
+          workedMinutes: attendance.workedMinutes,
+          workDeficitMinutes: attendance.workDeficitMinutes,
+          arrivalLateMinutes: attendance.arrivalLateMinutes,
+        }, {
+          lateArrivalStatus: attendance.lateArrivalStatus ?? null,
+          earlyDepartureStatus: attendance.earlyDepartureStatus ?? null,
+        })
+    : null;
   let status: AdminAttendanceStatus;
   if (source.role === 'SECURITY_GUARD' && securityDuty && !securityDuty.isWorkingDay && !attendance) {
     status = 'OFF';
   } else if (attendance) {
     status = isIncomplete(attendance, workDate, current)
       ? 'INCOMPLETE'
-      : attendance.arrivalLateMinutes > 0
+      : (adjusted?.arrivalLateMinutes ?? attendance.arrivalLateMinutes) > 0
         ? 'LATE'
         : 'PRESENT';
   } else {
@@ -159,13 +195,13 @@ function toRecord(
       ? 0
       : incomplete
       ? Math.max(0, attendance.targetMinutes - 60)
-      : (attendance?.workedMinutes ?? null),
+      : (adjusted?.workedMinutes ?? attendance?.workedMinutes ?? null),
     workDeficitMinutes: status === 'OFF'
       ? 0
       : incomplete
       ? Math.min(60, attendance.targetMinutes)
-      : (attendance?.workDeficitMinutes ?? null),
-    arrivalLateMinutes: status === 'OFF' ? 0 : (attendance?.arrivalLateMinutes ?? null),
+      : (adjusted?.workDeficitMinutes ?? attendance?.workDeficitMinutes ?? null),
+    arrivalLateMinutes: status === 'OFF' ? 0 : (adjusted?.arrivalLateMinutes ?? attendance?.arrivalLateMinutes ?? null),
     leaveType: source.approvedLeave?.leaveType ?? null,
     notes: attendance ? source.notes : [],
   };

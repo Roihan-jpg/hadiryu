@@ -39,6 +39,7 @@ const LEAVE_CODES: Record<LeaveType, string> = {
   OFFICIAL_DUTY: 'DINAS',
   FAMILY: 'KELUARGA',
   OTHER: 'LAINNYA',
+  LATE_ARRIVAL: 'TERLAMBAT',
 };
 const TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Jakarta',

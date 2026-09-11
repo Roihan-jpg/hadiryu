@@ -57,7 +57,7 @@ describe('leave request contracts', () => {
   });
 
   it('supports every leave type and lifecycle status', () => {
-    for (const leaveType of ['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']) {
+    for (const leaveType of ['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']) {
       expect(LeaveTypeSchema.parse(leaveType)).toBe(leaveType);
     }
     for (const status of ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']) {

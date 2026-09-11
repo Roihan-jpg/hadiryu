@@ -165,7 +165,9 @@ export function createLeaveRequestService(
     if (request.status !== 'PENDING') {
       throw new AppError(409, 'LEAVE_NOT_PENDING', 'Hanya izin Pending yang dapat diputuskan');
     }
-    if (status === 'APPROVED') await assertNoCheckIn(request.teacherId, request.leaveDate);
+    if (status === 'APPROVED' && request.leaveType !== 'LATE_ARRIVAL') {
+      await assertNoCheckIn(request.teacherId, request.leaveDate);
+    }
     return repository.decide(
       leaveRequestId, actorId, status, input.decisionNote ?? null, now().toISOString(),
     );
@@ -201,16 +203,23 @@ export function createLeaveRequestService(
         }
         if (input.leaveDate <= current.workDate) {
           const schedule = assignment.status === 'DAY' ? settings.dayShift : settings.nightShift;
-          const workEndAt = buildSecurityShiftBoundaries(
+          const boundaries = buildSecurityShiftBoundaries(
             input.leaveDate,
             schedule,
             schedule.scheduleType as 'SECURITY_DAY' | 'SECURITY_NIGHT',
-          ).workEndAt;
-          if (serverNow.getTime() > new Date(workEndAt).getTime()) {
+          );
+          const deadlineAt = input.leaveType === 'LATE_ARRIVAL'
+            ? boundaries.checkInCloseAt
+            : boundaries.workEndAt;
+          if (serverNow.getTime() > new Date(deadlineAt).getTime()) {
             throw new AppError(
               422,
-              'LEAVE_REQUEST_DEADLINE_PASSED',
-              'Izin hari ini hanya dapat diajukan sampai jam kerja selesai',
+              input.leaveType === 'LATE_ARRIVAL'
+                ? 'LATE_ARRIVAL_REQUEST_DEADLINE_PASSED'
+                : 'LEAVE_REQUEST_DEADLINE_PASSED',
+              input.leaveType === 'LATE_ARRIVAL'
+                ? 'Izin terlambat hanya dapat diajukan sampai batas check-in'
+                : 'Izin hari ini hanya dapat diajukan sampai jam kerja selesai',
             );
           }
         }
@@ -220,11 +229,18 @@ export function createLeaveRequestService(
         const schedule = day.scheduleType
           ? await repository.findSchedule(day.scheduleType, input.leaveDate)
           : null;
-        if (!schedule || current.minuteOfDay > timeMinutes(schedule.workEnd)) {
+        const deadline = input.leaveType === 'LATE_ARRIVAL'
+          ? schedule?.checkInClose
+          : schedule?.workEnd;
+        if (!deadline || current.minuteOfDay > timeMinutes(deadline)) {
           throw new AppError(
             422,
-            'LEAVE_REQUEST_DEADLINE_PASSED',
-            'Izin hari ini hanya dapat diajukan sampai jam kerja selesai',
+            input.leaveType === 'LATE_ARRIVAL'
+              ? 'LATE_ARRIVAL_REQUEST_DEADLINE_PASSED'
+              : 'LEAVE_REQUEST_DEADLINE_PASSED',
+            input.leaveType === 'LATE_ARRIVAL'
+              ? 'Izin terlambat hanya dapat diajukan sampai batas check-in'
+              : 'Izin hari ini hanya dapat diajukan sampai jam kerja selesai',
           );
         }
       }

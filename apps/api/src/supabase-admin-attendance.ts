@@ -26,9 +26,14 @@ const ProfileRowSchema = z.strictObject({
 const AttendanceRowSchema = z.strictObject({
   id: z.uuid(),
   teacher_id: z.uuid(),
+  work_date: z.string(),
   check_in_at: z.string(),
   check_out_at: z.string().nullable(),
   checkout_close: z.string(),
+  work_start: z.string(),
+  work_end: z.string(),
+  work_start_at: z.string(),
+  work_end_at: z.string(),
   checkout_close_at: z.string(),
   target_minutes: z.number().int(),
   worked_minutes: z.number().int().nullable(),
@@ -39,7 +44,17 @@ const AttendanceRowSchema = z.strictObject({
 });
 const LeaveRowSchema = z.strictObject({
   teacher_id: z.uuid(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+});
+const LatePermissionRowSchema = z.strictObject({
+  teacher_id: z.uuid(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
+  created_at: z.string(),
+});
+const EarlyPermissionRowSchema = z.strictObject({
+  attendance_id: z.uuid(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  created_at: z.string(),
 });
 const CalendarRowSchema = z.strictObject({
   id: z.uuid(),
@@ -58,7 +73,7 @@ const NoteRowSchema = z.strictObject({
 });
 
 const ATTENDANCE_FIELDS =
-  'id,teacher_id,check_in_at,check_out_at,checkout_close,checkout_close_at,target_minutes,worked_minutes,work_deficit_minutes,arrival_late_minutes,status,schedule_type';
+  'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,work_start_at,work_end_at,checkout_close_at,target_minutes,worked_minutes,work_deficit_minutes,arrival_late_minutes,status,schedule_type';
 const NOTE_FIELDS =
   'id,attendance_id,note,created_by,created_at,profiles!attendance_admin_notes_created_by_fkey(full_name)';
 
@@ -80,9 +95,14 @@ function toAttendance(value: unknown): AdminAttendanceSourceAttendance {
   const row = AttendanceRowSchema.parse(value);
   return {
     id: row.id,
+    workDate: row.work_date,
     checkInAt: row.check_in_at,
     checkOutAt: row.check_out_at,
     checkoutClose: time(row.checkout_close),
+    workStart: time(row.work_start),
+    workEnd: time(row.work_end),
+    workStartAt: row.work_start_at,
+    workEndAt: row.work_end_at,
     checkoutCloseAt: row.checkout_close_at,
     targetMinutes: row.target_minutes,
     workedMinutes: row.worked_minutes,
@@ -188,7 +208,7 @@ export class SupabaseAdminAttendanceRepository
     if (profiles.length === 0) return [];
 
     const teacherIds = profiles.map((profile) => profile.id);
-    const [attendanceResult, leaveResult] = await Promise.all([
+    const [attendanceResult, leaveResult, lateResult, earlyResult] = await Promise.all([
       this.client
         .from('attendance_records')
         .select(ATTENDANCE_FIELDS)
@@ -199,9 +219,23 @@ export class SupabaseAdminAttendanceRepository
         .select('teacher_id,leave_type')
         .eq('leave_date', workDate)
         .eq('status', 'APPROVED')
+        .neq('leave_type', 'LATE_ARRIVAL')
         .in('teacher_id', teacherIds),
+      this.client
+        .from('leave_requests')
+        .select('teacher_id,status,created_at')
+        .eq('leave_date', workDate)
+        .eq('leave_type', 'LATE_ARRIVAL')
+        .in('teacher_id', teacherIds)
+        .order('created_at', { ascending: false }),
+      this.client
+        .from('early_departure_requests')
+        .select('attendance_id,status,created_at')
+        .eq('work_date', workDate)
+        .in('teacher_id', teacherIds)
+        .order('created_at', { ascending: false }),
     ]);
-    if (attendanceResult.error || leaveResult.error) {
+    if (attendanceResult.error || leaveResult.error || lateResult.error || earlyResult.error) {
       throw databaseError(
         'ADMIN_ATTENDANCE_LOOKUP_FAILED',
         'Data monitoring harian tidak dapat dimuat',
@@ -212,6 +246,12 @@ export class SupabaseAdminAttendanceRepository
     );
     const leaveRows = (leaveResult.data ?? []).map((value) =>
       LeaveRowSchema.parse(value),
+    );
+    const lateRows = (lateResult.data ?? []).map((value) =>
+      LatePermissionRowSchema.parse(value),
+    );
+    const earlyRows = (earlyResult.data ?? []).map((value) =>
+      EarlyPermissionRowSchema.parse(value),
     );
     const attendanceIds = attendanceRows.map((row) => row.id);
     const noteRows = attendanceIds.length
@@ -234,6 +274,14 @@ export class SupabaseAdminAttendanceRepository
     const leaveByTeacher = new Map(
       leaveRows.map((row) => [row.teacher_id, row]),
     );
+    const lateByTeacher = new Map<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'>();
+    for (const row of lateRows) {
+      if (!lateByTeacher.has(row.teacher_id)) lateByTeacher.set(row.teacher_id, row.status);
+    }
+    const earlyByAttendance = new Map<string, 'PENDING' | 'APPROVED' | 'REJECTED'>();
+    for (const row of earlyRows) {
+      if (!earlyByAttendance.has(row.attendance_id)) earlyByAttendance.set(row.attendance_id, row.status);
+    }
     const notesByAttendance = new Map<string, AttendanceAdminNote[]>();
     for (const value of noteRows.data ?? []) {
       const parsed = toNote(value);
@@ -250,7 +298,13 @@ export class SupabaseAdminAttendanceRepository
         teacherNip: profile.nip,
         teacherFullName: profile.full_name,
         role: profile.role,
-        attendance: attendanceRow ? toAttendance(attendanceRow) : null,
+        attendance: attendanceRow
+          ? {
+              ...toAttendance(attendanceRow),
+              lateArrivalStatus: lateByTeacher.get(profile.id) ?? null,
+              earlyDepartureStatus: earlyByAttendance.get(attendanceRow.id) ?? null,
+            }
+          : null,
         approvedLeave: leaveRow ? { leaveType: leaveRow.leave_type } : null,
         notes: attendanceRow
           ? (notesByAttendance.get(attendanceRow.id) ?? [])

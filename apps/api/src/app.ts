@@ -61,6 +61,10 @@ import {
   registerSecurityDashboardRoutes,
   type SecurityDashboardService,
 } from './security-dashboard.js';
+import {
+  registerRequestQuotaRoutes,
+  type RequestQuotaService,
+} from './request-quotas.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -76,6 +80,7 @@ export interface CreateAppOptions {
   auditLogService?: AuditLogService;
   profileService?: ProfileService;
   securityDashboardService?: SecurityDashboardService;
+  requestQuotaService?: RequestQuotaService;
   secureCookies?: boolean;
   logger?: AppLogger;
   security?: Partial<SecurityConfig>;
@@ -244,6 +249,12 @@ const unavailableSecurityDashboardService: SecurityDashboardService = {
   },
 };
 
+const unavailableRequestQuotaService: RequestQuotaService = {
+  async get() {
+    throw new AppError(500, 'REQUEST_QUOTA_NOT_CONFIGURED', 'Kuota permohonan belum dikonfigurasi');
+  },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
   const security = resolveSecurityConfig(options.security);
@@ -328,6 +339,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.earlyDepartureRequestService ?? unavailableEarlyDepartureRequestService,
+  );
+  registerRequestQuotaRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.requestQuotaService ?? unavailableRequestQuotaService,
   );
   registerAdminAttendanceRoutes(
     app,

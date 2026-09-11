@@ -10,6 +10,7 @@ export * from './leave-requests.js';
 export * from './monthly-report.js';
 export * from './profile.js';
 export * from './request-attachments.js';
+export * from './request-quotas.js';
 export * from './audit-logs.js';
 export * from './settings.js';
 export * from './security-dashboard.js';

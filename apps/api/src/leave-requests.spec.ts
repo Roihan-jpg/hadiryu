@@ -97,6 +97,35 @@ describe('leave request service', () => {
     expect(repository.saved).toMatchObject({ leaveDate: '2026-08-26' });
   });
 
+  it('allows late-arrival permission before check-in and the configured check-in close', async () => {
+    const { service: leaveService } = service(
+      new FakeLeaveRepository(),
+      '2026-08-24T23:45:00.000Z',
+    );
+
+    await expect(leaveService.create(teacherId, {
+      leaveDate: '2026-08-25',
+      leaveType: 'LATE_ARRIVAL',
+      reason: 'Kendaraan bermasalah',
+    })).resolves.toMatchObject({ leaveType: 'LATE_ARRIVAL', status: 'PENDING' });
+  });
+
+  it('rejects late-arrival permission after check-in or check-in close', async () => {
+    const checkedIn = new FakeLeaveRepository();
+    checkedIn.attendance = true;
+    await expect(service(checkedIn, '2026-08-24T23:45:00.000Z').service.create(teacherId, {
+      leaveDate: '2026-08-25',
+      leaveType: 'LATE_ARRIVAL',
+      reason: 'Kendaraan bermasalah',
+    })).rejects.toMatchObject({ code: 'ALREADY_CHECKED_IN' });
+
+    await expect(service(new FakeLeaveRepository(), '2026-08-25T01:01:00.000Z').service.create(teacherId, {
+      leaveDate: '2026-08-25',
+      leaveType: 'LATE_ARRIVAL',
+      reason: 'Kendaraan bermasalah',
+    })).rejects.toMatchObject({ code: 'LATE_ARRIVAL_REQUEST_DEADLINE_PASSED' });
+  });
+
   it('rejects leave on a Satpam rotation off day', async () => {
     const repository = new FakeLeaveRepository();
     repository.securitySchedules = {
@@ -206,5 +235,14 @@ describe('leave request service', () => {
     expect(repository.decisions).toEqual([{ status: 'APPROVED', actorId: adminId }]);
     repository.attendance = true;
     await expect(leaveService.approve(adminId, requestId, {})).rejects.toMatchObject({ code: 'ALREADY_CHECKED_IN' } satisfies Partial<AppError>);
+  });
+
+  it('allows a pending late-arrival permission to be approved after check-in', async () => {
+    const repository = new FakeLeaveRepository();
+    repository.attendance = true;
+    repository.request = { ...pending, leaveType: 'LATE_ARRIVAL' };
+
+    await expect(service(repository).service.approve(adminId, requestId, {}))
+      .resolves.toMatchObject({ status: 'APPROVED' });
   });
 });

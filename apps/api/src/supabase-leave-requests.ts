@@ -23,7 +23,7 @@ import { SupabaseAttendanceRepository } from './supabase-attendance.js';
 
 const LeaveRowSchema = z.strictObject({
   id: z.uuid(), teacher_id: z.uuid(), leave_date: z.string(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
   reason: z.string(), status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
   attachment_storage_path: z.string().nullable(), attachment_original_name: z.string().nullable(),
   attachment_mime_type: z.enum(['application/pdf', 'image/jpeg', 'image/png']).nullable(),
@@ -152,6 +152,9 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
     if (error?.code === '23505') throw new AppError(409, 'ACTIVE_LEAVE_EXISTS', 'Sudah ada izin aktif pada tanggal tersebut');
     if (error?.code === '23514' && error.message.includes('attendance_leave_conflict')) {
       throw new AppError(409, 'ALREADY_CHECKED_IN', 'Izin tidak dapat diproses karena Guru sudah check-in');
+    }
+    if (error?.message.includes('LATE_ARRIVAL_MONTHLY_LIMIT_REACHED')) {
+      throw new AppError(409, 'LATE_ARRIVAL_MONTHLY_LIMIT_REACHED', 'Kuota izin terlambat bulan ini sudah habis');
     }
     throw databaseError('LEAVE_SAVE_FAILED', 'Pengajuan izin tidak dapat disimpan');
   }

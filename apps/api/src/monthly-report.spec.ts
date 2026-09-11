@@ -338,8 +338,8 @@ describe('monthly report calculator', () => {
 
     const rejected = await service(rejectedRepository).preview({ year: 2026, month: 6 });
     expect(rejected.teachers[0]?.days[0]).toMatchObject({
-      workedMinutes: 425,
-      workDeficitMinutes: 90,
+      workedMinutes: 420,
+      workDeficitMinutes: 95,
     });
     expect(rejected.teachers[0]).toMatchObject({
       lateDayCount: 1,
@@ -348,7 +348,13 @@ describe('monthly report calculator', () => {
 
     const approvedRepository = new FakeMonthlyReportRepository(
       source({
-        attendances: [{ ...completed, arrivalLateMinutes: 0 }],
+        attendances: [{
+          ...completed,
+          checkInAt: '2026-06-01T00:00:00.000Z',
+          workedMinutes: 425,
+          arrivalLateMinutes: 0,
+          workDeficitMinutes: 90,
+        }],
         earlyDepartures: [
           {
             attendanceId: completed.id,
@@ -365,6 +371,56 @@ describe('monthly report calculator', () => {
       workedMinutes: 515,
       workDeficitMinutes: 0,
     });
+  });
+
+  it('provisionally credits a Pending late arrival and combines it per segment with early departure', async () => {
+    const attendance = {
+      id: '40000000-0000-4000-8000-000000000001',
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      workDate: '2026-06-01',
+      checkInAt: '2026-06-01T00:05:00.000Z',
+      checkOutAt: '2026-06-01T07:05:00.000Z',
+      workStart: '07:00',
+      workEnd: '15:35',
+      checkoutClose: '17:00',
+      targetMinutes: 515,
+      workedMinutes: 420,
+      arrivalLateMinutes: 5,
+      workDeficitMinutes: 95,
+      status: 'COMPLETED' as const,
+    };
+    const repository = new FakeMonthlyReportRepository(source({
+      attendances: [attendance],
+      leaves: [{
+        teacherId: attendance.teacherId,
+        leaveDate: attendance.workDate,
+        leaveType: 'LATE_ARRIVAL',
+        status: 'PENDING',
+      }],
+      earlyDepartures: [{
+        attendanceId: attendance.id,
+        teacherId: attendance.teacherId,
+        workDate: attendance.workDate,
+        requestedAt: attendance.checkOutAt,
+        status: 'APPROVED',
+      }],
+    }));
+
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+
+    expect(report.documentStatus).toBe('DRAFT');
+    expect(report.teachers[0]?.days[0]).toMatchObject({
+      status: 'WORKED',
+      workedMinutes: 515,
+      arrivalLateMinutes: 0,
+      workDeficitMinutes: 0,
+      leaveType: null,
+    });
+    expect(report.teachers[0]?.lateDayCount).toBe(0);
+    expect(report.issues).toContainEqual(expect.objectContaining({
+      code: 'PENDING_LEAVE',
+      workDate: '2026-06-01',
+    }));
   });
 
   it('caps rejected early-departure empty time at the daily target', async () => {

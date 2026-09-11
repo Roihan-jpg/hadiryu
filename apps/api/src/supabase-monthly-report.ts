@@ -59,6 +59,7 @@ const AttendanceBaseRowSchema = z.strictObject({
   target_minutes: z.number().int(),
   arrival_late_minutes: z.number().int(),
   schedule_type: z.enum(['WEEKDAY', 'SATURDAY', 'SECURITY_DAY', 'SECURITY_NIGHT']),
+  work_start_at: z.string(),
   work_end_at: z.string(),
 });
 const SecuritySettingsRowSchema = z.strictObject({
@@ -83,7 +84,7 @@ const AttendanceRowSchema = z.discriminatedUnion('status', [
 const LeaveRowSchema = z.strictObject({
   teacher_id: z.uuid(),
   leave_date: z.string(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
   status: z.enum(['PENDING', 'APPROVED']),
 });
 const EarlyDepartureRowSchema = z.strictObject({
@@ -100,7 +101,7 @@ const ReportingSettingsRowSchema = z.strictObject({
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const ATTENDANCE_FIELDS =
-  'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status,schedule_type,work_end_at';
+  'id,teacher_id,work_date,check_in_at,check_out_at,work_start,work_end,checkout_close,target_minutes,worked_minutes,arrival_late_minutes,work_deficit_minutes,status,schedule_type,work_start_at,work_end_at';
 
 interface PageResult {
   data: unknown[] | null;
@@ -202,6 +203,7 @@ function toAttendance(value: unknown): MonthlyReportSourceAttendance {
     targetMinutes: row.target_minutes,
     arrivalLateMinutes: row.arrival_late_minutes,
     scheduleType: row.schedule_type,
+    workStartAt: row.work_start_at,
     workEndAt: row.work_end_at,
   };
   return row.status === 'COMPLETED'

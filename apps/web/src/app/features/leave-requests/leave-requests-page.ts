@@ -16,6 +16,7 @@ import { queryKeys } from '../../core/query/query-keys';
 import { LeaveRequestsService } from './leave-requests.service';
 import { focusFirstInvalidControl } from '../../core/ui/form-focus';
 import { createIndonesianPaginatorIntl } from '../../core/ui/paginator-intl';
+import { RequestQuotasService } from '../request-quotas.service';
 
 function todayJakarta(): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -46,6 +47,7 @@ export class LeaveRequestsPage {
   private readonly attendanceService = inject(AttendanceService);
   private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly quotaService = inject(RequestQuotasService);
   readonly currentDate = todayJakarta();
   readonly minDate = this.auth.user()?.role === 'SECURITY_GUARD'
     ? addDays(this.currentDate, -1)
@@ -58,6 +60,10 @@ export class LeaveRequestsPage {
   readonly selectedLeaveDate = toSignal(this.form.controls.leaveDate.valueChanges, {
     initialValue: this.form.controls.leaveDate.value,
   });
+  readonly selectedLeaveType = toSignal(this.form.controls.leaveType.valueChanges, {
+    initialValue: this.form.controls.leaveType.value,
+  });
+  readonly selectedQuotaMonth = computed(() => this.selectedLeaveDate().slice(0, 7));
   readonly actionInProgress = signal<string | null>(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -70,6 +76,10 @@ export class LeaveRequestsPage {
   readonly todayQuery = injectQuery(() => ({
     queryKey: queryKeys.attendance('today'),
     queryFn: () => this.attendanceService.fetchToday(),
+  }));
+  readonly quotaQuery = injectQuery(() => ({
+    queryKey: queryKeys.requestQuotas(this.selectedQuotaMonth()),
+    queryFn: () => this.quotaService.fetch(this.selectedQuotaMonth()),
   }));
   readonly requests = computed<LeaveRequest[]>(() => this.requestsQuery.data()?.data ?? []);
   readonly loading = computed(() => this.requestsQuery.isPending());
@@ -85,8 +95,14 @@ export class LeaveRequestsPage {
       (today.state === 'CHECKED_IN' || today.state === 'COMPLETED' || today.state === 'INCOMPLETE');
   });
   readonly submitDisabled = computed(() =>
-    this.actionInProgress() !== null || this.todayQuery.isPending() || this.isTodayLeaveBlocked(),
+    this.actionInProgress() !== null || this.todayQuery.isPending() || this.isTodayLeaveBlocked() ||
+    (this.selectedLeaveType() === 'LATE_ARRIVAL' && this.quotaQuery.data()?.lateArrival.remaining === 0),
   );
+  readonly quotaMessage = computed(() => {
+    if (this.selectedLeaveType() !== 'LATE_ARRIVAL') return '';
+    const quota = this.quotaQuery.data()?.lateArrival;
+    return quota ? `Sisa izin terlambat bulan ini: ${quota.remaining} dari ${quota.limit}.` : 'Memuat kuota izin terlambat…';
+  });
   readonly leaveBlockMessage = computed(() => this.isTodayLeaveBlocked()
     ? 'Izin untuk hari ini tidak dapat diajukan karena absensi check-in sudah tercatat.'
     : '');
@@ -109,6 +125,7 @@ export class LeaveRequestsPage {
       this.successMessage.set('Pengajuan izin berhasil dikirim dan menunggu keputusan SuperAdmin.');
       this.form.controls.reason.setValue('');
       this.attachment.set(undefined);
+      void this.quotaQuery.refetch();
       this.requestFilters.update((page) => ({ ...page, page: 1 }));
     } catch (error) { this.errorMessage.set(await this.errorText(error, 'Pengajuan izin tidak dapat dikirim.')); }
     finally { this.actionInProgress.set(null); }
@@ -124,6 +141,7 @@ export class LeaveRequestsPage {
     try {
       await this.service.cancel(request.id);
       this.successMessage.set('Pengajuan izin berhasil dibatalkan.');
+      void this.quotaQuery.refetch();
     } catch (error) { this.errorMessage.set(await this.errorText(error, 'Izin tidak dapat dibatalkan.')); }
     finally { this.actionInProgress.set(null); }
   }
@@ -132,7 +150,7 @@ export class LeaveRequestsPage {
     this.requestFilters.update((page) => ({ ...page, page: event.pageIndex + 1, pageSize: event.pageSize }));
   }
 
-  typeLabel(type: LeaveType): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya' })[type]; }
+  typeLabel(type: LeaveType): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya', LATE_ARRIVAL: 'Izin terlambat' })[type]; }
   statusLabel(status: LeaveStatus): string { return ({ PENDING: 'Menunggu keputusan', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' })[status]; }
   dateLabel(workDate: string): string {
     return new Intl.DateTimeFormat('id-ID', {

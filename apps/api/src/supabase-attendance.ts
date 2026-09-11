@@ -23,6 +23,7 @@ import type {
   SaveCheckInInput,
   SaveCheckoutInput,
 } from './attendance.js';
+import type { AttendanceAdjustmentContext } from './attendance-adjustments.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 import { securityRotationPreview } from './security-duty.js';
 
@@ -97,6 +98,16 @@ const SecurityScheduleRowSchema = z.strictObject({
   day_one_off_guard_id: z.uuid(),
   effective_from: z.string(),
   effective_to: z.string().nullable(),
+});
+const AttendancePermissionLeaveRowSchema = z.strictObject({
+  leave_date: z.string(),
+  leave_type: z.literal('LATE_ARRIVAL'),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
+  created_at: z.string(),
+});
+const AttendancePermissionEarlyRowSchema = z.strictObject({
+  attendance_id: z.uuid(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
 });
 
 const ATTENDANCE_FIELDS =
@@ -326,11 +337,55 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       .select('id')
       .eq('teacher_id', teacherId)
       .eq('leave_date', workDate)
+      .neq('leave_type', 'LATE_ARRIVAL')
       .eq('status', 'APPROVED')
       .limit(1)
       .maybeSingle();
     if (error) throw lookupError('Status izin tidak dapat dimuat');
     return data !== null;
+  }
+
+  async findAttendancePermissions(
+    teacherId: string,
+    records: Array<{ attendanceId: string; workDate: string }>,
+  ): Promise<Map<string, AttendanceAdjustmentContext>> {
+    if (records.length === 0) return new Map();
+    const workDates = [...new Set(records.map((record) => record.workDate))];
+    const attendanceIds = [...new Set(records.map((record) => record.attendanceId))];
+    const [lateResult, earlyResult] = await Promise.all([
+      this.client
+        .from('leave_requests')
+        .select('leave_date,leave_type,status,created_at')
+        .eq('teacher_id', teacherId)
+        .eq('leave_type', 'LATE_ARRIVAL')
+        .in('leave_date', workDates)
+        .order('created_at', { ascending: false }),
+      this.client
+        .from('early_departure_requests')
+        .select('attendance_id,status')
+        .eq('teacher_id', teacherId)
+        .in('attendance_id', attendanceIds)
+        .order('created_at', { ascending: false }),
+    ]);
+    if (lateResult.error || earlyResult.error) {
+      throw lookupError('Status izin absensi tidak dapat dimuat');
+    }
+    const lateByDate = new Map<string, AttendanceAdjustmentContext['lateArrivalStatus']>();
+    for (const value of lateResult.data ?? []) {
+      const row = AttendancePermissionLeaveRowSchema.parse(value);
+      if (!lateByDate.has(row.leave_date)) lateByDate.set(row.leave_date, row.status);
+    }
+    const earlyByAttendance = new Map<string, AttendanceAdjustmentContext['earlyDepartureStatus']>();
+    for (const value of earlyResult.data ?? []) {
+      const row = AttendancePermissionEarlyRowSchema.parse(value);
+      if (!earlyByAttendance.has(row.attendance_id)) earlyByAttendance.set(row.attendance_id, row.status);
+    }
+    return new Map(
+      records.map((record) => [record.workDate, {
+        lateArrivalStatus: lateByDate.get(record.workDate) ?? null,
+        earlyDepartureStatus: earlyByAttendance.get(record.attendanceId) ?? null,
+      }]),
+    );
   }
 
   async saveCheckIn(input: SaveCheckInInput): Promise<PersistedAttendanceRecord> {

@@ -37,6 +37,7 @@ import {
   resolveSecurityAssignment,
   type ShiftBoundaries,
 } from './security-duty.js';
+import { adjustedAttendanceMetrics, type AttendanceAdjustmentContext } from './attendance-adjustments.js';
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
@@ -84,6 +85,10 @@ export interface AttendanceRepository {
   findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   findGeofence(workDate: string): Promise<GeofenceRule | null>;
   hasApprovedLeave(teacherId: string, workDate: string): Promise<boolean>;
+  findAttendancePermissions?(
+    teacherId: string,
+    records: Array<{ attendanceId: string; workDate: string }>,
+  ): Promise<Map<string, AttendanceAdjustmentContext>>;
   saveCheckIn(input: SaveCheckInInput): Promise<PersistedAttendanceRecord>;
   saveCheckout(input: SaveCheckoutInput): Promise<CompletedAttendanceRecord>;
   listAttendanceHistory(
@@ -441,6 +446,43 @@ function activeAttendance(
     : null;
 }
 
+function applyAttendancePermissions(
+  attendance: AttendanceRecord,
+  context: AttendanceAdjustmentContext,
+): AttendanceRecord {
+  const metrics = {
+    workDate: attendance.workDate,
+    checkInAt: attendance.checkInAt,
+    checkOutAt: 'checkOutAt' in attendance ? attendance.checkOutAt : null,
+    workStart: attendance.workStart,
+    workEnd: attendance.workEnd,
+    targetMinutes: attendance.targetMinutes,
+    workedMinutes: 'workedMinutes' in attendance ? attendance.workedMinutes : null,
+    workDeficitMinutes: 'workDeficitMinutes' in attendance ? attendance.workDeficitMinutes : null,
+    arrivalLateMinutes: attendance.arrivalLateMinutes,
+    status: attendance.status,
+  } as const;
+  const adjusted = adjustedAttendanceMetrics(
+    'workStartAt' in attendance && attendance.workStartAt
+      ? 'workEndAt' in attendance && attendance.workEndAt
+        ? { ...metrics, workStartAt: attendance.workStartAt, workEndAt: attendance.workEndAt }
+        : { ...metrics, workStartAt: attendance.workStartAt }
+      : 'workEndAt' in attendance && attendance.workEndAt
+        ? { ...metrics, workEndAt: attendance.workEndAt }
+        : metrics,
+    context,
+  );
+  const result = { ...attendance, arrivalLateMinutes: adjusted.arrivalLateMinutes };
+  if ('workedMinutes' in attendance) {
+    return {
+      ...result,
+      workedMinutes: adjusted.workedMinutes,
+      workDeficitMinutes: adjusted.workDeficitMinutes,
+    } as AttendanceRecord;
+  }
+  return result as AttendanceRecord;
+}
+
 export function createAttendanceService(
   repository: AttendanceRepository,
   now: () => Date = () => new Date(),
@@ -458,6 +500,14 @@ export function createAttendanceService(
       }
       if (existing) {
         const attendance = derivedAttendance(existing, serverNow);
+        const permissionContext = await repository.findAttendancePermissions?.(
+          teacherId,
+          [{ attendanceId: attendance.id, workDate: attendance.workDate }],
+        );
+        const effectiveAttendance = applyAttendancePermissions(
+          attendance,
+          permissionContext?.get(attendance.workDate) ?? {},
+        );
         const snapshotSchedule = todayScheduleSnapshot(existing);
         const resolvedSchedule = snapshotSchedule
           ? null
@@ -466,9 +516,9 @@ export function createAttendanceService(
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
           workDate: existing.workDate,
-          state: attendance.status,
+          state: effectiveAttendance.status,
           schedule: snapshotSchedule ?? (resolvedSchedule ? todaySchedule(resolvedSchedule) : null),
-          attendance,
+          attendance: effectiveAttendance,
           locationRequirement: geofence
             ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
             : null,
@@ -507,7 +557,15 @@ export function createAttendanceService(
       const serverNow = now();
       const { workDate, minuteOfDay } = jakartaDateTime(serverNow);
       const existing = await repository.findAttendance(teacherId, workDate);
-      if (existing) return existing;
+      if (existing) {
+        const permissionContext = await repository.findAttendancePermissions?.(
+          teacherId,
+          [{ attendanceId: existing.id, workDate: existing.workDate }],
+        );
+        return AttendanceRecordSchema.parse(
+          applyAttendancePermissions(existing, permissionContext?.get(existing.workDate) ?? {}),
+        );
+      }
 
       const day = await resolveStaffDay(repository, staff, workDate);
       if (!day.isWorkingDay) {
@@ -552,8 +610,7 @@ export function createAttendanceService(
       const { distanceMeters, boundaryClearanceMeters } = validatedLocation(location, geofence);
       const boundaries = scheduleBoundaries(workDate, day.schedule);
 
-      return AttendanceRecordSchema.parse(
-        await repository.saveCheckIn({
+      const saved = await repository.saveCheckIn({
           teacherId,
           workDate,
           checkInAt: serverNow.toISOString(),
@@ -566,7 +623,13 @@ export function createAttendanceService(
             0,
             Math.floor((serverNow.getTime() - new Date(boundaries.workStartAt).getTime()) / 60_000),
           ),
-        }),
+        });
+      const permissionContext = await repository.findAttendancePermissions?.(
+        teacherId,
+        [{ attendanceId: saved.id, workDate: saved.workDate }],
+      );
+      return AttendanceRecordSchema.parse(
+        applyAttendancePermissions(saved, permissionContext?.get(saved.workDate) ?? {}),
       );
     },
 
@@ -588,7 +651,15 @@ export function createAttendanceService(
           'Checkout hanya dapat dilakukan setelah check-in',
         );
       }
-      if (existing.status === 'COMPLETED') return existing;
+      if (existing.status === 'COMPLETED') {
+        const permissionContext = await repository.findAttendancePermissions?.(
+          teacherId,
+          [{ attendanceId: existing.id, workDate: existing.workDate }],
+        );
+        return CompletedAttendanceRecordSchema.parse(
+          applyAttendancePermissions(existing, permissionContext?.get(existing.workDate) ?? {}),
+        );
+      }
 
       let fallbackBoundaries: ShiftBoundaries | null = null;
       if (!existing.checkoutOpenAt || !existing.checkoutCloseAt) {
@@ -630,8 +701,7 @@ export function createAttendanceService(
           (serverNow.getTime() - new Date(existing.checkInAt).getTime()) / 60_000,
         ),
       );
-      return CompletedAttendanceRecordSchema.parse(
-        await repository.saveCheckout({
+      const saved = await repository.saveCheckout({
           attendanceId: existing.id,
           teacherId,
           workDate: existing.workDate,
@@ -644,7 +714,13 @@ export function createAttendanceService(
             0,
             existing.targetMinutes - workedMinutes,
           ),
-        }),
+        });
+      const permissionContext = await repository.findAttendancePermissions?.(
+        teacherId,
+        [{ attendanceId: saved.id, workDate: saved.workDate }],
+      );
+      return CompletedAttendanceRecordSchema.parse(
+        applyAttendancePermissions(saved, permissionContext?.get(saved.workDate) ?? {}),
       );
     },
 
@@ -652,11 +728,18 @@ export function createAttendanceService(
       const query = ListAttendanceHistoryQuerySchema.parse(input);
       const result = await repository.listAttendanceHistory(teacherId, query);
       const serverNow = now();
+      const permissionContext = await repository.findAttendancePermissions?.(
+        teacherId,
+        result.records.map((record) => ({ attendanceId: record.id, workDate: record.workDate })),
+      );
       const totalItems = result.totalItems;
       return AttendanceHistoryResponseSchema.parse({
-        data: result.records.map((record) =>
-          AttendanceRecordSchema.parse(derivedAttendance(record, serverNow)),
-        ),
+        data: result.records.map((record) => {
+          const derived = derivedAttendance(record, serverNow);
+          return AttendanceRecordSchema.parse(
+            applyAttendancePermissions(derived, permissionContext?.get(record.workDate) ?? {}),
+          );
+        }),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,

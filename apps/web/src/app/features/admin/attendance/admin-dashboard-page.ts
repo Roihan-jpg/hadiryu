@@ -271,6 +271,7 @@ export class AdminDashboardPage implements OnInit {
       OFFICIAL_DUTY: 'Dinas luar',
       FAMILY: 'Kepentingan keluarga',
       OTHER: 'Lainnya',
+      LATE_ARRIVAL: 'Izin terlambat',
     }[type];
   }
 

@@ -5,6 +5,7 @@ export const queryKeys = {
   teachers: (filters?: unknown) => filters === undefined ? ['admin', 'teachers'] as const : ['admin', 'teachers', filters] as const,
   leaveRequests: (scope: 'own' | 'admin', filters?: unknown) => filters === undefined ? ['leave-requests', scope] as const : ['leave-requests', scope, filters] as const,
   leaveRequest: (id: string) => ['leave-requests', 'detail', id] as const,
+  requestQuotas: (month: string) => ['request-quotas', month] as const,
   earlyDepartureRequests: (scope: 'own' | 'admin', filters?: unknown) => filters === undefined ? ['early-departure-requests', scope] as const : ['early-departure-requests', scope, filters] as const,
   earlyDepartureRequest: (id: string) => ['early-departure-requests', 'detail', id] as const,
   reports: (month?: string) => month === undefined ? ['admin', 'reports'] as const : ['admin', 'reports', month] as const,

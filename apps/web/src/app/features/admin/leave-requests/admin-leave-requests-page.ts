@@ -160,7 +160,7 @@ export class AdminLeaveRequestsPage implements OnInit {
     finally { this.actionInProgress.set(null); }
   }
 
-  typeLabel(type: AdminLeaveRequest['leaveType']): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya' })[type]; }
+  typeLabel(type: AdminLeaveRequest['leaveType']): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya', LATE_ARRIVAL: 'Izin terlambat' })[type]; }
   statusLabel(status: LeaveStatus): string { return ({ PENDING: 'Pending', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' })[status]; }
   dateLabel(workDate: string): string {
     return new Intl.DateTimeFormat('id-ID', {

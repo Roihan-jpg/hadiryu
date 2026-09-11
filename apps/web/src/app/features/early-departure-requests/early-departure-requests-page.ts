@@ -21,6 +21,13 @@ import {
   type LocationAccuracyProgress,
 } from '../attendance/geolocation';
 import { EarlyDepartureRequestsService } from './early-departure-requests.service';
+import { RequestQuotasService } from '../request-quotas.service';
+
+function currentJakartaMonth(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}`;
+}
 
 @Component({
   imports: [
@@ -38,6 +45,7 @@ export class EarlyDepartureRequestsPage {
   private readonly attendanceService = inject(AttendanceService);
   private readonly geolocation = inject(GEOLOCATION);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly quotaService = inject(RequestQuotasService);
   readonly form = new FormGroup({
     reason: new FormControl('', {
       nonNullable: true,
@@ -58,14 +66,21 @@ export class EarlyDepartureRequestsPage {
     queryKey: queryKeys.attendance('today'),
     queryFn: () => this.attendanceService.fetchToday(),
   }));
+  readonly quotaMonth = computed(() => this.todayQuery.data()?.workDate.slice(0, 7) ?? currentJakartaMonth());
+  readonly quotaQuery = injectQuery(() => ({
+    queryKey: queryKeys.requestQuotas(this.quotaMonth()),
+    queryFn: () => this.quotaService.fetch(this.quotaMonth()),
+  }));
   readonly requests = computed<EarlyDepartureRequest[]>(() => this.requestsQuery.data()?.data ?? []);
   readonly loading = computed(() => this.requestsQuery.isPending());
   readonly submissionDisabled = computed(() =>
-    this.submitting() || this.todayQuery.isPending() || this.todayQuery.data()?.state !== 'CHECKED_IN',
+    this.submitting() || this.todayQuery.isPending() || this.todayQuery.data()?.state !== 'CHECKED_IN' ||
+    this.quotaQuery.data()?.earlyDeparture.remaining === 0,
   );
   readonly submissionHelp = computed(() => {
     const state = this.todayQuery.data()?.state;
     if (this.todayQuery.isPending()) return 'Memeriksa status absensi hari ini…';
+    if (this.quotaQuery.data()?.earlyDeparture.remaining === 0) return 'Kuota pulang awal bulan ini sudah habis (maksimal 2 kali).';
     if (state === 'CHECKED_IN') return '';
     if (state === 'COMPLETED') return 'Checkout sudah tercatat. Permohonan pulang awal tidak dapat dikirim.';
     if (state === 'READY_TO_CHECK_IN') return 'Lakukan check-in terlebih dahulu sebelum mengajukan pulang awal.';
@@ -100,6 +115,7 @@ export class EarlyDepartureRequestsPage {
       this.form.reset({ reason: '' });
       this.attachment.set(undefined);
       this.successMessage.set('Permohonan terkirim. Absensi pulang dicatat dan menunggu keputusan admin.');
+      void this.quotaQuery.refetch();
     } catch (error) {
       this.errorMessage.set(await this.errorText(error, 'Permohonan pulang awal tidak dapat dikirim.'));
     } finally { this.submitting.set(false); }
