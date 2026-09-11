@@ -1,21 +1,30 @@
-<main class="teacher-page staff-dashboard" aria-labelledby="dashboard-title">
-  <header class="dashboard-heading">
-    <div>
-      <h1 id="dashboard-title">Jejak kerja {{ user()?.fullName }}</h1>
-      <p>Ringkasan, kuota, dan seluruh aktivitas kehadiran dalam satu halaman.</p>
+<main class="teacher-page staff-dashboard" aria-labelledby="home-title">
+  <header class="identity-card ledger-panel">
+    <div class="identity-avatar">
+      @if (user()?.photo; as photo) {
+        <img [src]="profilePhotoUrl(photo.updatedAt)" alt="Foto profil {{ user()?.fullName }}" />
+      } @else {
+        <span aria-hidden="true">{{ initials(user()?.fullName ?? '') }}</span>
+      }
     </div>
-    <form class="dashboard-filters" (ngSubmit)="applyFilters()">
-      <label for="dashboard-month">Bulan</label>
+    <div class="identity-copy">
+      <p class="eyebrow">{{ user()?.role === 'SECURITY_GUARD' ? 'Pos Jaga · Dashboard Satpam' : 'Dashboard Guru' }}</p>
+      <h1 id="home-title">Absen {{ user()?.fullName }}</h1>
+      <span>NIP {{ user()?.nip }}</span>
+      @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
+    </div>
+    @if (workDateLabel()) {
+      <time class="identity-date">{{ workDateLabel() }}</time>
+    }
+  </header>
+<form class="dashboard-filters" (ngSubmit)="applyFilters()">
       <input id="dashboard-month" type="month" [formControl]="monthControl" />
-      <label for="dashboard-type">Jenis aktivitas</label>
       <select id="dashboard-type" [formControl]="typeControl">
         <option value="ALL">Semua</option><option value="ATTENDANCE">Absensi</option>
         <option value="LEAVE">Izin</option><option value="EARLY_DEPARTURE">Pulang Awal</option>
       </select>
       <button mat-stroked-button type="submit">Terapkan</button>
     </form>
-  </header>
-
   @if (dashboardQuery.isPending()) {
     <section class="dashboard-loading" aria-busy="true" role="status">
       <span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block wide"></span>

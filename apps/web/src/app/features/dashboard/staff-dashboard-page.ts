@@ -86,6 +86,15 @@ export class StaffDashboardPage implements OnDestroy {
 
   ngOnDestroy(): void { this.closePreview(); }
 
+  readonly workDateLabel = computed(() => {
+    const workDate = this.dashboard()?.todayAttendance.workDate;
+    if (!workDate) return '';
+    return new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'full',
+      timeZone: 'UTC',
+    }).format(new Date(`${workDate}T00:00:00.000Z`));
+  });
+
   protected closePreview(): void {
     const active = this.preview();
     if (active) URL.revokeObjectURL(active.url);
@@ -124,4 +133,17 @@ export class StaffDashboardPage implements OnDestroy {
   }
   statusLabel(status: string): string { return ({ PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan', CHECKED_IN: 'Berlangsung', COMPLETED: 'Lengkap', INCOMPLETE: 'Tidak lengkap' } as Record<string, string>)[status] ?? status; }
   attachmentUrl(activity: Extract<DashboardActivity, { type: 'LEAVE' | 'EARLY_DEPARTURE' }> | EarlyDepartureDashboardActivity): string { return this.service.attachmentUrl(activity.type, activity.id); }
+
+  profilePhotoUrl(updatedAt: string): string {
+    return `/api/profile/photo?v=${encodeURIComponent(updatedAt)}`;
+  }
+
+  initials(name: string): string {
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('');
+  }
 }
