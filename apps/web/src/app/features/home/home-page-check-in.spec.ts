@@ -20,6 +20,8 @@ import {
 } from '../attendance/geolocation';
 import { HomePage } from './home-page';
 import { SecurityDashboardService } from './security-dashboard.service';
+import { LeaveRequestsService } from '../leave-requests/leave-requests.service';
+import { RequestQuotasService } from '../request-quotas.service';
 
 const teacher: AuthUser = {
   id: '50000000-0000-4000-8000-000000000001',
@@ -86,12 +88,35 @@ describe('HomePage check-in', () => {
   let fetchToday: ReturnType<typeof vi.fn>;
   let checkIn: ReturnType<typeof vi.fn>;
   let queryPermission: ReturnType<typeof vi.fn>;
+  let createLateArrival: ReturnType<typeof vi.fn>;
+  let fetchQuota: ReturnType<typeof vi.fn>;
 
-  async function setup(today = ready): Promise<void> {
+  async function setup(today = ready, quotaFailure = false): Promise<void> {
     geolocation = new FakeGeolocation();
     fetchToday = vi.fn(async () => today);
     checkIn = vi.fn(async () => checkedIn);
     queryPermission = vi.fn(async () => ({ state: 'prompt' as PermissionState }));
+    createLateArrival = vi.fn(async () => ({
+      id: '40000000-0000-4000-8000-000000000099',
+      teacherId: teacher.id,
+      leaveDate: today.workDate,
+      leaveType: 'LATE_ARRIVAL' as const,
+      reason: 'Terjebak lalu lintas',
+      status: 'PENDING' as const,
+      decisionNote: null,
+      decidedBy: null,
+      decidedAt: null,
+      createdAt: today.serverNow,
+      updatedAt: today.serverNow,
+    }));
+    fetchQuota = vi.fn(async () => {
+      if (quotaFailure) throw new Error('quota unavailable');
+      return {
+      month: today.workDate.slice(0, 7),
+      lateArrival: { limit: 2, used: 0, remaining: 2 },
+      earlyDeparture: { limit: 2, used: 0, remaining: 2 },
+      };
+    });
     await TestBed.configureTestingModule({
       imports: [HomePage],
       providers: [
@@ -106,6 +131,8 @@ describe('HomePage check-in', () => {
         },
         { provide: AttendanceService, useValue: { fetchToday, checkIn } },
         { provide: SecurityDashboardService, useValue: { getDashboard: vi.fn() } },
+        { provide: LeaveRequestsService, useValue: { create: createLateArrival } },
+        { provide: RequestQuotasService, useValue: { fetch: fetchQuota } },
         { provide: GEOLOCATION, useValue: geolocation },
         {
           provide: GEOLOCATION_PERMISSIONS,
@@ -135,6 +162,65 @@ describe('HomePage check-in', () => {
     expect(fixture.nativeElement.textContent).toContain('Check-in sekarang');
     expect(fixture.nativeElement.textContent).toContain('Tampilkan lokasi saya');
     expect(fixture.nativeElement.querySelector('app-teacher-location-map')).toBeNull();
+  });
+
+  it('offers a separate late-arrival action below check-in before attendance is recorded', async () => {
+    await setup();
+
+    const button = fixture.nativeElement.querySelector('button[data-action="late-arrival"]') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Ajukan izin terlambat');
+  });
+
+  it('hides the late-arrival action after check-in', async () => {
+    await setup({ ...ready, state: 'CHECKED_IN', attendance: checkedIn });
+    expect(fixture.nativeElement.querySelector('button[data-action="late-arrival"]')).toBeNull();
+  });
+
+  it('submits the inline late-arrival form for the active server work date', async () => {
+    await setup();
+    await vi.waitFor(() => expect(fixture.componentInstance.lateQuotaQuery.data()).toBeDefined());
+    const button = fixture.nativeElement.querySelector('button[data-action="late-arrival"]') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+
+    const page = fixture.componentInstance;
+    page.lateArrivalForm.controls.reason.setValue('Terjebak lalu lintas');
+    await page.submitLateArrival();
+    fixture.detectChanges();
+
+    expect(createLateArrival).toHaveBeenCalledWith({
+      leaveDate: ready.workDate,
+      leaveType: 'LATE_ARRIVAL',
+      reason: 'Terjebak lalu lintas',
+    });
+    expect(fixture.nativeElement.textContent).toContain('Pengajuan izin terlambat berhasil dikirim');
+  });
+
+  it('passes an optional late-arrival attachment to the existing leave API', async () => {
+    await setup();
+    await vi.waitFor(() => expect(fixture.componentInstance.lateQuotaQuery.data()).toBeDefined());
+    (fixture.nativeElement.querySelector('button[data-action="late-arrival"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const page = fixture.componentInstance;
+    page.lateArrivalForm.controls.reason.setValue('Terjebak lalu lintas');
+    const attachment = new File(['surat'], 'surat.pdf', { type: 'application/pdf' });
+    page.lateArrivalAttachmentChanged({ target: { files: [attachment] } } as unknown as Event);
+    await page.submitLateArrival();
+
+    expect(createLateArrival).toHaveBeenCalledWith(expect.objectContaining({ leaveType: 'LATE_ARRIVAL' }), attachment);
+  });
+
+  it('shows a retry state instead of an endless loading message when quota lookup fails', async () => {
+    await setup(ready, true);
+    await vi.waitFor(() => expect(fixture.componentInstance.lateQuotaQuery.isError()).toBe(true));
+    (fixture.nativeElement.querySelector('button[data-action="late-arrival"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Kuota izin terlambat tidak dapat dimuat');
+    expect(fixture.nativeElement.textContent).toContain('Coba lagi');
+    expect(fixture.nativeElement.textContent).not.toContain('Memuat kuota izin terlambat…');
   });
 
   it('previews and refreshes the current location without submitting attendance', async () => {

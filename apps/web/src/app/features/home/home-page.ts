@@ -6,7 +6,10 @@ import type {
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
@@ -21,6 +24,8 @@ import {
   PreciseLocationError,
   type LocationAccuracyProgress,
 } from '../attendance/geolocation';
+import { LeaveRequestsService } from '../leave-requests/leave-requests.service';
+import { RequestQuotasService } from '../request-quotas.service';
 import { TeacherLocationMap } from './teacher-location-map';
 import { SecurityDashboardService } from './security-dashboard.service';
 
@@ -61,7 +66,10 @@ class LocationRequestError extends Error {
 @Component({
   imports: [
     MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
     MatProgressSpinnerModule,
+    ReactiveFormsModule,
     RouterLink,
     TeacherLocationMap,
   ],
@@ -75,6 +83,8 @@ export class HomePage {
   private readonly destroyRef = inject(DestroyRef);
   private readonly geolocation = inject(GEOLOCATION);
   private readonly geolocationPermissions = inject(GEOLOCATION_PERMISSIONS);
+  private readonly leaveRequestsService = inject(LeaveRequestsService);
+  private readonly requestQuotasService = inject(RequestQuotasService);
   private readonly router = inject(Router);
   private readonly securityDashboardService = inject(SecurityDashboardService, { optional: true });
 
@@ -107,6 +117,36 @@ export class HomePage {
   readonly errorMessage = signal<string | null>(null);
   readonly locationPreviewError = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
+  readonly lateArrivalOpen = signal(false);
+  readonly lateArrivalSubmitting = signal(false);
+  readonly lateArrivalError = signal<string | null>(null);
+  readonly lateArrivalSuccess = signal<string | null>(null);
+  readonly lateArrivalAttachment = signal<File | undefined>(undefined);
+  readonly lateArrivalForm = new FormGroup({
+    reason: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(1000)],
+    }),
+  });
+  readonly lateArrivalMonth = computed(() => this.today()?.workDate.slice(0, 7) ?? '');
+  readonly lateQuotaQuery = injectQuery(() => ({
+    queryKey: queryKeys.requestQuotas(this.lateArrivalMonth()),
+    queryFn: () => this.requestQuotasService.fetch(this.lateArrivalMonth()),
+    enabled: this.today()?.state === 'READY_TO_CHECK_IN' && this.lateArrivalMonth().length === 7,
+  }));
+  readonly lateArrivalAvailable = computed(() => this.today()?.state === 'READY_TO_CHECK_IN');
+  readonly lateArrivalSubmitDisabled = computed(() =>
+    this.lateArrivalSubmitting() ||
+    this.lateQuotaQuery.isPending() ||
+    this.lateQuotaQuery.isError() ||
+    this.lateQuotaQuery.data()?.lateArrival.remaining === 0,
+  );
+  readonly lateQuotaMessage = computed(() => {
+    if (this.lateQuotaQuery.isPending()) return 'Memuat kuota izin terlambat…';
+    if (this.lateQuotaQuery.isError()) return 'Kuota izin terlambat tidak dapat dimuat.';
+    const quota = this.lateQuotaQuery.data()?.lateArrival;
+    return quota ? `Sisa izin terlambat bulan ini: ${quota.remaining} dari ${quota.limit}.` : '';
+  });
   private locationAcquisition: Promise<LocationInput> | null = null;
   private cachedAttendanceLocation: CachedAttendanceLocation | null = null;
   private locationExpiryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -192,6 +232,54 @@ export class HomePage {
       }
     } finally {
       this.actionInProgress.set(false);
+    }
+  }
+
+  toggleLateArrival(): void {
+    if (!this.lateArrivalAvailable()) return;
+    this.lateArrivalOpen.update((value) => !value);
+    this.lateArrivalError.set(null);
+    this.lateArrivalSuccess.set(null);
+  }
+
+  lateArrivalAttachmentChanged(event: Event): void {
+    this.lateArrivalAttachment.set((event.target as HTMLInputElement).files?.[0]);
+  }
+
+  async retryLateQuota(): Promise<void> {
+    await this.lateQuotaQuery.refetch();
+  }
+
+  async submitLateArrival(): Promise<void> {
+    if (!this.lateArrivalAvailable() || this.lateArrivalSubmitDisabled()) return;
+    if (this.lateArrivalForm.invalid) {
+      this.lateArrivalForm.markAllAsTouched();
+      return;
+    }
+    const today = this.today();
+    if (!today) return;
+    this.lateArrivalSubmitting.set(true);
+    this.lateArrivalError.set(null);
+    this.lateArrivalSuccess.set(null);
+    try {
+      const value = this.lateArrivalForm.getRawValue();
+      const input = {
+        leaveDate: today.workDate,
+        leaveType: 'LATE_ARRIVAL' as const,
+        reason: value.reason.trim(),
+      };
+      const attachment = this.lateArrivalAttachment();
+      if (attachment) await this.leaveRequestsService.create(input, attachment);
+      else await this.leaveRequestsService.create(input);
+      this.lateArrivalForm.reset({ reason: '' });
+      this.lateArrivalAttachment.set(undefined);
+      this.lateArrivalSuccess.set('Pengajuan izin terlambat berhasil dikirim dan menunggu keputusan SuperAdmin.');
+      this.lateArrivalOpen.set(false);
+      await this.lateQuotaQuery.refetch();
+    } catch (error) {
+      this.lateArrivalError.set(await this.apiErrorText(error, 'izin terlambat'));
+    } finally {
+      this.lateArrivalSubmitting.set(false);
     }
   }
 
@@ -441,13 +529,18 @@ export class HomePage {
 
   private async apiErrorText(
     error: unknown,
-    action: 'check-in' | 'checkout',
+    action: 'check-in' | 'checkout' | 'izin terlambat',
   ): Promise<string> {
     if (error instanceof HttpErrorResponse) {
       const { ApiErrorSchema } = await import('@absensi/contracts');
       const parsed = ApiErrorSchema.safeParse(error.error);
       if (parsed.success) return parsed.data.error.message;
     }
-    return `${action === 'check-in' ? 'Check-in' : 'Checkout'} belum dapat disimpan. Periksa koneksi lalu coba lagi.`;
+    const labels = {
+      'check-in': 'Check-in',
+      checkout: 'Checkout',
+      'izin terlambat': 'Pengajuan izin terlambat',
+    } as const;
+    return `${labels[action]} belum dapat disimpan. Periksa koneksi lalu coba lagi.`;
   }
 }

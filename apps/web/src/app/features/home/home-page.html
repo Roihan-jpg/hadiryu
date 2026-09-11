@@ -173,6 +173,33 @@
             {{ actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan checkout…') : 'Checkout sekarang' }}
           </button>
         }
+        @if (today()?.state === 'READY_TO_CHECK_IN') {
+          <button mat-stroked-button type="button" data-action="late-arrival" [disabled]="actionInProgress()" (click)="toggleLateArrival()">
+            {{ lateArrivalOpen() ? 'Tutup izin terlambat' : 'Ajukan izin terlambat' }}
+          </button>
+          @if (lateArrivalOpen()) {
+            <form class="late-arrival-form" [formGroup]="lateArrivalForm" (ngSubmit)="submitLateArrival()" novalidate>
+              <p class="permission-note">Pengajuan ini untuk tanggal kerja {{ today()?.workDate }}. Anda tetap wajib melakukan check-in.</p>
+              <mat-form-field appearance="outline">
+                <mat-label>Alasan terlambat</mat-label>
+                <textarea matInput rows="3" maxlength="1000" formControlName="reason"></textarea>
+                <mat-hint align="end">{{ lateArrivalForm.controls.reason.value.length }}/1.000</mat-hint>
+                @if (lateArrivalForm.controls.reason.invalid && lateArrivalForm.controls.reason.touched) { <mat-error>Alasan wajib diisi, maksimal 1.000 karakter.</mat-error> }
+              </mat-form-field>
+              <label class="attachment-field">
+                <span><strong>Lampiran opsional</strong><small>PDF, JPEG, atau PNG · maksimal 5 MB</small></span>
+                <input type="file" accept="application/pdf,image/jpeg,image/png" (change)="lateArrivalAttachmentChanged($event)" />
+              </label>
+              @if (lateQuotaMessage()) { <p class="permission-note" role="status">{{ lateQuotaMessage() }}</p> }
+              @if (lateQuotaQuery.isError()) { <button mat-button type="button" (click)="retryLateQuota()">Coba lagi</button> }
+              @if (lateArrivalError()) { <p class="feedback feedback--error" role="alert">{{ lateArrivalError() }}</p> }
+              <button mat-flat-button type="submit" [disabled]="lateArrivalSubmitDisabled()">
+                {{ lateArrivalSubmitting() ? 'Mengirim…' : 'Kirim izin terlambat' }}
+              </button>
+            </form>
+          }
+          @if (lateArrivalSuccess()) { <p class="feedback feedback--success" role="status">{{ lateArrivalSuccess() }}</p> }
+        }
         @if (today()?.state === 'READY_TO_CHECK_IN' || today()?.state === 'CHECKED_IN') {
           <p class="permission-note">Gunakan lokasi yang siap atau tekan tombol absensi untuk mencari lokasi secara otomatis.</p>
         }

@@ -34,6 +34,10 @@ h2 { margin: 0; color: var(--ag-text); font-size: clamp(21px, 4vw, 27px); line-h
 .feedback { margin: 14px 0 0; padding: 10px 12px; border: 1px solid; border-radius: 4px; font-size: 12px; line-height: 1.5; }
 .feedback--error { color: var(--ag-danger); background: var(--ag-danger-bg); border-color: #edc9c9; }
 .feedback--success { color: var(--ag-success); background: var(--ag-success-bg); border-color: #cce3d8; }
+.late-arrival-form { display: grid; gap: 12px; margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--ag-border); }
+.late-arrival-form mat-form-field { width: 100%; }
+.late-arrival-form .permission-note { margin: 0; }
+.late-arrival-form .attachment-field { margin: 0; }
 .primary-action { width: 100%; min-height: 48px; margin-top: 16px; }
 .gps-progress { display: flex; align-items: center; gap: 11px; margin-top: 14px; padding: 11px 12px; color: var(--ag-primary); background: var(--ag-primary-soft); border-radius: 5px; }
 .gps-progress > div { display: grid; gap: 2px; }
