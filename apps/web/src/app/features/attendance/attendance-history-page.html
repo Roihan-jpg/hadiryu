@@ -31,7 +31,7 @@
   } @else if (records().length === 0) {
     <div class="empty-state ledger-panel" role="status">
       <span aria-hidden="true">↺</span>
-      <div><h2>Belum ada absensi pada bulan ini</h2><p>Catatan check-in dan checkout akan tampil di sini.</p></div>
+      <div><h2>Belum ada absensi pada bulan ini</h2><p>Catatan Absen Masuk dan Absen Pulang akan tampil di sini.</p></div>
     </div>
   } @else {
     <div class="history-list">
@@ -42,8 +42,8 @@
             <span class="status-chip" [class.success]="record.status === 'COMPLETED'" [class.warning]="record.status === 'INCOMPLETE'">{{ statusLabel(record) }}</span>
           </header>
           <dl>
-            <div><dt>Check-in</dt><dd>{{ jakartaTime(record.checkInAt) }} WIB</dd></div>
-            <div><dt>Checkout</dt><dd>@if (record.status === 'COMPLETED') { {{ jakartaTime(record.checkOutAt) }} WIB } @else { Belum tercatat }</dd></div>
+            <div><dt>Absen Masuk</dt><dd>{{ jakartaTime(record.checkInAt) }} WIB</dd></div>
+            <div><dt>Absen Pulang</dt><dd>@if (record.status === 'COMPLETED') { {{ jakartaTime(record.checkOutAt) }} WIB } @else { Belum tercatat }</dd></div>
             @if (record.status !== 'CHECKED_IN') {
               <div><dt>Menit kerja</dt><dd>{{ record.workedMinutes }} menit</dd></div>
               <div><dt>Kekurangan</dt><dd>{{ record.workDeficitMinutes }} menit</dd></div>

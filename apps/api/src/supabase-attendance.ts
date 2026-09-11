@@ -101,7 +101,7 @@ const SecurityScheduleRowSchema = z.strictObject({
 });
 const AttendancePermissionLeaveRowSchema = z.strictObject({
   leave_date: z.string(),
-  leave_type: z.literal('LATE_ARRIVAL'),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
   created_at: z.string(),
 });
@@ -357,7 +357,6 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         .from('leave_requests')
         .select('leave_date,leave_type,status,created_at')
         .eq('teacher_id', teacherId)
-        .eq('leave_type', 'LATE_ARRIVAL')
         .in('leave_date', workDates)
         .order('created_at', { ascending: false }),
       this.client
@@ -373,6 +372,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
     const lateByDate = new Map<string, AttendanceAdjustmentContext['lateArrivalStatus']>();
     for (const value of lateResult.data ?? []) {
       const row = AttendancePermissionLeaveRowSchema.parse(value);
+      if (row.leave_type !== 'LATE_ARRIVAL') continue;
       if (!lateByDate.has(row.leave_date)) lateByDate.set(row.leave_date, row.status);
     }
     const earlyByAttendance = new Map<string, AttendanceAdjustmentContext['earlyDepartureStatus']>();

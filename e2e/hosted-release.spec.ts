@@ -57,6 +57,7 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
 
   await login(page, teacherNip, teacherPassword);
   await expect(page).toHaveURL(/\/guru$/);
+  await page.getByRole('link', { name: 'Absen', exact: true }).click();
   const existingEarlyRequests = EarlyDepartureRequestListResponseSchema.parse(
     await expectSuccessfulGet(
       page,
@@ -68,14 +69,14 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
       request.workDate === jakartaDateTime().workDate &&
       request.status === 'PENDING',
   );
-  const checkIn = page.getByRole('button', { name: 'Check-in sekarang' });
+  const checkIn = page.getByRole('button', { name: 'Absen Masuk sekarang' });
   let today = TodayAttendanceResponseSchema.parse(
     await expectSuccessfulGet(page, '/api/attendance/today'),
   );
   if (today.state === 'READY_TO_CHECK_IN') {
     await expect(checkIn).toBeVisible();
     await checkIn.click();
-    await expect(page.getByRole('heading', { name: 'Sudah check-in' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Absen Masuk tercatat' })).toBeVisible();
     today = TodayAttendanceResponseSchema.parse(
       await expectSuccessfulGet(page, '/api/attendance/today'),
     );
@@ -100,13 +101,13 @@ test('smoke hosted sampai ekspor tanpa reset atau seed remote', async ({
       serverMinute >= today.schedule.checkoutOpen &&
       serverMinute <= today.schedule.checkoutClose
     ) {
-      await page.getByRole('button', { name: 'Checkout sekarang' }).click();
+      await page.getByRole('button', { name: 'Absen Pulang sekarang' }).click();
       await expect(
         page.getByRole('heading', { name: 'Absensi selesai' }),
       ).toBeVisible();
     } else {
       await expect(
-        page.getByRole('heading', { name: 'Sudah check-in' }),
+        page.getByRole('heading', { name: 'Absen Masuk tercatat' }),
       ).toBeVisible();
     }
   } else {

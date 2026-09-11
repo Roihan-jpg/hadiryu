@@ -8,7 +8,7 @@ import {
 } from '@angular/router';
 
 import { AdminDashboardService } from '../../features/admin/attendance/admin-dashboard.service';
-import { AttendanceService } from '../../features/attendance/attendance.service';
+import { StaffDashboardService } from '../../features/dashboard/staff-dashboard.service';
 import { appQueryClient } from '../query/query-client';
 import { queryKeys } from '../query/query-keys';
 
@@ -17,10 +17,11 @@ export type OpeningPhase = 'idle' | 'showing' | 'leaving';
 const MINIMUM_DISPLAY_MS = 1_000;
 const FADE_OUT_MS = 300;
 const INITIAL_ADMIN_QUERY = { page: 1, pageSize: 20 } as const;
+const INITIAL_STAFF_QUERY = { page: 1, pageSize: 8, type: 'ALL' as const };
 
 @Injectable({ providedIn: 'root' })
 export class OpeningTransitionService {
-  private readonly attendance = inject(AttendanceService);
+  private readonly staffDashboard = inject(StaffDashboardService);
   private readonly adminDashboard = inject(AdminDashboardService);
   private readonly router = inject(Router);
   private readonly queryClient = appQueryClient;
@@ -108,8 +109,8 @@ export class OpeningTransitionService {
     }
 
     await this.queryClient.prefetchQuery({
-      queryKey: queryKeys.attendance('today'),
-      queryFn: () => this.attendance.fetchToday(),
+      queryKey: queryKeys.staffDashboard(INITIAL_STAFF_QUERY),
+      queryFn: () => this.staffDashboard.fetch(INITIAL_STAFF_QUERY),
     });
   }
 

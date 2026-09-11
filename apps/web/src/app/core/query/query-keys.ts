@@ -13,4 +13,5 @@ export const queryKeys = {
   audit: (filters?: unknown) => ['admin', 'audit', filters] as const,
   attendance: (scope: 'today' | 'history', filters?: unknown) => filters === undefined ? ['attendance', scope] as const : ['attendance', scope, filters] as const,
   securityDashboard: ['security-guard', 'dashboard'] as const,
+  staffDashboard: (filters?: unknown) => filters === undefined ? ['staff-dashboard'] as const : ['staff-dashboard', filters] as const,
 } as const;

@@ -133,7 +133,7 @@ describe('HomePage checkout states', () => {
       attendance: completed,
     });
 
-    expect(fixture.nativeElement.textContent).toContain('Checkout sekarang');
+    expect(fixture.nativeElement.textContent).toContain('Absen Pulang sekarang');
     const first = fixture.componentInstance.checkout();
     const repeated = fixture.componentInstance.checkout();
     fixture.detectChanges();

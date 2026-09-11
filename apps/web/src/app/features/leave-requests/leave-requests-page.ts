@@ -88,7 +88,7 @@ export class LeaveRequestsPage {
     this.actionInProgress() !== null || this.todayQuery.isPending() || this.isTodayLeaveBlocked(),
   );
   readonly leaveBlockMessage = computed(() => this.isTodayLeaveBlocked()
-    ? 'Izin untuk hari ini tidak dapat diajukan karena absensi check-in sudah tercatat.'
+    ? 'Izin untuk hari ini tidak dapat diajukan karena Absen Masuk sudah tercatat.'
     : '');
   readonly displayErrorMessage = computed(() => this.errorMessage() || (this.requestsQuery.isError()
     ? 'Daftar izin tidak dapat dimuat. Periksa koneksi lalu coba lagi.'

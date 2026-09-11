@@ -8,6 +8,7 @@ import { AttendanceService } from '../attendance/attendance.service';
 import { GEOLOCATION } from '../attendance/geolocation';
 import { EarlyDepartureRequestsPage } from './early-departure-requests-page';
 import { EarlyDepartureRequestsService } from './early-departure-requests.service';
+import { RequestQuotasService } from '../request-quotas.service';
 
 const pending: EarlyDepartureRequest = {
   id: '40000000-0000-4000-8000-000000000001',
@@ -79,6 +80,11 @@ describe('EarlyDepartureRequestsPage', () => {
   const geolocation = new FakeGeolocation();
   const create = vi.fn(async () => pending);
   const fetchToday = vi.fn<() => Promise<TodayAttendanceResponse>>(async () => checkedInToday);
+  const fetchQuota = vi.fn(async () => ({
+    month: '2026-08',
+    lateArrival: { limit: 2, used: 0, remaining: 2 },
+    earlyDeparture: { limit: 2, used: 0, remaining: 2 },
+  }));
   const listOwn = vi.fn(async (): Promise<EarlyDepartureRequestListResponse> => ({
     data: [],
     pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
@@ -87,6 +93,7 @@ describe('EarlyDepartureRequestsPage', () => {
   async function setup(today = checkedInToday): Promise<void> {
     create.mockClear();
     listOwn.mockClear();
+    fetchQuota.mockClear();
     geolocation.getCurrentPosition.mockClear();
     fetchToday.mockReset();
     fetchToday.mockResolvedValue(today);
@@ -97,6 +104,7 @@ describe('EarlyDepartureRequestsPage', () => {
         provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })),
         { provide: AttendanceService, useValue: { fetchToday } },
         { provide: EarlyDepartureRequestsService, useValue: { create, fetchOwn: listOwn } },
+        { provide: RequestQuotasService, useValue: { fetch: fetchQuota } },
         { provide: GEOLOCATION, useValue: geolocation },
       ],
     }).compileComponents();
@@ -148,6 +156,18 @@ describe('EarlyDepartureRequestsPage', () => {
 
     const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
+  });
+
+  it('shows the remaining early-departure quota prominently', async () => {
+    await setup();
+    await vi.waitFor(() => expect(fixture.componentInstance.quotaQuery.data()).toBeDefined());
+    fixture.detectChanges();
+
+    const spotlight = fixture.nativeElement.querySelector('[data-testid="early-departure-quota"]') as HTMLElement;
+    expect(spotlight).not.toBeNull();
+    expect(spotlight.querySelector('.quota-number')?.textContent?.trim()).toBe('2');
+    expect(spotlight.textContent).toContain('Sisa pulang awal bulan ini');
+    expect(spotlight.textContent).toContain('dari 2');
   });
 
   it('makes pending, approved, and rejected request outcomes visually distinct', async () => {

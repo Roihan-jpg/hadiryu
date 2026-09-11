@@ -82,8 +82,8 @@ export class EarlyDepartureRequestsPage {
     if (this.todayQuery.isPending()) return 'Memeriksa status absensi hari ini…';
     if (this.quotaQuery.data()?.earlyDeparture.remaining === 0) return 'Kuota pulang awal bulan ini sudah habis (maksimal 2 kali).';
     if (state === 'CHECKED_IN') return '';
-    if (state === 'COMPLETED') return 'Checkout sudah tercatat. Permohonan pulang awal tidak dapat dikirim.';
-    if (state === 'READY_TO_CHECK_IN') return 'Lakukan check-in terlebih dahulu sebelum mengajukan pulang awal.';
+    if (state === 'COMPLETED') return 'Absen Pulang sudah tercatat. Permohonan pulang awal tidak dapat dikirim.';
+    if (state === 'READY_TO_CHECK_IN') return 'Lakukan Absen Masuk terlebih dahulu sebelum mengajukan pulang awal.';
     return 'Permohonan pulang awal tidak tersedia untuk status absensi hari ini.';
   });
   readonly displayErrorMessage = computed(() => this.errorMessage() || (this.requestsQuery.isError()
@@ -91,6 +91,8 @@ export class EarlyDepartureRequestsPage {
     : ''));
 
   load(): void { void this.requestsQuery.refetch(); }
+
+  retryQuota(): void { void this.quotaQuery.refetch(); }
 
   async submit(): Promise<void> {
     if (this.submissionDisabled()) return;

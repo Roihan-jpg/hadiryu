@@ -28,6 +28,8 @@ import { SupabaseProfileService } from './profile.js';
 import { createSecurityDashboardService } from './security-dashboard.js';
 import { createRequestQuotaService } from './request-quotas.js';
 import { SupabaseRequestQuotaRepository } from './supabase-request-quotas.js';
+import { createStaffDashboardService } from './staff-dashboard.js';
+import { SupabaseStaffDashboardRepository } from './supabase-staff-dashboard.js';
 
 function commaSeparated(value: string | undefined): string[] {
   return (value ?? '')
@@ -56,6 +58,12 @@ const securityDashboardService = createSecurityDashboardService(attendanceReposi
 const requestQuotaService = createRequestQuotaService(
   new SupabaseRequestQuotaRepository(supabaseConfig),
 );
+const staffDashboardService = createStaffDashboardService({
+  repository: new SupabaseStaffDashboardRepository(supabaseConfig),
+  attendanceService,
+  requestQuotaService,
+  securityDashboardService,
+});
 const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
 const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
 const profileService = new SupabaseProfileService(supabaseConfig);
@@ -106,6 +114,7 @@ createApp({
   profileService,
   securityDashboardService,
   requestQuotaService,
+  staffDashboardService,
   logger,
   secureCookies,
   security: {

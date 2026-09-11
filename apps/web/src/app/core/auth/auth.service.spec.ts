@@ -83,4 +83,18 @@ describe('AuthService', () => {
 
     expect(service.user()).toBeNull();
   });
+
+  it('clears user-scoped query data when a different account logs in', async () => {
+    const firstLogin = service.login({ nip: user.nip, password: 'password-awal' });
+    http.expectOne('/api/auth/login').flush({ user });
+    await firstLogin;
+    appQueryClient.setQueryData(['attendance', 'today'], { workDate: '2026-09-11' });
+
+    const secondUser = { ...user, id: 'de3eb0e2-b31e-4ec5-a932-05297d928369', nip: '009876543210' };
+    const secondLogin = service.login({ nip: secondUser.nip, password: 'password-awal' });
+    http.expectOne('/api/auth/login').flush({ user: secondUser });
+    await secondLogin;
+
+    expect(appQueryClient.getQueryData(['attendance', 'today'])).toBeUndefined();
+  });
 });

@@ -97,7 +97,9 @@ export class HomePage {
     queryFn: () => this.attendanceService.fetchToday(),
     enabled: this.user()?.role === 'USER' || this.user()?.role === 'SECURITY_GUARD',
   }));
-  readonly today = computed<TodayAttendanceResponse | null>(() => this.todayQuery.data() ?? null);
+  readonly today = computed<TodayAttendanceResponse | null>(() =>
+    this.todayQuery.isError() ? null : this.todayQuery.data() ?? null,
+  );
   readonly securityDashboardQuery = injectQuery(() => ({
     queryKey: queryKeys.securityDashboard,
     queryFn: () => this.securityDashboardService!.getDashboard(),
@@ -189,7 +191,7 @@ export class HomePage {
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
-        `Check-in berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}.`,
+        `Absen Masuk berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}.`,
       );
     } catch (error) {
       if (error instanceof LocationRequestError) {
@@ -218,7 +220,7 @@ export class HomePage {
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
-        `Checkout berhasil dicatat pukul ${this.jakartaTime(attendance.checkOutAt)}.`,
+        `Absen Pulang berhasil dicatat pukul ${this.jakartaTime(attendance.checkOutAt)}.`,
       );
     } catch (error) {
       if (error instanceof LocationRequestError) {
@@ -537,8 +539,8 @@ export class HomePage {
       if (parsed.success) return parsed.data.error.message;
     }
     const labels = {
-      'check-in': 'Check-in',
-      checkout: 'Checkout',
+      'check-in': 'Absen Masuk',
+      checkout: 'Absen Pulang',
       'izin terlambat': 'Pengajuan izin terlambat',
     } as const;
     return `${labels[action]} belum dapat disimpan. Periksa koneksi lalu coba lagi.`;

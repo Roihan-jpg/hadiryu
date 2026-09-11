@@ -10,6 +10,18 @@
 .step-mark { color: var(--ag-border); font-size: 28px; font-weight: 800; line-height: 1; }
 .notice { margin: 18px 0; padding: 13px 14px; color: var(--ag-muted); background: var(--ag-surface-soft); border-left: 3px solid var(--ag-primary); border-radius: 4px; font-size: 12px; line-height: 1.6; }
 .notice strong { display: block; color: var(--ag-text); }
+.quota-spotlight { display: grid; gap: 8px; margin: 0 0 18px; padding: 15px 16px; color: var(--ag-primary); background: var(--ag-primary-soft); border: 1px solid color-mix(in srgb, var(--ag-primary) 22%, var(--ag-border)); border-left: 4px solid var(--ag-primary); border-radius: 7px; }
+.quota-spotlight-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quota-kicker { color: var(--ag-primary); font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.quota-limit { color: var(--ag-muted); font-size: 10px; }
+.quota-spotlight p { margin: 0; color: var(--ag-text); font-size: 13px; line-height: 1.45; }
+.quota-spotlight strong { display: inline-flex; align-items: baseline; gap: 3px; color: var(--ag-primary); }
+.quota-number { font-size: clamp(28px, 7vw, 38px); font-weight: 850; line-height: .95; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+.quota-total { font-size: 13px; font-weight: 750; }
+.quota-spotlight--state { display: block; }
+.quota-spotlight--state p { margin: 5px 0 0; color: var(--ag-muted); font-size: 12px; }
+.quota-spotlight--state button { margin-top: 6px; padding-inline: 0; }
+.quota-spotlight--error { color: var(--ag-danger); background: var(--ag-danger-bg); border-color: #edc9c9; border-left-color: var(--ag-danger); }
 form { display: grid; gap: 14px; }
 mat-form-field { width: 100%; }
 form > button { justify-self: start; min-height: 42px; }

@@ -81,16 +81,26 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'guru/absen',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
+    loadComponent: () => import('./features/home/home-page').then((module) => module.HomePage),
+  },
+  {
     path: 'guru',
     canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () =>
-      import('./features/home/home-page').then((module) => module.HomePage),
+      import('./features/dashboard/staff-dashboard-page').then((module) => module.StaffDashboardPage),
+  },
+  {
+    path: 'satpam/absen',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('SECURITY_GUARD')],
+    loadComponent: () => import('./features/home/home-page').then((module) => module.HomePage),
   },
   {
     path: 'satpam',
     canActivate: [authGuard, passwordChangedGuard, roleGuard('SECURITY_GUARD')],
     loadComponent: () =>
-      import('./features/home/home-page').then((module) => module.HomePage),
+      import('./features/dashboard/staff-dashboard-page').then((module) => module.StaffDashboardPage),
   },
   {
     path: 'satpam/riwayat',

@@ -111,7 +111,8 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   ));
   await logout(page);
   await login(page, teacherNip, reset.newPassword);
-  await expect(page.getByRole('heading', { name: /Hari ini, Guru Smoke E2E/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Absen', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Absen Guru Smoke E2E/ })).toBeVisible();
   await expect(page.locator('app-teacher-location-map')).toHaveCount(0);
   await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
   await expect(page.locator('app-teacher-location-map')).toBeVisible();
@@ -132,8 +133,9 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     earlyTeacherInitialPassword,
     earlyTeacherPassword,
   );
+  await earlyPage.getByRole('link', { name: 'Absen', exact: true }).click();
   await expect(
-    earlyPage.getByRole('heading', { name: /Hari ini, Guru Pulang Awal E2E/ }),
+    earlyPage.getByRole('heading', { name: /Absen Guru Pulang Awal E2E/ }),
   ).toBeVisible();
 
   await waitForJakartaMinute(attendanceWindow);
@@ -141,16 +143,16 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     await Promise.all([page.reload(), earlyPage.reload()]);
   }
   await Promise.all([
-    page.getByRole('button', { name: 'Check-in sekarang' }).click(),
-    earlyPage.getByRole('button', { name: 'Check-in sekarang' }).click(),
+    page.getByRole('button', { name: 'Absen Masuk sekarang' }).click(),
+    earlyPage.getByRole('button', { name: 'Absen Masuk sekarang' }).click(),
   ]);
   await Promise.all([
-    expect(page.getByRole('heading', { name: 'Sudah check-in' })).toBeVisible(),
+    expect(page.getByRole('heading', { name: 'Absen Masuk tercatat' })).toBeVisible(),
     expect(
-      earlyPage.getByRole('heading', { name: 'Sudah check-in' }),
+      earlyPage.getByRole('heading', { name: 'Absen Masuk tercatat' }),
     ).toBeVisible(),
   ]);
-  await page.getByRole('button', { name: 'Checkout sekarang' }).click();
+  await page.getByRole('button', { name: 'Absen Pulang sekarang' }).click();
   await expect(page.getByRole('heading', { name: 'Absensi selesai' })).toBeVisible();
 
   await earlyPage.getByRole('link', { name: 'Pulang awal', exact: true }).click();

@@ -92,6 +92,9 @@ export class AuthService {
   }
 
   private setUser(user: AuthUser): void {
+    if (this.currentUser()?.id && this.currentUser()?.id !== user.id) {
+      this.queryClient.clear();
+    }
     this.currentUser.set(user);
     this.initialized = true;
     this.queryClient.setQueryData(queryKeys.auth, { user });

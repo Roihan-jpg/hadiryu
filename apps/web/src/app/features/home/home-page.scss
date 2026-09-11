@@ -38,6 +38,19 @@ h2 { margin: 0; color: var(--ag-text); font-size: clamp(21px, 4vw, 27px); line-h
 .late-arrival-form mat-form-field { width: 100%; }
 .late-arrival-form .permission-note { margin: 0; }
 .late-arrival-form .attachment-field { margin: 0; }
+.late-arrival-trigger { width: 100%; min-height: 48px; margin-top: 10px; box-sizing: border-box; }
+.quota-spotlight { display: grid; gap: 8px; margin-top: 12px; padding: 15px 16px; background: var(--ag-primary-soft); border-left: 4px solid var(--ag-primary); }
+.quota-spotlight-heading { display: flex; justify-content: space-between; gap: 12px; }
+.quota-kicker { color: var(--ag-primary); font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.quota-limit { color: var(--ag-muted); font-size: 10px; }
+.quota-spotlight p { margin: 0; color: var(--ag-text); font-size: 13px; line-height: 1.45; }
+.quota-spotlight strong { color: var(--ag-primary); }
+.quota-number { font-size: clamp(28px, 7vw, 38px); font-weight: 850; line-height: .95; font-variant-numeric: tabular-nums; }
+.quota-total { font-size: 13px; font-weight: 750; }
+.quota-spotlight--state { display: block; }
+.quota-spotlight--state p { margin: 5px 0 0; color: var(--ag-muted); font-size: 12px; }
+.quota-spotlight--state button { margin-top: 6px; padding-inline: 0; }
+.quota-spotlight--error { background: var(--ag-danger-bg); border-left-color: var(--ag-danger); }
 .primary-action { width: 100%; min-height: 48px; margin-top: 16px; }
 .gps-progress { display: flex; align-items: center; gap: 11px; margin-top: 14px; padding: 11px 12px; color: var(--ag-primary); background: var(--ag-primary-soft); border-radius: 5px; }
 .gps-progress > div { display: grid; gap: 2px; }

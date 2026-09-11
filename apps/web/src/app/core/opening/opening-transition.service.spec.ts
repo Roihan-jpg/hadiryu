@@ -5,7 +5,7 @@ import { Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminDashboardService } from '../../features/admin/attendance/admin-dashboard.service';
-import { AttendanceService } from '../../features/attendance/attendance.service';
+import { StaffDashboardService } from '../../features/dashboard/staff-dashboard.service';
 import { appQueryClient } from '../query/query-client';
 import { queryKeys } from '../query/query-keys';
 import { OpeningTransitionService } from './opening-transition.service';
@@ -28,19 +28,19 @@ const admin: AuthUser = {
 };
 
 describe('OpeningTransitionService', () => {
-  const fetchToday = vi.fn();
+  const fetchDashboard = vi.fn();
   const fetchList = vi.fn();
   let routerEvents: Subject<NavigationEnd>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     appQueryClient.clear();
-    fetchToday.mockReset();
+    fetchDashboard.mockReset();
     fetchList.mockReset();
     routerEvents = new Subject<NavigationEnd>();
     TestBed.configureTestingModule({
       providers: [
-        { provide: AttendanceService, useValue: { fetchToday } },
+        { provide: StaffDashboardService, useValue: { fetch: fetchDashboard } },
         { provide: AdminDashboardService, useValue: { fetchList } },
         {
           provide: Router,
@@ -60,7 +60,7 @@ describe('OpeningTransitionService', () => {
 
     const splash = service.playInitialLoad();
     expect(service.phase()).toBe('showing');
-    expect(fetchToday).not.toHaveBeenCalled();
+    expect(fetchDashboard).not.toHaveBeenCalled();
     expect(fetchList).not.toHaveBeenCalled();
 
     routerEvents.next(new NavigationEnd(1, '/guru/riwayat', '/guru/riwayat'));
@@ -83,14 +83,14 @@ describe('OpeningTransitionService', () => {
     TestBed.resetTestingModule();
   });
 
-  it('keeps the teacher opening visible until the minimum time and today query are ready', async () => {
+  it('keeps the teacher opening visible until the minimum time and dashboard query are ready', async () => {
     let finishQuery!: (value: { workDate: string }) => void;
-    fetchToday.mockReturnValue(new Promise((resolve) => { finishQuery = resolve; }));
+    fetchDashboard.mockReturnValue(new Promise((resolve) => { finishQuery = resolve; }));
     const service = TestBed.inject(OpeningTransitionService);
 
     const opening = service.play(teacher);
     expect(service.phase()).toBe('showing');
-    expect(fetchToday).toHaveBeenCalledTimes(1);
+    expect(fetchDashboard).toHaveBeenCalledWith({ page: 1, pageSize: 8, type: 'ALL' });
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(service.phase()).toBe('showing');
@@ -102,7 +102,7 @@ describe('OpeningTransitionService', () => {
     await vi.advanceTimersByTimeAsync(300);
     await opening;
     expect(service.phase()).toBe('idle');
-    expect(appQueryClient.getQueryData(queryKeys.attendance('today'))).toEqual({
+    expect(appQueryClient.getQueryData(queryKeys.staffDashboard({ page: 1, pageSize: 8, type: 'ALL' }))).toEqual({
       workDate: '2026-09-07',
     });
   });
@@ -113,7 +113,7 @@ describe('OpeningTransitionService', () => {
 
     const opening = service.play(admin);
     expect(fetchList).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
-    expect(fetchToday).not.toHaveBeenCalled();
+    expect(fetchDashboard).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1_300);
     await opening;
@@ -128,7 +128,7 @@ describe('OpeningTransitionService', () => {
     const service = TestBed.inject(OpeningTransitionService);
 
     const opening = service.play({ ...teacher, mustChangePassword: true });
-    expect(fetchToday).not.toHaveBeenCalled();
+    expect(fetchDashboard).not.toHaveBeenCalled();
     expect(fetchList).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1_300);

@@ -14,7 +14,24 @@
         <div><p class="eyebrow">FORMULIR</p><h2 id="request-title">Permohonan baru</h2></div>
         <span class="step-mark" aria-hidden="true">01</span>
       </div>
-      <p class="notice"><strong>Perlu diketahui</strong> Checkout yang tercatat tidak dapat diubah. Pastikan alasan dan lampiran sudah benar sebelum mengirim.</p>
+      <p class="notice"><strong>Perlu diketahui</strong> Absen Pulang yang tercatat tidak dapat diubah. Pastikan alasan dan lampiran sudah benar sebelum mengirim.</p>
+      @if (quotaQuery.isPending()) {
+        <div class="quota-spotlight quota-spotlight--state" data-testid="early-departure-quota" role="status">
+          <span class="quota-kicker">Kuota bulanan</span>
+          <p>Memuat kuota pulang awal…</p>
+        </div>
+      } @else if (quotaQuery.isError()) {
+        <div class="quota-spotlight quota-spotlight--state quota-spotlight--error" data-testid="early-departure-quota" role="alert">
+          <span class="quota-kicker">Kuota bulanan</span>
+          <p>Kuota pulang awal tidak dapat dimuat.</p>
+          <button mat-button type="button" (click)="retryQuota()">Coba lagi</button>
+        </div>
+      } @else if (quotaQuery.data()?.earlyDeparture; as quota) {
+        <div class="quota-spotlight" data-testid="early-departure-quota" role="status">
+          <div class="quota-spotlight-heading"><span class="quota-kicker">Pulang awal</span><span class="quota-limit">Maks. {{ quota.limit }} kali / bulan</span></div>
+          <p>Sisa pulang awal bulan ini: <strong><span class="quota-number">{{ quota.remaining }}</span><span class="quota-total"> dari {{ quota.limit }}.</span></strong></p>
+        </div>
+      }
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <mat-form-field appearance="outline">
           <mat-label>Alasan pulang awal</mat-label>

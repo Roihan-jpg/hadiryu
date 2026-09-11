@@ -6,6 +6,7 @@ import {
   type RequestQuotaResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
+import { z } from 'zod';
 
 import {
   AppError,
@@ -15,6 +16,16 @@ import {
 } from './auth.js';
 
 const MONTHLY_LIMIT = 2 as const;
+const RequestQuotaLeaveRowSchema = z.strictObject({
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+});
+
+export function countLateArrivalQuotaRows(rows: unknown[]): number {
+  return rows
+    .map((row) => RequestQuotaLeaveRowSchema.parse(row))
+    .filter((row) => row.leave_type === 'LATE_ARRIVAL')
+    .length;
+}
 
 export interface RequestQuotaRepository {
   countActive(

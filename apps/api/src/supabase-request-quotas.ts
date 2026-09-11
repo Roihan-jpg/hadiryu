@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { AppError } from './auth.js';
-import type { RequestQuotaRepository } from './request-quotas.js';
+import { countLateArrivalQuotaRows, type RequestQuotaRepository } from './request-quotas.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
 function clientOptions() {
@@ -25,9 +25,8 @@ export class SupabaseRequestQuotaRepository implements RequestQuotaRepository {
     const [lateArrival, earlyDeparture] = await Promise.all([
       this.client
         .from('leave_requests')
-        .select('id', { count: 'exact', head: true })
+        .select('leave_type')
         .eq('teacher_id', teacherId)
-        .eq('leave_type', 'LATE_ARRIVAL')
         .in('status', ['PENDING', 'APPROVED'])
         .gte('leave_date', startDate)
         .lt('leave_date', endDate),
@@ -44,7 +43,7 @@ export class SupabaseRequestQuotaRepository implements RequestQuotaRepository {
       throw new AppError(500, 'REQUEST_QUOTA_LOOKUP_FAILED', 'Sisa kuota tidak dapat dimuat');
     }
     return {
-      lateArrival: lateArrival.count ?? 0,
+      lateArrival: countLateArrivalQuotaRows(lateArrival.data ?? []),
       earlyDeparture: earlyDeparture.count ?? 0,
     };
   }

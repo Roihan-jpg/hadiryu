@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
 import type { AuthService, SessionResult } from './auth.js';
 import {
+  countLateArrivalQuotaRows,
   createRequestQuotaService,
   type RequestQuotaRepository,
   type RequestQuotaService,
@@ -37,6 +38,14 @@ class FakeQuotaRepository implements RequestQuotaRepository {
 }
 
 describe('request quota service and HTTP API', () => {
+  it('counts late-arrival rows without requiring a database enum filter', () => {
+    expect(countLateArrivalQuotaRows([
+      { leave_type: 'SICK' },
+      { leave_type: 'LATE_ARRIVAL' },
+      { leave_type: 'OFFICIAL_DUTY' },
+    ])).toBe(1);
+  });
+
   it('uses calendar-date boundaries and returns separate remaining quotas', async () => {
     const repository = new FakeQuotaRepository();
     const service = createRequestQuotaService(repository);

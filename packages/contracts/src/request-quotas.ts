@@ -10,7 +10,7 @@ export const RequestQuotaQuerySchema = z.strictObject({
 });
 export type RequestQuotaQuery = z.infer<typeof RequestQuotaQuerySchema>;
 
-const RequestQuotaUsageSchema = z.strictObject({
+export const RequestQuotaUsageSchema = z.strictObject({
   limit: z.literal(2),
   used: z.number().int().min(0).max(2),
   remaining: z.number().int().min(0).max(2),

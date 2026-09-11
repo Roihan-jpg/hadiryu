@@ -156,10 +156,10 @@ describe('HomePage check-in', () => {
 
     expect(fetchToday).toHaveBeenCalledTimes(1);
     expect(geolocation.getCurrentPosition).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('Belum check-in');
+    expect(fixture.nativeElement.textContent).toContain('Belum Absen Masuk');
     expect(fixture.nativeElement.textContent).toContain('Dibuka05:30');
     expect(fixture.nativeElement.textContent).toContain('Ditutup08:00');
-    expect(fixture.nativeElement.textContent).toContain('Check-in sekarang');
+    expect(fixture.nativeElement.textContent).toContain('Absen Masuk sekarang');
     expect(fixture.nativeElement.textContent).toContain('Tampilkan lokasi saya');
     expect(fixture.nativeElement.querySelector('app-teacher-location-map')).toBeNull();
   });
@@ -169,7 +169,33 @@ describe('HomePage check-in', () => {
 
     const button = fixture.nativeElement.querySelector('button[data-action="late-arrival"]') as HTMLButtonElement;
     expect(button).not.toBeNull();
+    expect(button.classList).toContain('late-arrival-trigger');
     expect(fixture.nativeElement.textContent).toContain('Ajukan izin terlambat');
+  });
+
+  it('highlights the remaining late-arrival quota as a large dashboard value', async () => {
+    await setup();
+    await vi.waitFor(() => expect(fixture.componentInstance.lateQuotaQuery.data()).toBeDefined());
+    fixture.detectChanges();
+
+    const spotlight = fixture.nativeElement.querySelector('[data-testid="late-arrival-quota"]') as HTMLElement;
+    expect(spotlight).not.toBeNull();
+    expect(spotlight.querySelector('.quota-number')?.textContent?.trim()).toBe('2');
+    expect(spotlight.textContent).toContain('Sisa izin terlambat bulan ini');
+    expect(spotlight.textContent).toContain('dari 2');
+  });
+
+  it('does not keep stale attendance content visible when refreshing status fails', async () => {
+    await setup({ ...ready, state: 'CHECKED_IN', attendance: checkedIn });
+    fetchToday.mockRejectedValueOnce(new Error('status unavailable'));
+
+    await fixture.componentInstance.todayQuery.refetch();
+    await vi.waitFor(() => expect(fixture.componentInstance.todayQuery.isError()).toBe(true));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.today()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Status absensi hari ini tidak dapat dimuat');
+    expect(fixture.nativeElement.textContent).toContain('Coba lagi');
   });
 
   it('hides the late-arrival action after check-in', async () => {
@@ -455,8 +481,8 @@ describe('HomePage check-in', () => {
     expect(fixture.componentInstance.today()?.locationRequirement).toEqual({
       maxAccuracyMeters: 15,
     });
-    expect(fixture.nativeElement.textContent).toContain('Check-in berhasil');
-    expect(fixture.nativeElement.textContent).toContain('Sudah check-in');
+    expect(fixture.nativeElement.textContent).toContain('Absen Masuk berhasil');
+    expect(fixture.nativeElement.textContent).toContain('Absen Masuk tercatat');
   });
 
   it('shows actionable permission guidance without calling the API', async () => {

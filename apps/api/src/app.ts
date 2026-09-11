@@ -65,6 +65,7 @@ import {
   registerRequestQuotaRoutes,
   type RequestQuotaService,
 } from './request-quotas.js';
+import { registerStaffDashboardRoutes, type StaffDashboardService } from './staff-dashboard.js';
 
 export interface CreateAppOptions {
   authService?: AuthService;
@@ -81,6 +82,7 @@ export interface CreateAppOptions {
   profileService?: ProfileService;
   securityDashboardService?: SecurityDashboardService;
   requestQuotaService?: RequestQuotaService;
+  staffDashboardService?: StaffDashboardService;
   secureCookies?: boolean;
   logger?: AppLogger;
   security?: Partial<SecurityConfig>;
@@ -255,6 +257,10 @@ const unavailableRequestQuotaService: RequestQuotaService = {
   },
 };
 
+const unavailableStaffDashboardService: StaffDashboardService = {
+  async get() { throw new AppError(500, 'DASHBOARD_NOT_CONFIGURED', 'Dashboard belum dikonfigurasi'); },
+};
+
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
   const security = resolveSecurityConfig(options.security);
@@ -344,6 +350,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app,
     options.authService ?? unavailableAuthService,
     options.requestQuotaService ?? unavailableRequestQuotaService,
+  );
+  registerStaffDashboardRoutes(
+    app,
+    options.authService ?? unavailableAuthService,
+    options.staffDashboardService ?? unavailableStaffDashboardService,
   );
   registerAdminAttendanceRoutes(
     app,

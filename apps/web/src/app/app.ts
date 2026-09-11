@@ -40,6 +40,7 @@ export class App {
     const root = this.user()?.role === 'SECURITY_GUARD' ? '/satpam' : '/guru';
     return [
       { path: root, label: 'Dashboard', exact: true, icon: 'M4 10.5L12 4l8 6.5V20h-5v-6H9v6H4v-9.5z' },
+      { path: `${root}/absen`, label: 'Absen', exact: false, icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' },
       { path: `${root}/riwayat`, label: 'Riwayat', exact: false, icon: 'M4 5v5h5M5.2 15a8 8 0 101.4-8.9L4 10m8-4v6l4 2' },
       { path: `${root}/izin`, label: 'Izin', exact: false, icon: 'M7 3h10v4h4v14H3V7h4V3zm2 0v6h6V3M7 13h10M7 17h7' },
       { path: `${root}/pulang-awal`, label: 'Pulang awal', exact: false, icon: 'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z' },
