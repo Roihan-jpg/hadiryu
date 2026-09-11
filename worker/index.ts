@@ -10,8 +10,10 @@ import { createExcelExportService } from '../apps/api/src/excel-export.js';
 import { createLeaveRequestService } from '../apps/api/src/leave-requests.js';
 import { createMonthlyReportService } from '../apps/api/src/monthly-report.js';
 import { createStructuredLogger } from '../apps/api/src/observability.js';
+import { createRequestQuotaService } from '../apps/api/src/request-quotas.js';
 import { SupabaseProfileService } from '../apps/api/src/profile.js';
 import { SupabaseRequestAttachmentService } from '../apps/api/src/request-attachments.js';
+import { createStaffDashboardService } from '../apps/api/src/staff-dashboard.js';
 import { createSecurityDashboardService } from '../apps/api/src/security-dashboard.js';
 import { SupabaseAdminAttendanceRepository } from '../apps/api/src/supabase-admin-attendance.js';
 import { SupabaseAttendanceRepository } from '../apps/api/src/supabase-attendance.js';
@@ -21,7 +23,9 @@ import { SupabaseEarlyDepartureRequestRepository } from '../apps/api/src/supabas
 import { SupabaseExcelExportAuditRepository } from '../apps/api/src/supabase-excel-export.js';
 import { SupabaseLeaveRequestRepository } from '../apps/api/src/supabase-leave-requests.js';
 import { SupabaseMonthlyReportRepository } from '../apps/api/src/supabase-monthly-report.js';
+import { SupabaseRequestQuotaRepository } from '../apps/api/src/supabase-request-quotas.js';
 import { SupabaseSettingsService } from '../apps/api/src/supabase-settings.js';
+import { SupabaseStaffDashboardRepository } from '../apps/api/src/supabase-staff-dashboard.js';
 import { SupabaseTeacherService } from '../apps/api/src/supabase-teachers.js';
 import reportTemplate from '../report-template.xlsx';
 import { hasForeignOrigin, isApiRequest, normalizeSameOriginRequest } from './routing.js';
@@ -46,6 +50,15 @@ const settingsService = new SupabaseSettingsService(supabaseConfig);
 const attendanceRepository = new SupabaseAttendanceRepository(supabaseConfig);
 const attendanceService = createAttendanceService(attendanceRepository);
 const securityDashboardService = createSecurityDashboardService(attendanceRepository);
+const requestQuotaService = createRequestQuotaService(
+  new SupabaseRequestQuotaRepository(supabaseConfig),
+);
+const staffDashboardService = createStaffDashboardService({
+  repository: new SupabaseStaffDashboardRepository(supabaseConfig),
+  attendanceService,
+  requestQuotaService,
+  securityDashboardService,
+});
 const requestAttachmentService = new SupabaseRequestAttachmentService(supabaseConfig);
 const auditLogService = createAuditLogService(new SupabaseAuditLogRepository(supabaseConfig));
 const leaveRequestService = createLeaveRequestService(
@@ -79,6 +92,8 @@ createApp({
   requestAttachmentService,
   auditLogService,
   securityDashboardService,
+  requestQuotaService,
+  staffDashboardService,
   profileService: new SupabaseProfileService(supabaseConfig),
   logger: createStructuredLogger(),
   secureCookies: true,
