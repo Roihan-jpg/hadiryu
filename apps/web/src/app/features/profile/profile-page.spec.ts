@@ -25,6 +25,7 @@ describe('ProfilePage', () => {
   let fixture: ComponentFixture<ProfilePage>;
   let authUser: ReturnType<typeof signal<AuthUser>>;
   const acceptUser = vi.fn();
+  const logout = vi.fn();
   const updateProfile = vi.fn();
   const uploadPhoto = vi.fn();
   const deletePhoto = vi.fn();
@@ -37,6 +38,7 @@ describe('ProfilePage', () => {
     deletePhoto.mockReset();
     openCropDialog.mockReset();
     acceptUser.mockReset();
+    logout.mockReset();
 
     TestBed.overrideComponent(ProfilePage, {
       add: { providers: [{ provide: MatDialog, useValue: { open: openCropDialog } }] },
@@ -46,7 +48,7 @@ describe('ProfilePage', () => {
       providers: [
         provideRouter([]),
         provideAngularQuery(new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })),
-        { provide: AuthService, useValue: { user: authUser.asReadonly(), acceptUser } },
+        { provide: AuthService, useValue: { user: authUser.asReadonly(), acceptUser, logout } },
         { provide: ProfileService, useValue: { updateProfile, uploadPhoto, deletePhoto } },
       ],
     }).compileComponents();
@@ -73,6 +75,17 @@ describe('ProfilePage', () => {
     expect(text).toContain('001234567890');
     expect(text).toContain('Status akun');
     expect(text).toContain('Ganti password');
+  });
+
+  it('shows an icon-labeled logout action for Teachers and Super Admins', () => {
+    const logoutButton = fixture.nativeElement.querySelector('[data-testid="profile-logout"]') as HTMLButtonElement | null;
+
+    expect(logoutButton?.textContent).toContain('Keluar dari akun');
+    expect(logoutButton?.querySelector('svg')).not.toBeNull();
+
+    authUser.set({ ...teacher, role: 'SUPER_ADMIN' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-logout"]')).not.toBeNull();
   });
 
   it('shows the current WhatsApp number in an editable field', () => {

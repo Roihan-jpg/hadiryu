@@ -25,7 +25,10 @@ mat-form-field { width: 100%; }
 .security-row > div { display: grid; gap: 3px; }
 .security-row strong { color: var(--ag-text); font-size: 12px; }
 .security-row span { color: var(--ag-muted); font-size: 10px; }
-.form-actions { display: flex; justify-content: flex-end; }
+.form-actions { display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
+.logout-button { display: inline-flex; align-items: center; gap: 7px; color: #8c332e; border-color: #d9aaa4; }
+.logout-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.logout-button:not(:disabled):hover { background: #fff1ef; border-color: #b9645b; }
 .feedback { margin: 0 0 16px; padding: 12px 14px; border-radius: 4px; font-size: 13px; }
 .feedback--error { color: #8c332e; background: #fff1ef; border: 1px solid #efcbc7; }
 .feedback--success { color: #2f655c; background: #eff8f5; border: 1px solid #c5ded8; }

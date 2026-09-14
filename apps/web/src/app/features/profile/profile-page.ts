@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { injectMutation, injectQueryClient } from '@tanstack/angular-query-experimental';
 
 import { AuthService } from '../../core/auth/auth.service';
@@ -20,6 +20,7 @@ import { ProfilePhotoCropDialog } from './profile-photo-crop-dialog';
 })
 export class ProfilePage {
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly service = inject(ProfileService);
   private readonly dialog = inject(MatDialog);
   private readonly queryClient = injectQueryClient();
@@ -54,6 +55,10 @@ export class ProfilePage {
     onSuccess: (user) => this.accept(user, 'Foto profil berhasil dihapus.'),
     onError: () => this.errorMessage.set('Foto tidak dapat dihapus. Coba lagi.'),
   }));
+  protected readonly logoutMutation = injectMutation(() => ({
+    mutationFn: () => this.auth.logout(),
+    onSuccess: () => this.router.navigateByUrl('/login'),
+  }));
 
   protected saveProfile(event: Event): void {
     event.preventDefault();
@@ -66,6 +71,10 @@ export class ProfilePage {
       fullName: this.fullName.value.trim(),
       whatsappNumber: this.whatsappNumber.value.trim() || null,
     });
+  }
+
+  protected logout(): void {
+    this.logoutMutation.mutate();
   }
 
   protected selectPhoto(event: Event): void {
