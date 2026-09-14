@@ -57,6 +57,13 @@ const checkedIn: CheckInRecord = {
   checkoutClose: schedule.checkoutClose,
   targetMinutes: schedule.targetMinutes,
   arrivalLateMinutes: 5,
+  scheduleType: 'WEEKDAY',
+  checkInOpenAt: '2026-08-24T22:30:00.000Z',
+  workStartAt: '2026-08-25T00:00:00.000Z',
+  checkInCloseAt: '2026-08-25T01:00:00.000Z',
+  checkoutOpenAt: '2026-08-25T05:00:00.000Z',
+  workEndAt: '2026-08-25T08:35:00.000Z',
+  checkoutCloseAt: '2026-08-25T10:01:00.000Z',
   status: 'CHECKED_IN',
 };
 
@@ -199,6 +206,64 @@ describe('checkout domain service', () => {
 });
 
 describe('today and history derivation', () => {
+  it('uses the latest Guru schedule instead of the check-in snapshot', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.schedule = {
+      ...schedule,
+      checkoutOpen: '08:30',
+      workEnd: '08:45',
+      checkoutClose: '09:00',
+      targetMinutes: 500,
+    };
+
+    const result = await serviceAt(
+      repository,
+      '2026-08-25T01:40:00.000Z',
+    ).getToday(teacherId);
+
+    expect(result).toMatchObject({
+      state: 'CHECKED_IN',
+      schedule: {
+        checkoutOpen: '08:30',
+        workEnd: '08:45',
+        checkoutClose: '09:00',
+        targetMinutes: 500,
+      },
+      attendance: {
+        targetMinutes: 500,
+        checkoutOpenAt: '2026-08-25T01:30:00.000Z',
+        workEndAt: '2026-08-25T01:45:00.000Z',
+        checkoutCloseAt: '2026-08-25T02:00:00.000Z',
+      },
+    });
+  });
+
+  it('validates checkout and recalculates the deficit from the latest Guru schedule', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.schedule = {
+      ...schedule,
+      checkoutOpen: '08:30',
+      workEnd: '08:45',
+      checkoutClose: '09:00',
+      targetMinutes: 500,
+    };
+
+    const result = await serviceAt(
+      repository,
+      '2026-08-25T01:35:00.000Z',
+    ).checkout(teacherId, location);
+
+    expect(result).toMatchObject({
+      status: 'COMPLETED',
+      targetMinutes: 500,
+      workedMinutes: 89,
+      workDeficitMinutes: 411,
+      checkoutOpenAt: '2026-08-25T01:30:00.000Z',
+      workEndAt: '2026-08-25T01:45:00.000Z',
+      checkoutCloseAt: '2026-08-25T02:00:00.000Z',
+    });
+  });
+
   it('derives forgotten checkout after cutoff without persisting a timestamp', async () => {
     const repository = new FakeAttendanceRepository();
 
@@ -224,7 +289,7 @@ describe('today and history derivation', () => {
 
     const result = await serviceAt(
       repository,
-      '2026-08-25T10:00:59.000Z',
+      '2026-08-25T10:00:00.000Z',
     ).getToday(teacherId);
 
     expect(result.state).toBe('CHECKED_IN');

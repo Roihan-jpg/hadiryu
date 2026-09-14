@@ -6,25 +6,6 @@
   </section>
 } @else {
   <section class="teacher-page dashboard-page" aria-labelledby="home-title">
-    <header class="identity-card ledger-panel">
-      <div class="identity-avatar">
-        @if (user()?.photo; as photo) {
-          <img [src]="profilePhotoUrl(photo.updatedAt)" alt="Foto profil {{ user()?.fullName }}" />
-        } @else {
-          <span aria-hidden="true">{{ initials(user()?.fullName ?? '') }}</span>
-        }
-      </div>
-      <div class="identity-copy">
-        <p class="eyebrow">{{ user()?.role === 'SECURITY_GUARD' ? 'Pos Jaga · Dashboard Satpam' : 'Dashboard Guru' }}</p>
-        <h1 id="home-title">Absen {{ user()?.fullName }}</h1>
-        <span>NIP {{ user()?.nip }}</span>
-        @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
-      </div>
-      @if (workDateLabel()) {
-        <time class="identity-date">{{ workDateLabel() }}</time>
-      }
-    </header>
-
     @if (user()?.role === 'SECURITY_GUARD') {
       <section class="security-duty-board ledger-panel" aria-labelledby="security-duty-title" [attr.aria-busy]="securityDashboardQuery.isPending()">
         @if (securityDashboard(); as dashboard) {

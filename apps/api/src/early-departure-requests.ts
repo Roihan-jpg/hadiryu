@@ -21,6 +21,7 @@ import {
   type ListAdminEarlyDepartureRequestsQuery,
   type ListEarlyDepartureRequestsQuery,
   type AttendanceTimelineEvent,
+  type ScheduleRule,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
 import { z } from 'zod';
@@ -61,6 +62,10 @@ export interface EarlyDepartureRequestRepository {
     workDate: string,
   ): Promise<PersistedAttendanceRecord | null>;
   findGeofence(workDate: string): Promise<GeofenceRule | null>;
+  findSchedule?(
+    scheduleType: 'WEEKDAY' | 'SATURDAY',
+    workDate: string,
+  ): Promise<ScheduleRule | null>;
   create(
     teacherId: string,
     input: SaveEarlyDepartureRequestInput,
@@ -208,9 +213,23 @@ export function createEarlyDepartureRequestService(
           'Absensi hari ini sudah selesai',
         );
       }
-      if (attendance.workEndAt
+      const liveSchedule = teacher.role === 'USER' &&
+        (attendance.scheduleType === 'WEEKDAY' || attendance.scheduleType === 'SATURDAY')
+        ? await repository.findSchedule?.(attendance.scheduleType, attendance.workDate)
+        : null;
+      if (teacher.role === 'USER' && !liveSchedule) {
+        throw new AppError(
+          422,
+          'SCHEDULE_NOT_CONFIGURED',
+          'Jadwal untuk hari ini belum dikonfigurasi',
+        );
+      }
+      const workEnd = liveSchedule?.workEnd ?? attendance.workEnd;
+      if (liveSchedule
+        ? current.minuteOfDay >= timeMinutes(workEnd)
+        : attendance.workEndAt
         ? serverNow.getTime() >= new Date(attendance.workEndAt).getTime()
-        : current.minuteOfDay >= timeMinutes(attendance.workEnd)) {
+        : current.minuteOfDay >= timeMinutes(workEnd)) {
         throw new AppError(
           422,
           'NOT_EARLY_DEPARTURE',

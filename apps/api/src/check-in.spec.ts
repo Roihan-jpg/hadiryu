@@ -108,6 +108,13 @@ class FakeAttendanceRepository implements AttendanceRepository {
       checkoutClose: input.schedule.checkoutClose,
       targetMinutes: input.schedule.targetMinutes,
       arrivalLateMinutes: input.arrivalLateMinutes,
+      scheduleType: input.schedule.scheduleType,
+      checkInOpenAt: input.boundaries.checkInOpenAt,
+      workStartAt: input.boundaries.workStartAt,
+      checkInCloseAt: input.boundaries.checkInCloseAt,
+      checkoutOpenAt: input.boundaries.checkoutOpenAt,
+      workEndAt: input.boundaries.workEndAt,
+      checkoutCloseAt: input.boundaries.checkoutCloseAt,
       status: 'CHECKED_IN',
     };
     return this.attendance;

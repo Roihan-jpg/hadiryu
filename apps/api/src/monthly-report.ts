@@ -398,6 +398,25 @@ function checkoutCloseAt(attendance: MonthlyReportSourceAttendance): Date {
   return new Date(`${closeDate}T${attendance.checkoutClose}:00+07:00`);
 }
 
+function withLiveUserSchedule<T extends MonthlyReportSourceAttendance>(
+  attendance: T,
+  schedule: ScheduleRule,
+): T {
+  const instant = (time: string) => new Date(
+    `${attendance.workDate}T${time}:00+07:00`,
+  ).toISOString();
+  return {
+    ...attendance,
+    workStart: schedule.workStart,
+    workEnd: schedule.workEnd,
+    checkoutClose: schedule.checkoutClose,
+    targetMinutes: schedule.targetMinutes,
+    scheduleType: schedule.scheduleType,
+    workStartAt: instant(schedule.workStart),
+    workEndAt: instant(schedule.workEnd),
+  } as T;
+}
+
 function attendanceDay(
   day: ResolvedReportDay,
   attendance: MonthlyReportSourceAttendance,
@@ -615,7 +634,9 @@ export function createMonthlyReportService(
             if (attendance) {
               return attendanceDay(
                 day,
-                attendance,
+                teacher.role !== 'SECURITY_GUARD' && day.schedule
+                  ? withLiveUserSchedule(attendance, day.schedule)
+                  : attendance,
                 lateArrivalByTeacherDate.get(sourceKey(teacher.teacherId, day.workDate)) ?? null,
                 earlyDepartureByAttendanceId.get(attendance.id),
                 generatedAt,

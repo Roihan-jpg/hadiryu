@@ -17,7 +17,7 @@
       <time class="identity-date">{{ workDateLabel() }}</time>
     }
   </header>
-<form class="dashboard-filters" (ngSubmit)="applyFilters()">
+    <form class="dashboard-filters" (ngSubmit)="applyFilters()">
       <input id="dashboard-month" type="month" [formControl]="monthControl" />
       <select id="dashboard-type" [formControl]="typeControl">
         <option value="ALL">Semua</option><option value="ATTENDANCE">Absensi</option>
@@ -89,7 +89,6 @@
         <header><div><h2 id="quota-title">Kuota permohonan</h2><p>{{ monthLabel(data.month) }}</p></div><span>Pool terpisah</span></header>
         <div class="quota-row"><div><strong>Izin Terlambat</strong><small>Sisa {{ data.requestQuotas.lateArrival.remaining }}</small></div><b>{{ data.requestQuotas.lateArrival.used }} / 2</b><progress max="2" [value]="data.requestQuotas.lateArrival.used">{{ data.requestQuotas.lateArrival.used }} dari 2</progress></div>
         <div class="quota-row"><div><strong>Pulang Awal</strong><small>Sisa {{ data.requestQuotas.earlyDeparture.remaining }}</small></div><b>{{ data.requestQuotas.earlyDeparture.used }} / 2</b><progress max="2" [value]="data.requestQuotas.earlyDeparture.used">{{ data.requestQuotas.earlyDeparture.used }} dari 2</progress></div>
-        @if (data.requestQuotas.lateArrival.remaining === 0 || data.requestQuotas.earlyDeparture.remaining === 0) { <p class="quota-warning">Kuota yang habis akan tersedia kembali bulan depan atau setelah request ditolak/dibatalkan.</p> }
       </section>
 
       <section class="metrics-ledger" aria-label="Metrik bulan terpilih">

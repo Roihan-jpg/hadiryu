@@ -12,6 +12,7 @@ import {
   type LeaveType,
   type ListAdminAttendanceQuery,
   type AuthUser,
+  type ScheduleRule,
   type SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import type { Express, Request } from 'express';
@@ -63,6 +64,10 @@ export interface AdminAttendanceSource {
 
 export interface AdminAttendanceRepository {
   findCalendarException(workDate: string): Promise<CalendarException | null>;
+  findSchedule?(
+    scheduleType: 'WEEKDAY' | 'SATURDAY',
+    workDate: string,
+  ): Promise<ScheduleRule | null>;
   findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   listDailySources(
     workDate: string,
@@ -113,6 +118,31 @@ function jakartaDateTime(value: Date): JakartaDateTime {
 function timeMinutes(value: string): number {
   const [hour = '0', minute = '0'] = value.split(':');
   return Number(hour) * 60 + Number(minute);
+}
+
+function jakartaInstant(workDate: string, time: string): string {
+  return new Date(`${workDate}T${time}:00+07:00`).toISOString();
+}
+
+function withLiveUserSchedule(
+  attendance: AdminAttendanceSourceAttendance,
+  schedule: ScheduleRule,
+  workDate: string,
+): AdminAttendanceSourceAttendance {
+  return {
+    ...attendance,
+    workStart: schedule.workStart,
+    workEnd: schedule.workEnd,
+    checkoutClose: schedule.checkoutClose,
+    targetMinutes: schedule.targetMinutes,
+    workDeficitMinutes: attendance.status === 'COMPLETED' && attendance.workedMinutes !== null
+      ? Math.max(0, schedule.targetMinutes - attendance.workedMinutes)
+      : attendance.workDeficitMinutes,
+    scheduleType: schedule.scheduleType,
+    workStartAt: jakartaInstant(workDate, schedule.workStart),
+    workEndAt: jakartaInstant(workDate, schedule.workEnd),
+    checkoutCloseAt: jakartaInstant(workDate, schedule.checkoutClose),
+  };
 }
 
 function isIncomplete(
@@ -250,6 +280,9 @@ export function createAdminAttendanceService(
       const workDate = input.workDate ?? current.workDate;
       const exception = await repository.findCalendarException(workDate);
       const day = resolveCalendarDay(workDate, exception);
+      const liveUserSchedule = day.scheduleType === 'WEEKDAY' || day.scheduleType === 'SATURDAY'
+        ? await repository.findSchedule?.(day.scheduleType, workDate)
+        : null;
       const sources = await repository.listDailySources(workDate, input.search);
       const securitySettings = sources.some(
         (source) => source.role === 'SECURITY_GUARD' && !source.attendance,
@@ -259,15 +292,21 @@ export function createAdminAttendanceService(
       const records = sources
         .filter((source) => day.isWorkingDay || source.role === 'SECURITY_GUARD')
         .map((source) => {
+          const resolvedSource = source.role !== 'SECURITY_GUARD' && source.attendance && liveUserSchedule
+            ? {
+                ...source,
+                attendance: withLiveUserSchedule(source.attendance, liveUserSchedule, workDate),
+              }
+            : source;
           if (source.role !== 'SECURITY_GUARD' || !securitySettings?.roster) {
-            return toRecord(source, workDate, current);
+            return toRecord(resolvedSource, workDate, current);
           }
           const assignment = resolveSecurityAssignment(
             securitySettings.roster,
             workDate,
             source.teacherId,
           );
-          return toRecord(source, workDate, current, {
+          return toRecord(resolvedSource, workDate, current, {
             isWorkingDay: assignment.status === 'DAY' || assignment.status === 'NIGHT',
             scheduleType: assignment.status === 'DAY'
               ? 'SECURITY_DAY'

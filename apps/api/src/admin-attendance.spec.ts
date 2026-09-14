@@ -2,6 +2,7 @@ import type {
   AttendanceAdminNote,
   CalendarException,
   CreateAttendanceAdminNote,
+  ScheduleRule,
   SecurityScheduleSettingsResponse,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
@@ -48,6 +49,7 @@ class FakeAdminAttendanceRepository implements AdminAttendanceRepository {
   requestedSearch: string | undefined;
   createdNotes: AttendanceAdminNote[] = [];
   securitySettings?: SecurityScheduleSettingsResponse;
+  schedule: ScheduleRule | null = null;
 
   async findCalendarException(): Promise<CalendarException | null> {
     return this.calendarException;
@@ -56,6 +58,10 @@ class FakeAdminAttendanceRepository implements AdminAttendanceRepository {
   async findSecuritySchedules(): Promise<SecurityScheduleSettingsResponse> {
     if (!this.securitySettings) throw new Error('Security settings not configured in test');
     return this.securitySettings;
+  }
+
+  async findSchedule(): Promise<ScheduleRule | null> {
+    return this.schedule;
   }
 
   async listDailySources(
@@ -175,6 +181,26 @@ describe('admin attendance monitoring service', () => {
     });
     expect(result.summary.total).toBe(3);
     expect(repository.requestedSearch).toBe('Guru');
+  });
+
+  it('uses the latest Guru target for a completed attendance without changing lateness', async () => {
+    const repository = new FakeAdminAttendanceRepository();
+    repository.schedule = {
+      id: '70000000-0000-4000-8000-000000000001', scheduleType: 'WEEKDAY',
+      checkInOpen: '05:30', workStart: '07:00', checkInClose: '08:00',
+      checkoutOpen: '12:00', workEnd: '13:00', checkoutClose: '14:00',
+      targetMinutes: 480, effectiveFrom: workDate, effectiveTo: null,
+    };
+    repository.records = [source(1, { attendance: {
+      ...attendance, workedMinutes: 500, workDeficitMinutes: 15, arrivalLateMinutes: 8,
+    } })];
+
+    const result = await serviceAt(repository, '2026-08-25T08:00:00.000Z')
+      .list({ page: 1, pageSize: 20, workDate });
+
+    expect(result.data[0]).toMatchObject({
+      status: 'LATE', workedMinutes: 500, workDeficitMinutes: 0, arrivalLateMinutes: 8,
+    });
   });
 
   it('uses the Jakarta server date and returns no absence on a non-working day', async () => {

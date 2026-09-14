@@ -151,6 +151,10 @@ export class SupabaseEarlyDepartureRequestRepository
     return this.attendance.findGeofence(workDate);
   }
 
+  findSchedule(scheduleType: 'WEEKDAY' | 'SATURDAY', workDate: string) {
+    return this.attendance.findSchedule(scheduleType, workDate);
+  }
+
   async create(
     teacherId: string,
     input: SaveEarlyDepartureRequestInput,

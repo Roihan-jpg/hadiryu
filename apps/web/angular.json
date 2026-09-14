@@ -32,7 +32,6 @@
             ],
             "styles": [
               "@angular/material/prebuilt-themes/azure-blue.css",
-              "@fontsource-variable/manrope/index.css",
               "leaflet/dist/leaflet.css",
               "tokens.css",
               "src/styles.scss"

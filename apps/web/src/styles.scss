@@ -1,5 +1,45 @@
 @use '@angular/material' as mat;
 
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/Poppins-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/fonts/Poppins-Medium.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/fonts/Poppins-SemiBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/Poppins-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('/assets/fonts/Lora-VariableFont_wght.ttf') format('truetype');
+}
+
 :root {
   --ag-bg: #faf7f2;
   --ag-surface: #fffdf9;
@@ -30,7 +70,7 @@ html {
         primary: mat.$azure-palette,
         tertiary: mat.$azure-palette,
       ),
-      typography: Roboto,
+      typography: Lora,
       density: 0,
     )
   );
@@ -54,8 +94,16 @@ body {
   margin: 0;
   color: var(--ag-text);
   background: var(--ag-bg);
-  font-family: Manrope, 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
+}
+
+:is(h1, h2, h3, h4, h5, h6, button, nav, [role='navigation'], .brand, .teacher-brand, .admin-brand, .app-sidebar__brand, .app-mobile-header__brand, .mat-mdc-button-base, .mat-mdc-tab, .mat-mdc-tab-link, .mat-mdc-menu-item, .mat-mdc-list-item, .mat-mdc-chip, .status-chip, .status-pill) {
+  font-family: var(--font-display);
+}
+
+:where(input, textarea, select, label, .mat-mdc-form-field, .mat-mdc-select, .mat-mdc-option, .mat-mdc-paginator, table, th, td) {
+  font-family: var(--font-body);
 }
 
 button,

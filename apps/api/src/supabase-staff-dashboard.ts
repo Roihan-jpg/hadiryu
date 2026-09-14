@@ -33,6 +33,7 @@ const EarlyRowSchema = z.strictObject({
 });
 const ScheduleRowSchema = z.strictObject({
   schedule_type: z.enum(['WEEKDAY', 'SATURDAY']), check_in_close: z.string(),
+  work_start: z.string(), work_end: z.string(), checkout_close: z.string(), target_minutes: z.number().int(),
   effective_from: z.string(), effective_to: z.string().nullable(),
 });
 const CalendarRowSchema = z.strictObject({
@@ -71,6 +72,10 @@ function scheduleFor(rows: z.infer<typeof ScheduleRowSchema>[], workDate: string
   return rows.find((row) => row.schedule_type === type && row.effective_from <= workDate && (!row.effective_to || row.effective_to >= workDate));
 }
 
+function jakartaInstant(workDate: string, time: string): string {
+  return new Date(`${workDate}T${time.slice(0, 5)}:00+07:00`).toISOString();
+}
+
 function defaultScheduleType(workDate: string): 'WEEKDAY' | 'SATURDAY' | null {
   const day = new Date(`${workDate}T00:00:00.000Z`).getUTCDay();
   return day === 0 ? null : day === 6 ? 'SATURDAY' : 'WEEKDAY';
@@ -102,7 +107,7 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
       this.client.from('attendance_records').select(ATTENDANCE_FIELDS).eq('teacher_id', staff.id).gte('work_date', rangeStart).lt('work_date', rangeEnd).order('work_date', { ascending: false }).limit(5000),
       this.client.from('leave_requests').select(LEAVE_FIELDS).eq('teacher_id', staff.id).gte('leave_date', rangeStart).lt('leave_date', rangeEnd).order('created_at', { ascending: false }).limit(5000),
       this.client.from('early_departure_requests').select(EARLY_FIELDS).eq('teacher_id', staff.id).gte('work_date', monthStart).lt('work_date', monthEnd).order('requested_at', { ascending: false }).limit(5000),
-      staff.role === 'USER' ? this.client.from('schedule_rules').select('schedule_type,check_in_close,effective_from,effective_to').in('schedule_type', ['WEEKDAY', 'SATURDAY']).lte('effective_from', today).or(`effective_to.is.null,effective_to.gte.${streakStart}`).order('effective_from', { ascending: false }).limit(5000) : Promise.resolve({ data: [], error: null }),
+      staff.role === 'USER' ? this.client.from('schedule_rules').select('schedule_type,check_in_close,work_start,work_end,checkout_close,target_minutes,effective_from,effective_to').in('schedule_type', ['WEEKDAY', 'SATURDAY']).lte('effective_from', today).or(`effective_to.is.null,effective_to.gte.${streakStart}`).order('effective_from', { ascending: false }).limit(5000) : Promise.resolve({ data: [], error: null }),
       staff.role === 'USER' ? this.client.from('calendar_exceptions').select('work_date,exception_type,schedule_type').gte('work_date', streakStart).lte('work_date', today).limit(5000) : Promise.resolve({ data: [], error: null }),
     ]);
     if (attendanceResult.error || leaveResult.error || earlyResult.error || schedulesResult.error || calendarResult.error) throw lookupFailure();
@@ -116,15 +121,31 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
     const earlyByAttendance = new Map(earlyRows.map((row) => [row.attendance_id, row]));
 
     const allAttendance: DashboardAttendanceSource[] = attendanceRows.map((row) => {
-      const expired = row.status === 'CHECKED_IN' && serverNow.getTime() > new Date(row.checkout_close_at).getTime();
+      const exception = calendars.get(row.work_date);
+      const scheduleType = exception?.exception_type === 'WORKING_DAY'
+        ? exception.schedule_type
+        : defaultScheduleType(row.work_date);
+      const liveSchedule = staff.role === 'USER' && scheduleType
+        ? scheduleFor(schedules, row.work_date, scheduleType)
+        : null;
+      const targetMinutes = liveSchedule?.target_minutes ?? row.target_minutes;
+      const checkoutCloseAt = liveSchedule
+        ? jakartaInstant(row.work_date, liveSchedule.checkout_close)
+        : row.checkout_close_at;
+      const expired = row.status === 'CHECKED_IN' && serverNow.getTime() > new Date(checkoutCloseAt).getTime();
       return {
         id: row.id, workDate: row.work_date, checkInAt: row.check_in_at, checkOutAt: row.check_out_at,
-        workStart: row.work_start.slice(0, 5), workEnd: row.work_end.slice(0, 5), workStartAt: row.work_start_at,
-        workEndAt: row.work_end_at, targetMinutes: row.target_minutes,
-        workedMinutes: expired ? Math.max(0, row.target_minutes - 60) : row.worked_minutes,
-        workDeficitMinutes: expired ? 60 : row.work_deficit_minutes,
+        workStart: (liveSchedule?.work_start ?? row.work_start).slice(0, 5),
+        workEnd: (liveSchedule?.work_end ?? row.work_end).slice(0, 5),
+        workStartAt: liveSchedule ? jakartaInstant(row.work_date, liveSchedule.work_start) : row.work_start_at,
+        workEndAt: liveSchedule ? jakartaInstant(row.work_date, liveSchedule.work_end) : row.work_end_at,
+        targetMinutes,
+        workedMinutes: expired ? Math.max(0, targetMinutes - 60) : row.worked_minutes,
+        workDeficitMinutes: expired ? Math.min(60, targetMinutes) : row.status === 'COMPLETED' && row.worked_minutes !== null
+          ? Math.max(0, targetMinutes - row.worked_minutes)
+          : row.work_deficit_minutes,
         arrivalLateMinutes: row.arrival_late_minutes, status: expired ? 'INCOMPLETE' : row.status,
-        scheduleType: row.schedule_type, lateArrivalStatus: latestLateByDate.get(row.work_date)?.status ?? null,
+        scheduleType: liveSchedule?.schedule_type ?? row.schedule_type, lateArrivalStatus: latestLateByDate.get(row.work_date)?.status ?? null,
         earlyDepartureStatus: earlyByAttendance.get(row.id)?.status ?? null,
       };
     });

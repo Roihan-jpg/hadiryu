@@ -262,6 +262,27 @@ function scheduleBoundaries(workDate: string, schedule: ScheduleRule): ShiftBoun
   };
 }
 
+function withLiveUserSchedule<T extends PersistedAttendanceRecord>(
+  attendance: T,
+  schedule: ScheduleRule,
+): T {
+  const boundaries = scheduleBoundaries(attendance.workDate, schedule);
+  return {
+    ...attendance,
+    workStart: schedule.workStart,
+    workEnd: schedule.workEnd,
+    checkoutClose: schedule.checkoutClose,
+    targetMinutes: schedule.targetMinutes,
+    scheduleType: schedule.scheduleType,
+    checkInOpenAt: boundaries.checkInOpenAt,
+    workStartAt: boundaries.workStartAt,
+    checkInCloseAt: boundaries.checkInCloseAt,
+    checkoutOpenAt: boundaries.checkoutOpenAt,
+    workEndAt: boundaries.workEndAt,
+    checkoutCloseAt: boundaries.checkoutCloseAt,
+  } as T;
+}
+
 function roundedMeters(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -499,7 +520,13 @@ export function createAttendanceService(
         existing = activeAttendance(previous, serverNow) ?? existing;
       }
       if (existing) {
-        const attendance = derivedAttendance(existing, serverNow);
+        const liveSchedule = staff.role === 'USER'
+          ? (await resolveStaffDay(repository, staff, existing.workDate)).schedule
+          : null;
+        const attendance = derivedAttendance(
+          liveSchedule ? withLiveUserSchedule(existing, liveSchedule) : existing,
+          serverNow,
+        );
         const permissionContext = await repository.findAttendancePermissions?.(
           teacherId,
           [{ attendanceId: attendance.id, workDate: attendance.workDate }],
@@ -509,15 +536,17 @@ export function createAttendanceService(
           permissionContext?.get(attendance.workDate) ?? {},
         );
         const snapshotSchedule = todayScheduleSnapshot(existing);
-        const resolvedSchedule = snapshotSchedule
+        const resolvedSchedule = liveSchedule ?? (snapshotSchedule
           ? null
-          : (await resolveStaffDay(repository, staff, existing.workDate)).schedule;
+          : (await resolveStaffDay(repository, staff, existing.workDate)).schedule);
         const geofence = await repository.findGeofence(existing.workDate);
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
           workDate: existing.workDate,
           state: effectiveAttendance.status,
-          schedule: snapshotSchedule ?? (resolvedSchedule ? todaySchedule(resolvedSchedule) : null),
+          schedule: resolvedSchedule
+            ? todaySchedule(resolvedSchedule)
+            : snapshotSchedule,
           attendance: effectiveAttendance,
           locationRequirement: geofence
             ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
@@ -558,12 +587,18 @@ export function createAttendanceService(
       const { workDate, minuteOfDay } = jakartaDateTime(serverNow);
       const existing = await repository.findAttendance(teacherId, workDate);
       if (existing) {
+        const liveSchedule = staff.role === 'USER'
+          ? (await resolveStaffDay(repository, staff, existing.workDate)).schedule
+          : null;
+        const effectiveExisting = liveSchedule
+          ? withLiveUserSchedule(existing, liveSchedule)
+          : existing;
         const permissionContext = await repository.findAttendancePermissions?.(
           teacherId,
           [{ attendanceId: existing.id, workDate: existing.workDate }],
         );
         return AttendanceRecordSchema.parse(
-          applyAttendancePermissions(existing, permissionContext?.get(existing.workDate) ?? {}),
+          applyAttendancePermissions(effectiveExisting, permissionContext?.get(existing.workDate) ?? {}),
         );
       }
 
@@ -651,19 +686,32 @@ export function createAttendanceService(
           'Checkout hanya dapat dilakukan setelah check-in',
         );
       }
-      if (existing.status === 'COMPLETED') {
+      const liveSchedule = staff.role === 'USER'
+        ? (await resolveStaffDay(repository, staff, existing.workDate)).schedule
+        : null;
+      if (staff.role === 'USER' && !liveSchedule) {
+        throw new AppError(
+          422,
+          'SCHEDULE_NOT_CONFIGURED',
+          'Jadwal untuk hari ini belum dikonfigurasi',
+        );
+      }
+      const effectiveExisting = liveSchedule
+        ? withLiveUserSchedule(existing, liveSchedule)
+        : existing;
+      if (effectiveExisting.status === 'COMPLETED') {
         const permissionContext = await repository.findAttendancePermissions?.(
           teacherId,
-          [{ attendanceId: existing.id, workDate: existing.workDate }],
+          [{ attendanceId: effectiveExisting.id, workDate: effectiveExisting.workDate }],
         );
         return CompletedAttendanceRecordSchema.parse(
-          applyAttendancePermissions(existing, permissionContext?.get(existing.workDate) ?? {}),
+          applyAttendancePermissions(effectiveExisting, permissionContext?.get(effectiveExisting.workDate) ?? {}),
         );
       }
 
       let fallbackBoundaries: ShiftBoundaries | null = null;
-      if (!existing.checkoutOpenAt || !existing.checkoutCloseAt) {
-        const schedule = (await resolveStaffDay(repository, staff, existing.workDate)).schedule;
+      if (!effectiveExisting.checkoutOpenAt || !effectiveExisting.checkoutCloseAt) {
+        const schedule = (await resolveStaffDay(repository, staff, effectiveExisting.workDate)).schedule;
         if (!schedule) {
           throw new AppError(
             422,
@@ -671,10 +719,10 @@ export function createAttendanceService(
             'Jadwal untuk hari ini belum dikonfigurasi',
           );
         }
-        fallbackBoundaries = scheduleBoundaries(existing.workDate, schedule);
+        fallbackBoundaries = scheduleBoundaries(effectiveExisting.workDate, schedule);
       }
-      const checkoutOpenAt = existing.checkoutOpenAt ?? fallbackBoundaries!.checkoutOpenAt;
-      const checkoutCloseAt = existing.checkoutCloseAt ?? fallbackBoundaries!.checkoutCloseAt;
+      const checkoutOpenAt = effectiveExisting.checkoutOpenAt ?? fallbackBoundaries!.checkoutOpenAt;
+      const checkoutCloseAt = effectiveExisting.checkoutCloseAt ?? fallbackBoundaries!.checkoutCloseAt;
       if (serverNow.getTime() < new Date(checkoutOpenAt).getTime() || serverNow.getTime() > new Date(checkoutCloseAt).getTime()) {
         throw new AppError(
           422,
@@ -682,11 +730,11 @@ export function createAttendanceService(
           'Checkout hanya dapat dilakukan pada jadwal yang ditentukan',
           {
             checkoutOpen: checkoutOpenAt,
-            checkoutClose: existing.checkoutClose,
+            checkoutClose: effectiveExisting.checkoutClose,
           },
         );
       }
-      const geofence = await repository.findGeofence(existing.workDate);
+      const geofence = await repository.findGeofence(effectiveExisting.workDate);
       if (!geofence) {
         throw new AppError(
           422,
@@ -698,13 +746,13 @@ export function createAttendanceService(
       const workedMinutes = Math.max(
         0,
         Math.floor(
-          (serverNow.getTime() - new Date(existing.checkInAt).getTime()) / 60_000,
+          (serverNow.getTime() - new Date(effectiveExisting.checkInAt).getTime()) / 60_000,
         ),
       );
       const saved = await repository.saveCheckout({
-          attendanceId: existing.id,
+          attendanceId: effectiveExisting.id,
           teacherId,
-          workDate: existing.workDate,
+          workDate: effectiveExisting.workDate,
           checkOutAt: serverNow.toISOString(),
           location,
           distanceMeters,
@@ -712,7 +760,7 @@ export function createAttendanceService(
           workedMinutes,
           workDeficitMinutes: Math.max(
             0,
-            existing.targetMinutes - workedMinutes,
+            effectiveExisting.targetMinutes - workedMinutes,
           ),
         });
       const permissionContext = await repository.findAttendancePermissions?.(
@@ -720,7 +768,10 @@ export function createAttendanceService(
         [{ attendanceId: saved.id, workDate: saved.workDate }],
       );
       return CompletedAttendanceRecordSchema.parse(
-        applyAttendancePermissions(saved, permissionContext?.get(saved.workDate) ?? {}),
+        applyAttendancePermissions(
+          liveSchedule ? withLiveUserSchedule(saved, liveSchedule) : saved,
+          permissionContext?.get(saved.workDate) ?? {},
+        ),
       );
     },
 

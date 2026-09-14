@@ -179,6 +179,10 @@ export class SupabaseAdminAttendanceRepository
     return data ? toCalendarException(data) : null;
   }
 
+  findSchedule(scheduleType: 'WEEKDAY' | 'SATURDAY', workDate: string) {
+    return this.attendanceRepository.findSchedule(scheduleType, workDate);
+  }
+
   async listDailySources(
     workDate: string,
     search?: string,

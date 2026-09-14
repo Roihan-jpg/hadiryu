@@ -187,6 +187,41 @@ describe('monthly report calculator', () => {
     expect(result.teachers[0]?.absentDayCount).toBeGreaterThan(0);
   });
 
+  it('uses the final effective Guru schedule for completed attendance metrics', async () => {
+    const repository = new FakeMonthlyReportRepository(source({
+      schedules: [
+        weekday,
+        saturday,
+        {
+          ...weekday,
+          id: '10000000-0000-4000-8000-000000000003',
+          workEnd: '14:00',
+          checkoutClose: '15:00',
+          targetMinutes: 480,
+          effectiveFrom: '2026-06-01',
+        },
+      ],
+      attendances: [{
+        id: '40000000-0000-4000-8000-000000000099',
+        teacherId: '50000000-0000-4000-8000-000000000001',
+        workDate: '2026-06-01',
+        checkInAt: '2026-06-01T00:05:00.000Z',
+        checkOutAt: '2026-06-01T08:25:00.000Z',
+        workStart: '07:00', workEnd: '15:35', checkoutClose: '17:00',
+        targetMinutes: 515, workedMinutes: 500, workDeficitMinutes: 15,
+        arrivalLateMinutes: 5, status: 'COMPLETED', scheduleType: 'WEEKDAY',
+      }],
+    }));
+
+    const report = await service(repository).preview({ year: 2026, month: 6 });
+    const day = report.teachers[0]?.days.find((value) => value.workDate === '2026-06-01');
+
+    expect(day).toMatchObject({
+      status: 'WORKED', workEnd: '14:00', targetMinutes: 480,
+      workedMinutes: 500, workDeficitMinutes: 0, arrivalLateMinutes: 5,
+    });
+  });
+
   it('does not flag future dates or an open attendance as missing data', async () => {
     const repository = new FakeMonthlyReportRepository(source({
       attendances: [{

@@ -12,8 +12,8 @@
   --color-fire-red: oklch(58% 0.19 28);
   --color-fire-blue: oklch(57% 0.15 245);
   --color-fire-purple: oklch(53% 0.17 305);
-  --font-display: Manrope, 'Segoe UI Variable', sans-serif;
-  --font-body: Manrope, 'Segoe UI Variable', sans-serif;
+  --font-display: Poppins, 'Segoe UI Variable', sans-serif;
+  --font-body: Lora, Georgia, serif;
   --font-data: 'Cascadia Mono', 'Segoe UI Mono', monospace;
   --space-2xs: .25rem;
   --space-xs: .5rem;

@@ -2,6 +2,7 @@ import type {
   AdminEarlyDepartureRequest,
   EarlyDepartureRequest,
   GeofenceRule,
+  ScheduleRule,
 } from '@absensi/contracts';
 import { describe, expect, it } from 'vitest';
 
@@ -27,6 +28,7 @@ const attendance: PersistedAttendanceRecord = {
   checkoutClose: '17:00',
   targetMinutes: 515,
   arrivalLateMinutes: 0,
+  scheduleType: 'WEEKDAY',
   status: 'CHECKED_IN',
 };
 const geofence: GeofenceRule = {
@@ -37,6 +39,19 @@ const geofence: GeofenceRule = {
   radiusMeters: 100,
   maxAccuracyMeters: 50,
   effectiveFrom: '2026-01-01',
+  effectiveTo: null,
+};
+const schedule: ScheduleRule = {
+  id: '30000000-0000-4000-8000-000000000002',
+  scheduleType: 'WEEKDAY',
+  checkInOpen: '05:30',
+  workStart: '07:00',
+  checkInClose: '08:00',
+  checkoutOpen: '14:30',
+  workEnd: '15:35',
+  checkoutClose: '17:00',
+  targetMinutes: 515,
+  effectiveFrom: '2026-08-31',
   effectiveTo: null,
 };
 const pending: EarlyDepartureRequest = {
@@ -61,10 +76,12 @@ const pending: EarlyDepartureRequest = {
 class FakeRepository implements EarlyDepartureRequestRepository {
   attendance: PersistedAttendanceRecord | null = attendance;
   geofence: GeofenceRule | null = geofence;
+  schedule: ScheduleRule | null = schedule;
   request: EarlyDepartureRequest | null = pending;
 
   async findAttendance() { return this.attendance; }
   async findGeofence() { return this.geofence; }
+  async findSchedule() { return this.schedule; }
   async create(): Promise<EarlyDepartureRequest> { return pending; }
   async findOwn() { return this.request; }
   async listOwn() { return { records: this.request ? [this.request] : [], totalItems: this.request ? 1 : 0 }; }
@@ -119,6 +136,21 @@ describe('early departure request service', () => {
         accuracyMeters: 10,
       }),
     ).rejects.toMatchObject({ code: 'NOT_EARLY_DEPARTURE' });
+  });
+
+  it('uses the latest Guru work-end time instead of the check-in snapshot', async () => {
+    const repository = new FakeRepository();
+    repository.attendance = { ...attendance, workEnd: '08:00', targetMinutes: 120 };
+    repository.schedule = { ...schedule, checkoutOpen: '08:30', workEnd: '10:00', checkoutClose: '11:00', targetMinutes: 185 };
+
+    await expect(
+      service(repository, '2026-08-31T02:00:00.000Z').create(teacherId, {
+        reason: 'Keperluan keluarga',
+        latitude: -8.1328,
+        longitude: 113.2219,
+        accuracyMeters: 10,
+      }),
+    ).resolves.toMatchObject({ status: 'PENDING' });
   });
 
   it('rejects inaccurate and out-of-geofence locations', async () => {
