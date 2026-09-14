@@ -55,7 +55,15 @@
       @if (data.role === 'USER') {
         <section class="streak-ledger ledger-panel" [class]="'streak-ledger ledger-panel tier-' + (data.streak?.status === 'AVAILABLE' ? data.streak?.tier.toLowerCase() : 'none')" aria-labelledby="streak-title">
           <div class="fire-slot" aria-hidden="true">
-            <svg viewBox="0 0 48 64" role="img"><path d="M27 2c3 15-8 16-4 29 2-8 9-10 10-18 9 9 14 20 11 31-3 12-13 19-24 18C8 61 0 52 1 40 2 27 13 22 16 10c6 5 8 10 7 16C28 19 29 11 27 2z"/><path class="fire-core" d="M24 31c5 7 10 12 8 20-1 6-6 10-12 9-6 0-10-5-9-11 1-7 7-10 9-17 3 3 4 6 4 9 2-3 2-6 0-10z"/></svg>
+            @if (streakAnimationUrl(data.streak); as animationUrl) {
+              @if (streakAnimationFailed(data.streak)) {
+                <svg viewBox="0 0 48 64"><path d="M27 2c3 15-8 16-4 29 2-8 9-10 10-18 9 9 14 20 11 31-3 12-13 19-24 18C8 61 0 52 1 40 2 27 13 22 16 10c6 5 8 10 7 16C28 19 29 11 27 2z"/><path class="fire-core" d="M24 31c5 7 10 12 8 20-1 6-6 10-12 9-6 0-10-5-9-11 1-7 7-10 9-17 3 3 4 6 4 9 2-3 2-6 0-10z"/></svg>
+              } @else {
+                <video [src]="animationUrl" autoplay loop [muted]="true" playsinline preload="metadata" (error)="markStreakAnimationFailed(data.streak)"></video>
+              }
+            } @else {
+              <svg viewBox="0 0 48 64"><path d="M27 2c3 15-8 16-4 29 2-8 9-10 10-18 9 9 14 20 11 31-3 12-13 19-24 18C8 61 0 52 1 40 2 27 13 22 16 10c6 5 8 10 7 16C28 19 29 11 27 2z"/><path class="fire-core" d="M24 31c5 7 10 12 8 20-1 6-6 10-12 9-6 0-10-5-9-11 1-7 7-10 9-17 3 3 4 6 4 9 2-3 2-6 0-10z"/></svg>
+            }
           </div>
           <div>
             <span>Streak datang tepat waktu</span>

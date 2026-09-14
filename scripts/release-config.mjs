@@ -36,6 +36,12 @@ const HostedSetupEnvironmentSchema = HostedEnvironmentSchema.extend({
   E2E_TEACHER_INITIAL_PASSWORD: Password,
 });
 
+const Guru8UiFixtureHostedEnvironmentSchema = z.strictObject({
+  SUPABASE_URL: z.literal(HOSTED_SUPABASE_URL),
+  SUPABASE_PUBLISHABLE_KEY: RequiredText,
+  SUPABASE_SECRET_KEY: RequiredText,
+});
+
 const HostedCliEnvironmentSchema = z.strictObject({
   SUPABASE_ACCESS_TOKEN: RequiredText,
   SUPABASE_DB_PASSWORD: RequiredText,
@@ -54,6 +60,12 @@ export function loadHostedEnvironment(environment) {
 export function loadHostedSetupEnvironment(environment) {
   return HostedSetupEnvironmentSchema.parse(
     selected(environment, Object.keys(HostedSetupEnvironmentSchema.shape)),
+  );
+}
+
+export function loadGuru8UiFixtureHostedEnvironment(environment) {
+  return Guru8UiFixtureHostedEnvironmentSchema.parse(
+    selected(environment, Object.keys(Guru8UiFixtureHostedEnvironmentSchema.shape)),
   );
 }
 

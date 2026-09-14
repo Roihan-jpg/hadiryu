@@ -138,6 +138,26 @@ async function mockGeolocation(page: import('@playwright/test').Page): Promise<v
   });
 }
 
+for (const viewport of [
+  { width: 320, height: 740 }, { width: 390, height: 844 }, { width: 768, height: 900 },
+  { width: 1024, height: 768 }, { width: 1440, height: 900 },
+]) {
+  test(`Guru streak animation fits without viewport overflow at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockTeacherApi(page);
+    await page.goto('/guru');
+
+    await expect(page.getByRole('heading', { name: 'Absen Guru Tujuh' })).toBeVisible();
+    const video = page.locator('.fire-slot video');
+    await expect(video).toHaveAttribute('src', /api-biru\.webm$/);
+    await expect(video).toHaveJSProperty('autoplay', true);
+    await expect(video).toHaveJSProperty('loop', true);
+    await expect(video).toHaveJSProperty('muted', true);
+    await expect(video).toHaveJSProperty('playsInline', true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
 for (const viewport of [{ width: 320, height: 740 }, { width: 1440, height: 900 }]) {
   test(`Satpam dashboard replaces streak with shift at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);

@@ -25,8 +25,8 @@ header p { margin: var(--space-xs) 0 0; color: var(--color-muted); }
 .shift-ledger dl div { display: grid; gap: var(--space-2xs); }
 .shift-ledger dt { color: var(--color-muted); font-size: var(--text-sm); }
 .shift-ledger dd { margin: 0; font: 700 var(--text-md) var(--font-data); }
-.fire-slot { display: grid; width: 72px; height: 88px; place-items: center; border: var(--rule-hairline); border-radius: var(--radius-md); background: var(--color-surface-soft); }
-.fire-slot svg { width: 44px; height: 58px; fill: var(--color-muted); }
+.fire-slot { display: grid; width: clamp(64px,18vw,96px); height: clamp(76px,22vw,112px); place-items: center; border: var(--rule-hairline); border-radius: var(--radius-md); background: var(--color-surface-soft); }
+.fire-slot :is(svg,video) { inline-size: 75%; block-size: 75%; object-fit: contain; }.fire-slot svg { fill: var(--color-muted); }
 .tier-red .fire-slot svg { fill: var(--color-fire-red); }.tier-blue .fire-slot svg { fill: var(--color-fire-blue); }.tier-purple .fire-slot svg { fill: var(--color-fire-purple); }
 .fire-slot .fire-core { fill: var(--color-surface); }.provisional { color: var(--color-danger) !important; font-weight: 700; }
 .quota-ledger, .trend-ledger, .activity-ledger, .latest-letter { padding: var(--space-lg); }

@@ -3,6 +3,7 @@ import type {
   DashboardActivityFilter,
   EarlyDepartureDashboardActivity,
   PunctualityTrendItem,
+  TeacherStreak,
 } from '@absensi/contracts';
 import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -17,6 +18,26 @@ import { AuthService } from '../../core/auth/auth.service';
 import { queryKeys } from '../../core/query/query-keys';
 import { createIndonesianPaginatorIntl } from '../../core/ui/paginator-intl';
 import { StaffDashboardService } from './staff-dashboard.service';
+
+type StreakTier = Extract<TeacherStreak, { status: 'AVAILABLE' }>['tier'];
+type AnimatedStreakTier = Exclude<StreakTier, 'NONE'>;
+
+const STREAK_ANIMATION_BASE_URL = 'https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak';
+
+function animatedStreakTier(streak: TeacherStreak | null | undefined): AnimatedStreakTier | null {
+  return streak?.status === 'AVAILABLE' && streak.tier !== 'NONE' ? streak.tier : 'RED';
+}
+
+export function streakAnimationUrl(streak: TeacherStreak | null | undefined): string | null {
+  const tier = animatedStreakTier(streak);
+  if (!tier) return null;
+  const fileName: Record<AnimatedStreakTier, string> = {
+    RED: 'api-merah.webm',
+    BLUE: 'api-biru.webm',
+    PURPLE: 'api-merah.webm',
+  };
+  return `${STREAK_ANIMATION_BASE_URL}/${fileName[tier]}`;
+}
 
 function currentJakartaMonth(): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
@@ -49,6 +70,7 @@ export class StaffDashboardPage implements OnDestroy {
   readonly preview = signal<{ id: string; url: string; safeUrl: SafeResourceUrl; mimeType: string; name: string } | null>(null);
   readonly previewLoadingId = signal<string | null>(null);
   readonly previewErrorId = signal<string | null>(null);
+  readonly failedStreakAnimationTier = signal<AnimatedStreakTier | null>(null);
   readonly chartBars = computed(() => {
     const values = this.dashboard()?.punctualityTrend ?? [];
     const maximum = Math.max(1, ...values.map((item) => Math.abs(item.arrivalOffsetMinutes)));
@@ -116,6 +138,15 @@ export class StaffDashboardPage implements OnDestroy {
     return attendance ? this.jakartaTime(attendance.checkInAt) : '—';
   }
   statusCta(): string { return this.dashboard()?.todayAttendance.state === 'CHECKED_IN' ? 'Catat Absen Pulang' : 'Buka halaman Absen'; }
+  streakAnimationUrl(streak: TeacherStreak | null | undefined): string | null { return streakAnimationUrl(streak); }
+  streakAnimationFailed(streak: TeacherStreak | null | undefined): boolean {
+    const tier = animatedStreakTier(streak);
+    return tier !== null && this.failedStreakAnimationTier() === tier;
+  }
+  markStreakAnimationFailed(streak: TeacherStreak | null | undefined): void {
+    const tier = animatedStreakTier(streak);
+    if (tier) this.failedStreakAnimationTier.set(tier);
+  }
   jakartaTime(timestamp: string): string { return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(timestamp)); }
   dateLabel(workDate: string): string { return new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${workDate}T00:00:00.000Z`)); }
   monthLabel(month: string): string { return new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${month}-01T00:00:00.000Z`)); }

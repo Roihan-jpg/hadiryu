@@ -5,6 +5,7 @@ import {
   HOSTED_PROJECT_REF,
   HOSTED_SUPABASE_URL,
   hostedCommands,
+  loadGuru8UiFixtureHostedEnvironment,
   loadHostedEnvironment,
   loadHostedSetupEnvironment,
   parseSupabaseStatus,
@@ -67,6 +68,16 @@ test('loadHostedEnvironment accepts only complete hosted smoke input', () => {
 
   assert.equal(input.SUPABASE_URL, HOSTED_SUPABASE_URL);
   assert.equal(input.E2E_LATITUDE, '-6.2');
+});
+
+test('guru8 hosted fixture requires only the confirmed project credentials', () => {
+  const input = loadGuru8UiFixtureHostedEnvironment({
+    SUPABASE_URL: HOSTED_SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY: 'publishable',
+    SUPABASE_SECRET_KEY: 'secret',
+  });
+
+  assert.equal(input.SUPABASE_URL, HOSTED_SUPABASE_URL);
 });
 
 test('loadHostedSetupEnvironment rejects a short initial teacher password', () => {

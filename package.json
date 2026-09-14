@@ -17,6 +17,8 @@
     "db:start": "supabase db start",
     "db:reset": "supabase db start && supabase db reset --local",
     "db:advisors": "supabase db advisors --local --type all --level warn --fail-on warn",
+    "seed:guru8-ui": "node scripts/run-guru8-ui-seed.mjs",
+    "seed:guru8-ui:hosted": "node --env-file-if-exists=.env scripts/run-guru8-ui-seed-hosted.mjs",
     "e2e:install": "playwright install chromium",
     "lint": "eslint playwright.config.ts e2e scripts && npm run lint --workspaces --if-present",
     "typecheck": "tsc -p tsconfig.e2e.json --noEmit && tsc -p worker/tsconfig.json --noEmit && npm run typecheck --workspaces --if-present",
