@@ -196,9 +196,22 @@ describe('check-in domain service', () => {
       checkInAt: '2026-08-25T00:05:59.000Z',
       distanceMeters: 0,
       arrivalLateMinutes: 5,
+      earlyArrivalMinutes: 0,
       workStart: '07:00',
       targetMinutes: 515,
     });
+  });
+
+  it('reports minutes arrived early from server check-in and work-start timestamps', async () => {
+    const repository = new FakeAttendanceRepository();
+
+    const result = await serviceAt(repository, '2026-08-24T23:50:00.000Z').checkIn(
+      teacherId,
+      { latitude: geofence.latitude, longitude: geofence.longitude, accuracyMeters: 10 },
+    );
+
+    expect(result.earlyArrivalMinutes).toBe(10);
+    expect(result.arrivalLateMinutes).toBe(0);
   });
 
   it('resolves a Saturday working-day override before selecting its schedule', async () => {

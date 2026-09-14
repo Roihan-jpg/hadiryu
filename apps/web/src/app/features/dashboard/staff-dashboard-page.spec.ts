@@ -54,6 +54,12 @@ describe('StaffDashboardPage streak animation', () => {
     expect(streakAnimationUrl({ status: 'UNAVAILABLE', reason: 'CONFIGURATION_MISSING' })).toBeNull();
   });
 
+  it('marks the desktop status time for its compact desktop typography', async () => {
+    const fixture = await setup(available('NONE'));
+
+    expect(fixture.nativeElement.querySelector('.today-stat--desktop-balanced')).not.toBeNull();
+  });
+
   async function setup(streak: TeacherStreak) {
     await TestBed.configureTestingModule({
       imports: [StaffDashboardPage],

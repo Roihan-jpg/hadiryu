@@ -26,6 +26,7 @@ const AttendanceBaseSchema = z.strictObject({
   checkoutClose: TimeSchema,
   targetMinutes: z.number().int().positive(),
   arrivalLateMinutes: z.number().int().nonnegative(),
+  earlyArrivalMinutes: z.number().int().nonnegative().optional(),
   scheduleType: ScheduleTypeSchema.optional(),
   checkInOpenAt: z.iso.datetime({ offset: true }).optional(),
   workStartAt: z.iso.datetime({ offset: true }).optional(),

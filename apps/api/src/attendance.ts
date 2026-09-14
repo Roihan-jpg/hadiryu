@@ -467,6 +467,14 @@ function activeAttendance(
     : null;
 }
 
+function earlyArrivalMinutes(checkInAt: string, workStartAt: string | undefined): number {
+  if (!workStartAt) return 0;
+  return Math.max(
+    0,
+    Math.floor((new Date(workStartAt).getTime() - new Date(checkInAt).getTime()) / 60_000),
+  );
+}
+
 function applyAttendancePermissions(
   attendance: AttendanceRecord,
   context: AttendanceAdjustmentContext,
@@ -598,7 +606,13 @@ export function createAttendanceService(
           [{ attendanceId: existing.id, workDate: existing.workDate }],
         );
         return AttendanceRecordSchema.parse(
-          applyAttendancePermissions(effectiveExisting, permissionContext?.get(existing.workDate) ?? {}),
+          {
+            ...applyAttendancePermissions(effectiveExisting, permissionContext?.get(existing.workDate) ?? {}),
+            earlyArrivalMinutes: earlyArrivalMinutes(
+              effectiveExisting.checkInAt,
+              effectiveExisting.workStartAt,
+            ),
+          },
         );
       }
 
@@ -664,7 +678,10 @@ export function createAttendanceService(
         [{ attendanceId: saved.id, workDate: saved.workDate }],
       );
       return AttendanceRecordSchema.parse(
-        applyAttendancePermissions(saved, permissionContext?.get(saved.workDate) ?? {}),
+        {
+          ...applyAttendancePermissions(saved, permissionContext?.get(saved.workDate) ?? {}),
+          earlyArrivalMinutes: earlyArrivalMinutes(saved.checkInAt, boundaries.workStartAt),
+        },
       );
     },
 

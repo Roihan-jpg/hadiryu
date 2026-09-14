@@ -39,7 +39,7 @@
   } @else if (dashboard(); as data) {
     <div class="dashboard-grid">
       <section class="today-ledger ledger-panel" aria-labelledby="today-title">
-        <div class="today-stat" aria-hidden="true">{{ statusValue() }}</div>
+        <div class="today-stat today-stat--desktop-balanced" aria-hidden="true">{{ statusValue() }}</div>
         <div class="today-copy">
           <span>{{ dateLabel(data.todayAttendance.workDate) }}</span>
           <h2 id="today-title">{{ statusHeadline() }}</h2>

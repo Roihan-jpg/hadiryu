@@ -191,7 +191,7 @@ export class HomePage {
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
-        `Absen Masuk berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}.`,
+        `Absen Masuk berhasil dicatat pukul ${this.jakartaTime(attendance.checkInAt)}. ${this.checkInTimingMessage(attendance)}`,
       );
     } catch (error) {
       if (error instanceof LocationRequestError) {
@@ -292,6 +292,17 @@ export class HomePage {
       minute: '2-digit',
       hourCycle: 'h23',
     }).format(new Date(timestamp));
+  }
+
+  private checkInTimingMessage(attendance: {
+    arrivalLateMinutes: number;
+    earlyArrivalMinutes?: number;
+  }): string {
+    return attendance.arrivalLateMinutes > 0
+      ? `Terlambat ${attendance.arrivalLateMinutes} menit.`
+      : attendance.earlyArrivalMinutes && attendance.earlyArrivalMinutes > 0
+        ? `Lebih awal ${attendance.earlyArrivalMinutes} menit.`
+      : 'Tepat waktu.';
   }
 
   dutyLabel(duty: SecurityDuty): string {

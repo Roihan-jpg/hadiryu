@@ -482,7 +482,26 @@ describe('HomePage check-in', () => {
       maxAccuracyMeters: 15,
     });
     expect(fixture.nativeElement.textContent).toContain('Absen Masuk berhasil');
+    expect(fixture.nativeElement.textContent).toContain('Terlambat 5 menit.');
     expect(fixture.nativeElement.textContent).toContain('Absen Masuk tercatat');
+  });
+
+  it('reports the server-provided early arrival minutes after a successful check-in', async () => {
+    await setup();
+    checkIn.mockResolvedValueOnce({
+      ...checkedIn,
+      arrivalLateMinutes: 0,
+      earlyArrivalMinutes: 10,
+    } as CheckInRecord & { earlyArrivalMinutes: number });
+
+    const attendance = fixture.componentInstance.checkIn();
+    geolocation.successes[0]?.({
+      coords: { latitude: -6.2, longitude: 106.816666, accuracy: 10 },
+    } as GeolocationPosition);
+    await attendance;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Lebih awal 10 menit.');
   });
 
   it('shows actionable permission guidance without calling the API', async () => {

@@ -98,6 +98,7 @@ describe('HomePage Satpam dashboard', () => {
     } as GeolocationPosition);
     await preview;
     await fixture.componentInstance.checkIn();
+    fixture.detectChanges();
 
     expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
     expect(checkIn).toHaveBeenCalledWith({
@@ -105,5 +106,6 @@ describe('HomePage Satpam dashboard', () => {
       longitude: 106.816666,
       accuracyMeters: 10,
     });
+    expect(fixture.nativeElement.textContent).toContain('Terlambat 5 menit.');
   });
 });
