@@ -34,6 +34,7 @@ import {
   type StoredRequestAttachment,
   type UploadedRequestAttachment,
 } from './request-attachments.js';
+import { maternityLeavePeriods } from './maternity-leave.js';
 
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 const LeaveRequestIdSchema = z.uuid();
@@ -45,7 +46,7 @@ export interface LeaveRequestRepository {
   findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   create(
     teacherId: string,
-    input: CreateLeaveRequest,
+    input: ResolvedLeaveRequestInput,
     attachment?: StoredRequestAttachment,
   ): Promise<LeaveRequest>;
   findOwn(teacherId: string, leaveRequestId: string): Promise<LeaveRequest | null>;
@@ -67,9 +68,18 @@ export interface LeaveRequestRepository {
   ): Promise<LeaveRequest>;
 }
 
+export interface ResolvedLeaveRequestInput {
+  leaveDate: string;
+  leaveType: CreateLeaveRequest['leaveType'];
+  reason: string;
+  fullLeaveEndDate?: string;
+  earlyDepartureStartDate?: string;
+  earlyDepartureEndDate?: string;
+}
+
 export interface LeaveRequestService {
   create(
-    teacher: string | Pick<AuthUser, 'id' | 'role'>,
+    teacher: string | Pick<AuthUser, 'id' | 'role' | 'gender'>,
     input: CreateLeaveRequest,
     attachment?: UploadedRequestAttachment,
   ): Promise<LeaveRequest>;
@@ -165,7 +175,7 @@ export function createLeaveRequestService(
     if (request.status !== 'PENDING') {
       throw new AppError(409, 'LEAVE_NOT_PENDING', 'Hanya izin Pending yang dapat diputuskan');
     }
-    if (status === 'APPROVED' && request.leaveType !== 'LATE_ARRIVAL') {
+    if (status === 'APPROVED' && request.leaveType !== 'LATE_ARRIVAL' && request.leaveType !== 'MATERNITY_LEAVE') {
       await assertNoCheckIn(request.teacherId, request.leaveDate);
     }
     return repository.decide(
@@ -182,6 +192,40 @@ export function createLeaveRequestService(
       const input = CreateLeaveRequestSchema.parse(rawInput);
       const serverNow = now();
       const current = jakartaDateTime(serverNow);
+      if (input.leaveType === 'MATERNITY_LEAVE') {
+        if (teacher.role !== 'USER' || teacher.gender !== 'FEMALE') {
+          throw new AppError(403, 'MATERNITY_LEAVE_FORBIDDEN', 'Cuti Melahirkan hanya tersedia untuk Guru Perempuan');
+        }
+        await assertNoCheckIn(teacherId, current.workDate);
+        const exception = await repository.findCalendarException(current.workDate);
+        const day = resolveCalendarDay(current.workDate, exception);
+        const schedule = day.scheduleType
+          ? await repository.findSchedule(day.scheduleType, current.workDate)
+          : null;
+        if (!schedule || current.minuteOfDay > timeMinutes(schedule.workEnd)) {
+          throw new AppError(422, 'LEAVE_REQUEST_DEADLINE_PASSED', 'Izin hari ini hanya dapat diajukan sampai jam kerja selesai');
+        }
+        const periods = maternityLeavePeriods(current.workDate);
+        const resolved: ResolvedLeaveRequestInput = {
+          leaveDate: current.workDate,
+          leaveType: input.leaveType,
+          reason: input.reason,
+          fullLeaveEndDate: periods.fullLeaveEndDate,
+          earlyDepartureStartDate: periods.earlyDepartureStartDate,
+          earlyDepartureEndDate: periods.earlyDepartureEndDate,
+        };
+        let storedAttachment: StoredRequestAttachment | undefined;
+        try {
+          if (attachment) {
+            if (!attachmentStorage) throw new AppError(500, 'ATTACHMENT_NOT_CONFIGURED', 'Penyimpanan lampiran belum dikonfigurasi');
+            storedAttachment = await attachmentStorage.upload(teacherId, 'leave', attachment);
+          }
+          return await repository.create(teacherId, resolved, storedAttachment);
+        } catch (error) {
+          if (storedAttachment && attachmentStorage) await attachmentStorage.remove(storedAttachment.storagePath);
+          throw error;
+        }
+      }
       if (
         input.leaveDate < current.workDate &&
         (teacher.role !== 'SECURITY_GUARD' || input.leaveDate < addLocalDays(current.workDate, -1))

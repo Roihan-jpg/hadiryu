@@ -22,6 +22,7 @@ const ProfileRowSchema = z.strictObject({
   nip: z.string(),
   full_name: z.string(),
   whatsapp_number: z.string().nullable(),
+  gender: z.enum(['FEMALE', 'MALE']).nullable().optional(),
   role: z.enum(['USER', 'SECURITY_GUARD', 'SUPER_ADMIN']),
   is_active: z.boolean(),
   profile_photo_storage_path: z.string().nullable(),
@@ -31,7 +32,7 @@ const ProfileRowSchema = z.strictObject({
 });
 
 const PROFILE_FIELDS =
-  'id,nip,full_name,whatsapp_number,role,is_active,profile_photo_storage_path,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at';
+  'id,nip,full_name,whatsapp_number,gender,role,is_active,profile_photo_storage_path,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at';
 
 export interface UploadedProfilePhoto {
   buffer: Buffer;
@@ -79,6 +80,7 @@ function toUser(value: unknown): AuthUser {
     nip: row.nip,
     fullName: row.full_name,
     whatsappNumber: row.whatsapp_number,
+    gender: row.gender ?? null,
     role: row.role,
     isActive: row.is_active,
     mustChangePassword: false,

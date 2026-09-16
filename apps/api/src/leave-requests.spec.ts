@@ -97,6 +97,34 @@ describe('leave request service', () => {
     expect(repository.saved).toMatchObject({ leaveDate: '2026-08-26' });
   });
 
+  it('creates a female teacher maternity leave using the server filing date and calculated periods', async () => {
+    const { service: leaveService, repository } = service(
+      new FakeLeaveRepository(),
+      '2026-08-25T05:00:00.000Z',
+    );
+
+    const result = await leaveService.create(
+      { id: teacherId, role: 'USER', gender: 'FEMALE' },
+      { leaveType: 'MATERNITY_LEAVE', reason: 'Cuti melahirkan' },
+    );
+
+    expect(result).toMatchObject({
+      leaveDate: '2026-08-25',
+      leaveType: 'MATERNITY_LEAVE',
+      fullLeaveEndDate: '2026-10-24',
+      earlyDepartureStartDate: '2026-10-25',
+      earlyDepartureEndDate: '2028-10-24',
+    });
+    expect(repository.saved).toMatchObject({ leaveDate: '2026-08-25' });
+  });
+
+  it('rejects maternity leave for a teacher whose gender is not female', async () => {
+    await expect(service().service.create(
+      { id: teacherId, role: 'USER', gender: 'MALE' },
+      { leaveType: 'MATERNITY_LEAVE', reason: 'Tidak memenuhi syarat' },
+    )).rejects.toMatchObject({ code: 'MATERNITY_LEAVE_FORBIDDEN' });
+  });
+
   it('allows late-arrival permission before check-in and the configured check-in close', async () => {
     const { service: leaveService } = service(
       new FakeLeaveRepository(),

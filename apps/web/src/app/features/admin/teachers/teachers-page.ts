@@ -36,6 +36,7 @@ interface TeacherFormValue {
   fullName: string;
   initialPassword?: string;
   whatsappNumber: string | null;
+  gender: 'FEMALE' | 'MALE';
   role?: 'USER' | 'SECURITY_GUARD';
 }
 
@@ -75,6 +76,15 @@ interface ConfirmDialogData {
           @if (form.controls.fullName.invalid) {
             <mat-error>Nama lengkap wajib diisi.</mat-error>
           }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Jenis kelamin</mat-label>
+          <select matNativeControl formControlName="gender" name="gender">
+            <option value="" disabled>Pilih jenis kelamin</option>
+            <option value="FEMALE">Perempuan</option>
+            <option value="MALE">Laki-laki</option>
+          </select>
+          @if (form.controls.gender.invalid) { <mat-error>Jenis kelamin wajib dipilih.</mat-error> }
         </mat-form-field>
         @if (!teacher) {
           <mat-form-field appearance="outline">
@@ -134,6 +144,7 @@ export class TeacherFormDialog {
         : [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8}$/)],
     }),
     role: new FormControl<'USER' | 'SECURITY_GUARD'>(this.teacher?.role ?? 'USER', { nonNullable: true }),
+    gender: new FormControl<'FEMALE' | 'MALE' | ''>(this.teacher?.gender ?? '', { nonNullable: true, validators: [Validators.required] }),
   });
 
   submit(): void {
@@ -147,6 +158,7 @@ export class TeacherFormDialog {
       nip: value.nip.trim(),
       fullName: value.fullName.trim(),
       whatsappNumber: value.whatsappNumber.trim() || null,
+      gender: value.gender as 'FEMALE' | 'MALE',
       ...(this.teacher ? {} : { initialPassword: value.initialPassword }),
       ...(this.teacher ? {} : { role: value.role }),
     } satisfies TeacherFormValue);
@@ -234,7 +246,7 @@ export class TeachersPage implements OnInit {
   private readonly service = inject(TeachersService);
   private readonly dialog = inject(MatDialog);
 
-  readonly displayedColumns = ['teacher', 'nip', 'whatsapp', 'status', 'actions'];
+  readonly displayedColumns = ['teacher', 'nip', 'gender', 'whatsapp', 'status', 'actions'];
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly statusControl = new FormControl<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL', { nonNullable: true });
   readonly teachers = signal<Teacher[]>([]);
@@ -306,7 +318,7 @@ export class TeachersPage implements OnInit {
     });
     reference.afterClosed().subscribe((value: TeacherFormValue | undefined) => {
       if (!value) return;
-      void this.updateTeacher(teacher, { nip: value.nip, fullName: value.fullName, whatsappNumber: value.whatsappNumber });
+      void this.updateTeacher(teacher, { nip: value.nip, fullName: value.fullName, whatsappNumber: value.whatsappNumber, gender: value.gender });
     });
   }
 

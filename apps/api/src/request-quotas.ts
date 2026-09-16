@@ -17,7 +17,7 @@ import {
 
 const MONTHLY_LIMIT = 2 as const;
 const RequestQuotaLeaveRowSchema = z.strictObject({
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL', 'MATERNITY_LEAVE']),
 });
 
 export function countLateArrivalQuotaRows(rows: unknown[]): number {

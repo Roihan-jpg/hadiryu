@@ -84,8 +84,11 @@ const AttendanceRowSchema = z.discriminatedUnion('status', [
 const LeaveRowSchema = z.strictObject({
   teacher_id: z.uuid(),
   leave_date: z.string(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL', 'MATERNITY_LEAVE']),
   status: z.enum(['PENDING', 'APPROVED']),
+  full_leave_end_date: z.string().nullable().optional(),
+  early_departure_start_date: z.string().nullable().optional(),
+  early_departure_end_date: z.string().nullable().optional(),
 });
 const EarlyDepartureRowSchema = z.strictObject({
   attendance_id: z.uuid(),
@@ -230,6 +233,9 @@ function toLeave(value: unknown): MonthlyReportSourceLeave {
     leaveDate: row.leave_date,
     leaveType: row.leave_type,
     status: row.status,
+    fullLeaveEndDate: row.full_leave_end_date ?? null,
+    earlyDepartureStartDate: row.early_departure_start_date ?? null,
+    earlyDepartureEndDate: row.early_departure_end_date ?? null,
   };
 }
 
@@ -325,9 +331,9 @@ export class SupabaseMonthlyReportRepository
       loadAllPages(async (from, to) =>
         this.client
           .from('leave_requests')
-          .select('teacher_id,leave_date,leave_type,status')
-          .gte('leave_date', startDate)
+          .select('teacher_id,leave_date,leave_type,status,full_leave_end_date,early_departure_start_date,early_departure_end_date')
           .lte('leave_date', endDate)
+          .or(`leave_date.gte.${startDate},early_departure_end_date.gte.${startDate}`)
           .in('status', ['PENDING', 'APPROVED'])
           .order('leave_date', { ascending: true })
           .order('teacher_id', { ascending: true })

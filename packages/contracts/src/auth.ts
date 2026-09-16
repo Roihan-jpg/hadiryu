@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const UserRoleSchema = z.enum(['USER', 'SECURITY_GUARD', 'SUPER_ADMIN']);
 export type UserRole = z.infer<typeof UserRoleSchema>;
 
+export const GenderSchema = z.enum(['FEMALE', 'MALE']);
+export type Gender = z.infer<typeof GenderSchema>;
+
 export const NipSchema = z
   .string()
   .trim()
@@ -54,6 +57,7 @@ export const AuthUserSchema = z.strictObject({
   nip: NipSchema,
   fullName: z.string().trim().min(1).max(200),
   whatsappNumber: WhatsappNumberSchema.nullable().optional(),
+  gender: GenderSchema.nullable().optional(),
   role: UserRoleSchema,
   isActive: z.boolean(),
   photo: ProfilePhotoMetadataSchema.nullable().optional(),

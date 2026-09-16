@@ -149,6 +149,7 @@ describe('SupabaseTeacherService integration', () => {
       nip,
       fullName: `Guru ${label}`,
       initialPassword: password,
+      gender: 'FEMALE',
     });
     cleanupUserIds.push(teacher.id);
     return { teacher, password };
@@ -213,6 +214,7 @@ describe('SupabaseTeacherService integration', () => {
         nip,
         fullName: 'Guru Gagal Dibuat',
         initialPassword: password,
+        gender: 'FEMALE',
       }),
     ).rejects.toMatchObject({ code: 'TEACHER_CREATE_FAILED' } satisfies Partial<AppError>);
     await expect(authService.login({ nip, password })).rejects.toMatchObject({

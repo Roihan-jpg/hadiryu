@@ -25,6 +25,7 @@ import {
 import { resolveCalendarDay } from './calendar-payroll.js';
 import { resolveSecurityAssignment } from './security-duty.js';
 import { adjustedAttendanceMetrics } from './attendance-adjustments.js';
+import { isWithinDateRange, maternityLeavePhase } from './maternity-leave.js';
 
 export interface MonthlyReportSourceTeacher {
   teacherId: string;
@@ -69,6 +70,9 @@ export interface MonthlyReportSourceLeave {
   leaveDate: string;
   leaveType: LeaveType;
   status: 'PENDING' | 'APPROVED';
+  fullLeaveEndDate?: string | null;
+  earlyDepartureStartDate?: string | null;
+  earlyDepartureEndDate?: string | null;
 }
 
 export interface MonthlyReportSourceEarlyDeparture {
@@ -391,6 +395,18 @@ function jakartaDate(now: Date): string {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
+function jakartaDateTime(now: Date): { workDate: string; minuteOfDay: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value ?? '';
+  return {
+    workDate: `${part('year')}-${part('month')}-${part('day')}`,
+    minuteOfDay: Number(part('hour')) * 60 + Number(part('minute')),
+  };
+}
+
 function checkoutCloseAt(attendance: MonthlyReportSourceAttendance): Date {
   const closeDate = attendance.scheduleType === 'SECURITY_NIGHT'
     ? nextLocalDate(attendance.workDate)
@@ -422,6 +438,7 @@ function attendanceDay(
   attendance: MonthlyReportSourceAttendance,
   lateArrivalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | null,
   earlyDeparture: MonthlyReportSourceEarlyDeparture | undefined,
+  maternityEarlyDepartureCredit: boolean,
   generatedAt: Date,
 ): MonthlyReportDay {
   const adjusted = adjustedAttendanceMetrics(attendance, {
@@ -465,6 +482,16 @@ function attendanceDay(
       workDeficitMinutes: Math.max(0, attendance.targetMinutes - effectiveWorkedMinutes),
     };
   }
+  if (maternityEarlyDepartureCredit) {
+    return {
+      ...common,
+      status: 'MATERNITY_EARLY_DEPARTURE',
+      checkOutAt: null,
+      workedMinutes: attendance.targetMinutes,
+      workDeficitMinutes: 0,
+      leaveType: 'MATERNITY_LEAVE',
+    };
+  }
   if (generatedAt <= checkoutCloseAt(attendance)) {
     return {
       ...common,
@@ -481,6 +508,34 @@ function attendanceDay(
     workedMinutes: Math.max(0, attendance.targetMinutes - 60),
     workDeficitMinutes: Math.min(60, attendance.targetMinutes),
   };
+}
+
+function maternityLeaveForDate(
+  leaves: readonly MonthlyReportSourceLeave[],
+  teacherId: string,
+  workDate: string,
+): MonthlyReportSourceLeave | undefined {
+  return leaves.find((leave) => leave.teacherId === teacherId && leave.leaveType === 'MATERNITY_LEAVE' &&
+    leave.fullLeaveEndDate !== null && leave.fullLeaveEndDate !== undefined &&
+    leave.earlyDepartureStartDate !== null && leave.earlyDepartureStartDate !== undefined &&
+    leave.earlyDepartureEndDate !== null && leave.earlyDepartureEndDate !== undefined &&
+    isWithinDateRange(workDate, leave.leaveDate, leave.earlyDepartureEndDate));
+}
+
+function maternityEarlyCreditAvailable(
+  leave: MonthlyReportSourceLeave | undefined,
+  workDate: string,
+  generatedAt: Date,
+): boolean {
+  if (!leave || leave.status !== 'APPROVED' || !leave.fullLeaveEndDate || !leave.earlyDepartureStartDate || !leave.earlyDepartureEndDate) return false;
+  if (maternityLeavePhase({
+    status: leave.status,
+    fullLeaveEndDate: leave.fullLeaveEndDate,
+    earlyDepartureStartDate: leave.earlyDepartureStartDate,
+    earlyDepartureEndDate: leave.earlyDepartureEndDate,
+  }, workDate) !== 'EARLY_DEPARTURE') return false;
+  const generated = jakartaDateTime(generatedAt);
+  return workDate < generated.workDate || (workDate === generated.workDate && generated.minuteOfDay >= 14 * 60);
 }
 
 function rejectedEarlyDepartureMinutes(
@@ -587,7 +642,7 @@ export function createMonthlyReportService(
       );
       const approvedLeaveByTeacherDate = new Map(
         source.leaves
-          .filter((leave) => leave.status === 'APPROVED' && leave.leaveType !== 'LATE_ARRIVAL')
+          .filter((leave) => leave.status === 'APPROVED' && leave.leaveType !== 'LATE_ARRIVAL' && leave.leaveType !== 'MATERNITY_LEAVE')
           .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave]),
       );
       const lateArrivalByTeacherDate = new Map(
@@ -601,7 +656,7 @@ export function createMonthlyReportService(
       );
       const pendingLeaveByTeacherDate = new Map(
         source.leaves
-          .filter((leave) => leave.status === 'PENDING')
+          .filter((leave) => leave.status === 'PENDING' && leave.leaveType !== 'MATERNITY_LEAVE')
           .map((leave) => [sourceKey(leave.teacherId, leave.leaveDate), leave]),
       );
       const earlyDepartureByAttendanceId = new Map(
@@ -628,6 +683,20 @@ export function createMonthlyReportService(
         .map((teacher) => {
           const teacherDays = resolveTeacherReportDays(dates, source, teacher, resolvedDays);
           const days = teacherDays.map((day) => {
+            const maternityLeave = teacher.role === 'SECURITY_GUARD'
+              ? undefined
+              : maternityLeaveForDate(source.leaves, teacher.teacherId, day.workDate);
+            const maternityPhase = maternityLeave?.fullLeaveEndDate && maternityLeave.earlyDepartureStartDate && maternityLeave.earlyDepartureEndDate
+              ? maternityLeavePhase({
+                status: maternityLeave.status,
+                fullLeaveEndDate: maternityLeave.fullLeaveEndDate,
+                earlyDepartureStartDate: maternityLeave.earlyDepartureStartDate,
+                earlyDepartureEndDate: maternityLeave.earlyDepartureEndDate,
+              }, day.workDate)
+              : null;
+            if (day.schedule && maternityLeave?.status === 'APPROVED' && maternityPhase === 'FULL_LEAVE') {
+              return scheduledDay(day, maternityLeave, today);
+            }
             const attendance = attendanceByTeacherDate.get(
               sourceKey(teacher.teacherId, day.workDate),
             );
@@ -639,6 +708,7 @@ export function createMonthlyReportService(
                   : attendance,
                 lateArrivalByTeacherDate.get(sourceKey(teacher.teacherId, day.workDate)) ?? null,
                 earlyDepartureByAttendanceId.get(attendance.id),
+                maternityEarlyCreditAvailable(maternityLeave, day.workDate, generatedAt),
                 generatedAt,
               );
             }
@@ -656,6 +726,7 @@ export function createMonthlyReportService(
             if (day.workDate >= today) continue;
             const key = sourceKey(teacher.teacherId, day.workDate);
             const pendingLeave = pendingLeaveByTeacherDate.get(key);
+            const pendingMaternityLeave = maternityLeaveForDate(source.leaves, teacher.teacherId, day.workDate);
             const attendance = attendanceByTeacherDate.get(key);
             const pendingEarlyDeparture = attendance
               ? earlyDepartureByAttendanceId.get(attendance.id)?.status === 'PENDING'
@@ -674,7 +745,16 @@ export function createMonthlyReportService(
               teacherWhatsapp: teacher.teacherWhatsapp ?? null,
               workDate: day.workDate,
             };
-            if (pendingLeave) {
+            const pendingMaternityPhase = pendingMaternityLeave?.fullLeaveEndDate &&
+              pendingMaternityLeave.earlyDepartureStartDate && pendingMaternityLeave.earlyDepartureEndDate
+              ? maternityLeavePhase({
+                status: pendingMaternityLeave.status,
+                fullLeaveEndDate: pendingMaternityLeave.fullLeaveEndDate,
+                earlyDepartureStartDate: pendingMaternityLeave.earlyDepartureStartDate,
+                earlyDepartureEndDate: pendingMaternityLeave.earlyDepartureEndDate,
+              }, day.workDate)
+              : null;
+            if (pendingLeave || (pendingMaternityLeave?.status === 'PENDING' && pendingMaternityPhase === 'FULL_LEAVE')) {
               issues.push({ ...commonIssue, code: 'PENDING_LEAVE' });
             } else if (pendingEarlyDeparture) {
               issues.push({ ...commonIssue, code: 'PENDING_EARLY_DEPARTURE' });

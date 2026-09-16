@@ -159,7 +159,7 @@ export class StaffDashboardPage implements OnDestroy {
   activityTitle(activity: DashboardActivity): string {
     if (activity.type === 'ATTENDANCE') return 'Absensi harian';
     if (activity.type === 'EARLY_DEPARTURE') return 'Pulang Awal';
-    const labels = { SICK: 'Izin Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Izin Lainnya', LATE_ARRIVAL: 'Izin Terlambat' } as const;
+    const labels = { SICK: 'Izin Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Izin Lainnya', LATE_ARRIVAL: 'Izin Terlambat', MATERNITY_LEAVE: 'Cuti Melahirkan' } as const;
     return labels[activity.leaveType];
   }
   statusLabel(status: string): string { return ({ PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan', CHECKED_IN: 'Berlangsung', COMPLETED: 'Lengkap', INCOMPLETE: 'Tidak lengkap' } as Record<string, string>)[status] ?? status; }

@@ -58,6 +58,14 @@ export class LeaveRequestsPage {
   readonly selectedLeaveDate = toSignal(this.form.controls.leaveDate.valueChanges, {
     initialValue: this.form.controls.leaveDate.value,
   });
+  readonly selectedLeaveType = toSignal(this.form.controls.leaveType.valueChanges, {
+    initialValue: this.form.controls.leaveType.value,
+  });
+  readonly canRequestMaternityLeave = computed(() => {
+    const user = this.auth.user();
+    return user?.role === 'USER' && user.gender === 'FEMALE';
+  });
+  readonly isMaternityLeave = computed(() => this.selectedLeaveType() === 'MATERNITY_LEAVE');
   readonly actionInProgress = signal<string | null>(null);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -102,7 +110,12 @@ export class LeaveRequestsPage {
     this.actionInProgress.set('create'); this.errorMessage.set(''); this.successMessage.set('');
     try {
       const value = this.form.getRawValue();
-      const input = { leaveDate: value.leaveDate, leaveType: value.leaveType, reason: value.reason.trim() };
+      if (value.leaveType === 'MATERNITY_LEAVE' && !globalThis.confirm(
+        'Cuti Melahirkan akan langsung memblokir Absen Masuk selama masa cuti dua bulan sambil menunggu persetujuan SuperAdmin. Lanjutkan pengajuan?',
+      )) return;
+      const input = value.leaveType === 'MATERNITY_LEAVE'
+        ? { leaveType: value.leaveType, reason: value.reason.trim() }
+        : { leaveDate: value.leaveDate, leaveType: value.leaveType, reason: value.reason.trim() };
       const attachment = this.attachment();
       if (attachment) await this.service.create(input, attachment);
       else await this.service.create(input);
@@ -132,7 +145,7 @@ export class LeaveRequestsPage {
     this.requestFilters.update((page) => ({ ...page, page: event.pageIndex + 1, pageSize: event.pageSize }));
   }
 
-  typeLabel(type: LeaveType): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya', LATE_ARRIVAL: 'Izin terlambat' })[type]; }
+  typeLabel(type: LeaveType): string { return ({ SICK: 'Sakit', OFFICIAL_DUTY: 'Dinas Luar', FAMILY: 'Kepentingan Keluarga', OTHER: 'Lainnya', LATE_ARRIVAL: 'Izin terlambat', MATERNITY_LEAVE: 'Cuti Melahirkan' })[type]; }
   statusLabel(status: LeaveStatus): string { return ({ PENDING: 'Menunggu keputusan', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' })[status]; }
   dateLabel(workDate: string): string {
     return new Intl.DateTimeFormat('id-ID', {

@@ -30,6 +30,7 @@ const ProfileRowSchema = z.strictObject({
   nip: NipSchema,
   full_name: z.string().trim().min(1).max(200),
   whatsapp_number: z.string().nullable(),
+  gender: z.enum(['FEMALE', 'MALE']).nullable().optional(),
   role: UserRoleSchema,
   is_active: z.boolean(),
   profile_photo_mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']).nullable(),
@@ -145,6 +146,7 @@ function toAuthUser(row: z.infer<typeof ProfileRowSchema>): AuthUser {
     nip: row.nip,
     fullName: row.full_name,
     whatsappNumber: row.whatsapp_number,
+    gender: row.gender ?? null,
     role: row.role,
     isActive: row.is_active,
     mustChangePassword: false,
@@ -193,7 +195,7 @@ export class SupabaseAuthService implements AuthService {
   private async loadProfile(profileId: string): Promise<AuthUser> {
     const { data, error } = await this.serviceClient
       .from('profiles')
-      .select('id,nip,full_name,whatsapp_number,role,is_active,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at')
+      .select('id,nip,full_name,whatsapp_number,gender,role,is_active,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at')
       .eq('id', profileId)
       .maybeSingle();
     if (error) {
@@ -249,7 +251,7 @@ export class SupabaseAuthService implements AuthService {
     const nip = input.nip.toLowerCase();
     const { data: profileData, error: profileError } = await this.serviceClient
       .from('profiles')
-      .select('id,nip,full_name,whatsapp_number,role,is_active,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at')
+      .select('id,nip,full_name,whatsapp_number,gender,role,is_active,profile_photo_mime_type,profile_photo_size_bytes,profile_photo_updated_at')
       .eq('nip', nip)
       .maybeSingle();
     if (profileError) {

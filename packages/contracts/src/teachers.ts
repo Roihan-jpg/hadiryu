@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { NewPasswordSchema, NipSchema, WhatsappNumberSchema } from './auth.js';
+import { GenderSchema, NewPasswordSchema, NipSchema, WhatsappNumberSchema } from './auth.js';
 
 export const StaffRoleSchema = z.enum(['USER', 'SECURITY_GUARD']);
 export type StaffRole = z.infer<typeof StaffRoleSchema>;
@@ -15,6 +15,7 @@ export const TeacherSchema = z.strictObject({
   nip: NipSchema,
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
   whatsappNumber: WhatsappNumberSchema.nullable(),
+  gender: GenderSchema.nullable().optional(),
   role: StaffRoleSchema.optional(),
   isActive: z.boolean(),
   mustChangePassword: z.boolean().optional(),
@@ -47,6 +48,7 @@ export const CreateTeacherRequestSchema = z.strictObject({
   fullName: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200),
   initialPassword: NewPasswordSchema,
   whatsappNumber: WhatsappNumberSchema.nullable().optional(),
+  gender: GenderSchema,
   role: StaffRoleSchema.optional(),
 });
 export type CreateTeacherRequest = z.infer<
@@ -63,11 +65,13 @@ export const UpdateTeacherRequestSchema = z
       .max(200)
       .optional(),
     whatsappNumber: WhatsappNumberSchema.nullable().optional(),
+    gender: GenderSchema.optional(),
   })
   .refine((input) =>
     input.nip !== undefined ||
     input.fullName !== undefined ||
-    input.whatsappNumber !== undefined, {
+    input.whatsappNumber !== undefined ||
+    input.gender !== undefined, {
     message: 'Minimal satu perubahan profil wajib diisi',
   });
 export type UpdateTeacherRequest = z.infer<

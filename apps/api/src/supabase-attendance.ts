@@ -24,6 +24,7 @@ import type {
   SaveCheckoutInput,
 } from './attendance.js';
 import type { AttendanceAdjustmentContext } from './attendance-adjustments.js';
+import type { MaternityLeaveEntitlement } from './maternity-leave.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 import { securityRotationPreview } from './security-duty.js';
 
@@ -101,13 +102,19 @@ const SecurityScheduleRowSchema = z.strictObject({
 });
 const AttendancePermissionLeaveRowSchema = z.strictObject({
   leave_date: z.string(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL', 'MATERNITY_LEAVE']),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
   created_at: z.string(),
 });
 const AttendancePermissionEarlyRowSchema = z.strictObject({
   attendance_id: z.uuid(),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+});
+const MaternityLeaveRowSchema = z.strictObject({
+  status: z.enum(['PENDING', 'APPROVED']),
+  full_leave_end_date: z.string(),
+  early_departure_start_date: z.string(),
+  early_departure_end_date: z.string(),
 });
 
 const ATTENDANCE_FIELDS =
@@ -337,12 +344,37 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       .select('id')
       .eq('teacher_id', teacherId)
       .eq('leave_date', workDate)
-      .neq('leave_type', 'LATE_ARRIVAL')
+      .not('leave_type', 'in', '(LATE_ARRIVAL,MATERNITY_LEAVE)')
       .eq('status', 'APPROVED')
       .limit(1)
       .maybeSingle();
     if (error) throw lookupError('Status izin tidak dapat dimuat');
     return data !== null;
+  }
+
+  async findMaternityLeave(
+    teacherId: string,
+    workDate: string,
+  ): Promise<MaternityLeaveEntitlement | null> {
+    const { data, error } = await this.client
+      .from('leave_requests')
+      .select('status,full_leave_end_date,early_departure_start_date,early_departure_end_date')
+      .eq('teacher_id', teacherId)
+      .eq('leave_type', 'MATERNITY_LEAVE')
+      .in('status', ['PENDING', 'APPROVED'])
+      .lte('leave_date', workDate)
+      .gte('early_departure_end_date', workDate)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw lookupError('Status Cuti Melahirkan tidak dapat dimuat');
+    if (!data) return null;
+    const row = MaternityLeaveRowSchema.parse(data);
+    return {
+      status: row.status,
+      fullLeaveEndDate: row.full_leave_end_date,
+      earlyDepartureStartDate: row.early_departure_start_date,
+      earlyDepartureEndDate: row.early_departure_end_date,
+    };
   }
 
   async findAttendancePermissions(

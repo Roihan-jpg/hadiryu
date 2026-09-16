@@ -10,6 +10,7 @@ export const LeaveTypeSchema = z.enum([
   'FAMILY',
   'OTHER',
   'LATE_ARRIVAL',
+  'MATERNITY_LEAVE',
 ]);
 export type LeaveType = z.infer<typeof LeaveTypeSchema>;
 
@@ -41,6 +42,9 @@ const LeaveRequestBaseSchema = z.strictObject({
   decidedAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
+  fullLeaveEndDate: LocalDateSchema.nullable().optional(),
+  earlyDepartureStartDate: LocalDateSchema.nullable().optional(),
+  earlyDepartureEndDate: LocalDateSchema.nullable().optional(),
 });
 
 function validateDecisionState(
@@ -63,11 +67,25 @@ export const LeaveRequestSchema = LeaveRequestBaseSchema.superRefine(
 );
 export type LeaveRequest = z.infer<typeof LeaveRequestSchema>;
 
-export const CreateLeaveRequestSchema = z.strictObject({
-  leaveDate: LocalDateSchema,
-  leaveType: LeaveTypeSchema,
-  reason: ReasonSchema,
-});
+const StandardLeaveTypeSchema = z.enum([
+  'SICK',
+  'OFFICIAL_DUTY',
+  'FAMILY',
+  'OTHER',
+  'LATE_ARRIVAL',
+]);
+
+export const CreateLeaveRequestSchema = z.discriminatedUnion('leaveType', [
+  z.strictObject({
+    leaveDate: LocalDateSchema,
+    leaveType: StandardLeaveTypeSchema,
+    reason: ReasonSchema,
+  }),
+  z.strictObject({
+    leaveType: z.literal('MATERNITY_LEAVE'),
+    reason: ReasonSchema,
+  }),
+]);
 export type CreateLeaveRequest = z.infer<typeof CreateLeaveRequestSchema>;
 
 export const ListLeaveRequestsQuerySchema = z.strictObject({

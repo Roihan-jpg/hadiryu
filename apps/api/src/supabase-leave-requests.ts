@@ -4,7 +4,6 @@ import {
   LeaveRequestSchema,
   type AdminLeaveRequest,
   type CalendarException,
-  type CreateLeaveRequest,
   type LeaveRequest,
   type ListAdminLeaveRequestsQuery,
   type ListLeaveRequestsQuery,
@@ -16,20 +15,21 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 import { AppError } from './auth.js';
-import type { LeaveRequestRepository } from './leave-requests.js';
+import type { LeaveRequestRepository, ResolvedLeaveRequestInput } from './leave-requests.js';
 import type { StoredRequestAttachment } from './request-attachments.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 import { SupabaseAttendanceRepository } from './supabase-attendance.js';
 
 const LeaveRowSchema = z.strictObject({
   id: z.uuid(), teacher_id: z.uuid(), leave_date: z.string(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL', 'MATERNITY_LEAVE']),
   reason: z.string(), status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
   attachment_storage_path: z.string().nullable(), attachment_original_name: z.string().nullable(),
   attachment_mime_type: z.enum(['application/pdf', 'image/jpeg', 'image/png']).nullable(),
   attachment_size_bytes: z.number().int().nullable(),
   decision_note: z.string().nullable(), decided_by: z.uuid().nullable(), decided_at: z.string().nullable(),
   created_at: z.string(), updated_at: z.string(),
+  full_leave_end_date: z.string().nullable().optional(), early_departure_start_date: z.string().nullable().optional(), early_departure_end_date: z.string().nullable().optional(),
 });
 const AdminLeaveRowSchema = LeaveRowSchema.extend({
   profiles: z.object({ nip: z.string(), full_name: z.string(), whatsapp_number: z.string().nullable() }).nullable(),
@@ -43,7 +43,7 @@ const ScheduleRowSchema = z.strictObject({
   work_start: z.string(), check_in_close: z.string(), checkout_open: z.string(), work_end: z.string(),
   checkout_close: z.string(), target_minutes: z.number().int(), effective_from: z.string(), effective_to: z.string().nullable(),
 });
-const LEAVE_FIELDS = 'id,teacher_id,leave_date,leave_type,reason,attachment_storage_path,attachment_original_name,attachment_mime_type,attachment_size_bytes,status,decision_note,decided_by,decided_at,created_at,updated_at';
+const LEAVE_FIELDS = 'id,teacher_id,leave_date,leave_type,reason,attachment_storage_path,attachment_original_name,attachment_mime_type,attachment_size_bytes,status,decision_note,decided_by,decided_at,created_at,updated_at,full_leave_end_date,early_departure_start_date,early_departure_end_date';
 
 function clientOptions() {
   return { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
@@ -61,6 +61,9 @@ function toLeave(value: unknown): LeaveRequest {
     } : null,
     status: row.status, decisionNote: row.decision_note, decidedBy: row.decided_by,
     decidedAt: row.decided_at, createdAt: row.created_at, updatedAt: row.updated_at,
+    fullLeaveEndDate: row.full_leave_end_date ?? null,
+    earlyDepartureStartDate: row.early_departure_start_date ?? null,
+    earlyDepartureEndDate: row.early_departure_end_date ?? null,
   });
 }
 function toAdminLeave(value: unknown): AdminLeaveRequest {
@@ -83,6 +86,9 @@ function toAdminLeave(value: unknown): AdminLeaveRequest {
       decided_at: row.decided_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      full_leave_end_date: row.full_leave_end_date,
+      early_departure_start_date: row.early_departure_start_date,
+      early_departure_end_date: row.early_departure_end_date,
     }),
     teacherNip: row.profiles.nip,
     teacherFullName: row.profiles.full_name,
@@ -136,7 +142,7 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
     if (error) throw databaseError('LEAVE_LOOKUP_FAILED', 'Jadwal kerja tidak dapat dimuat');
     return data ? toSchedule(data) : null;
   }
-  async create(teacherId: string, input: CreateLeaveRequest, attachment?: StoredRequestAttachment): Promise<LeaveRequest> {
+  async create(teacherId: string, input: ResolvedLeaveRequestInput, attachment?: StoredRequestAttachment): Promise<LeaveRequest> {
     const { data, error } = await this.client.from('leave_requests').insert({
       teacher_id: teacherId,
       leave_date: input.leaveDate,
@@ -147,9 +153,13 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
       attachment_original_name: attachment?.originalName ?? null,
       attachment_mime_type: attachment?.mimeType ?? null,
       attachment_size_bytes: attachment?.sizeBytes ?? null,
+      full_leave_end_date: input.fullLeaveEndDate ?? null,
+      early_departure_start_date: input.earlyDepartureStartDate ?? null,
+      early_departure_end_date: input.earlyDepartureEndDate ?? null,
     }).select(LEAVE_FIELDS).single();
     if (!error && data) return toLeave(data);
     if (error?.code === '23505') throw new AppError(409, 'ACTIVE_LEAVE_EXISTS', 'Sudah ada izin aktif pada tanggal tersebut');
+    if (error?.code === '23P01') throw new AppError(409, 'MATERNITY_LEAVE_OVERLAPS', 'Program Cuti Melahirkan masih aktif pada periode tersebut');
     if (error?.code === '23514' && error.message.includes('attendance_leave_conflict')) {
       throw new AppError(409, 'ALREADY_CHECKED_IN', 'Izin tidak dapat diproses karena Guru sudah check-in');
     }
