@@ -13,9 +13,6 @@
       <span>NIP {{ user()?.nip }}</span>
       @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
     </div>
-    @if (workDateLabel()) {
-      <time class="identity-date">{{ workDateLabel() }}</time>
-    }
   </header>
     <form class="dashboard-filters" (ngSubmit)="applyFilters()">
       <input id="dashboard-month" type="month" [formControl]="monthControl" />
