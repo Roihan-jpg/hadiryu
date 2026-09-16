@@ -100,6 +100,21 @@ export class HomePage {
   readonly today = computed<TodayAttendanceResponse | null>(() =>
     this.todayQuery.isError() ? null : this.todayQuery.data() ?? null,
   );
+  readonly maternityLeaveQuery = injectQuery(() => ({
+    queryKey: queryKeys.leaveRequests('own', { page: 1, pageSize: 100 }),
+    queryFn: () => this.leaveRequestsService.fetchOwn({ page: 1, pageSize: 100 }),
+    enabled: this.user()?.role === 'USER',
+  }));
+  readonly maternityEarlyCheckoutBlocked = computed(() => {
+    const today = this.today();
+    if (today?.state !== 'CHECKED_IN') return false;
+    return (this.maternityLeaveQuery.data()?.data ?? []).some((leave) =>
+      leave.leaveType === 'MATERNITY_LEAVE' && leave.status === 'APPROVED' &&
+      leave.earlyDepartureStartDate !== null && leave.earlyDepartureStartDate !== undefined &&
+      leave.earlyDepartureEndDate !== null && leave.earlyDepartureEndDate !== undefined &&
+      today.workDate >= leave.earlyDepartureStartDate && today.workDate <= leave.earlyDepartureEndDate,
+    );
+  });
   readonly securityDashboardQuery = injectQuery(() => ({
     queryKey: queryKeys.securityDashboard,
     queryFn: () => this.securityDashboardService!.getDashboard(),
@@ -209,7 +224,7 @@ export class HomePage {
   }
 
   async checkout(): Promise<void> {
-    if (this.actionInProgress()) return;
+    if (this.actionInProgress() || this.maternityEarlyCheckoutBlocked()) return;
     this.actionInProgress.set(true);
     this.errorMessage.set(null);
     this.locationPreviewError.set(null);

@@ -272,6 +272,7 @@ export class AdminDashboardPage implements OnInit {
       FAMILY: 'Kepentingan keluarga',
       OTHER: 'Lainnya',
       LATE_ARRIVAL: 'Izin terlambat',
+      MATERNITY_LEAVE: 'Cuti Melahirkan',
     }[type];
   }
 

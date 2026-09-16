@@ -74,6 +74,7 @@ describe('TeachersService', () => {
       nip: teacher.nip,
       fullName: teacher.fullName,
       initialPassword: 'Sementara-123',
+      gender: 'FEMALE',
     });
     http.expectOne('/api/admin/teachers').flush({ teacher });
     await expect(createPromise).resolves.toEqual(teacher);

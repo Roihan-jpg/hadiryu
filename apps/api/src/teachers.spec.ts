@@ -27,6 +27,7 @@ const teacher: Teacher = {
   nip: '19870001',
   fullName: 'Guru Contoh',
   whatsappNumber: null,
+  gender: 'FEMALE',
   isActive: true,
   mustChangePassword: false,
   temporaryPasswordExpiresAt: null,

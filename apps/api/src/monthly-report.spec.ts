@@ -65,6 +65,38 @@ function service(repository: FakeMonthlyReportRepository) {
 }
 
 describe('monthly report calculator', () => {
+  it('credits approved maternity leave and approved 14:00 early departure without creating checkout data', async () => {
+    const maternityLeave = {
+      teacherId: '50000000-0000-4000-8000-000000000001',
+      leaveDate: '2026-08-25',
+      leaveType: 'MATERNITY_LEAVE' as const,
+      status: 'APPROVED' as const,
+      fullLeaveEndDate: '2026-10-24',
+      earlyDepartureStartDate: '2026-10-25',
+      earlyDepartureEndDate: '2028-10-24',
+    };
+    const fullLeave = await service(new FakeMonthlyReportRepository(source({ leaves: [maternityLeave] })))
+      .preview({ year: 2026, month: 8 });
+    expect(fullLeave.teachers[0]!.days.find((day) => day.workDate === '2026-08-25')).toMatchObject({
+      status: 'LEAVE', leaveType: 'MATERNITY_LEAVE', workedMinutes: 515, workDeficitMinutes: 0,
+    });
+
+    const earlyDeparture = await service(new FakeMonthlyReportRepository(source({
+      leaves: [maternityLeave],
+      attendances: [{
+        id: '40000000-0000-4000-8000-000000000010',
+        teacherId: maternityLeave.teacherId,
+        workDate: '2026-11-02',
+        checkInAt: '2026-11-02T00:00:00.000Z',
+        checkOutAt: null,
+        workStart: '07:00', workEnd: '15:35', checkoutClose: '17:00', targetMinutes: 515,
+        workedMinutes: null, workDeficitMinutes: null, arrivalLateMinutes: 0, status: 'CHECKED_IN',
+      }],
+    }))).preview({ year: 2026, month: 11 });
+    expect(earlyDeparture.teachers[0]!.days.find((day) => day.workDate === '2026-11-02')).toMatchObject({
+      status: 'MATERNITY_EARLY_DEPARTURE', checkOutAt: null, leaveType: 'MATERNITY_LEAVE', workedMinutes: 515, workDeficitMinutes: 0,
+    });
+  });
   it.each([
     [2027, 2, 28],
     [2028, 2, 29],

@@ -136,6 +136,7 @@ describe('TeachersPage', () => {
           fullName: 'Guru Baru',
           initialPassword: 'Sementara-123',
           whatsappNumber: null,
+          gender: 'FEMALE',
         }),
     });
     fixture.componentInstance.openCreateDialog();
@@ -144,17 +145,19 @@ describe('TeachersPage', () => {
       fullName: 'Guru Baru',
       initialPassword: 'Sementara-123',
       whatsappNumber: null,
+      gender: 'FEMALE',
     }));
     await vi.waitFor(() => expect(fixture.componentInstance.actionInProgress()).toBeNull());
 
     open.mockReturnValueOnce({
-      afterClosed: () => of({ nip: '19870003', fullName: 'Nama Baru', whatsappNumber: null }),
+      afterClosed: () => of({ nip: '19870003', fullName: 'Nama Baru', whatsappNumber: null, gender: 'FEMALE' }),
     });
     fixture.componentInstance.openEditDialog(teacher);
     await vi.waitFor(() => expect(update).toHaveBeenCalledWith(teacher.id, {
       nip: '19870003',
       fullName: 'Nama Baru',
       whatsappNumber: null,
+      gender: 'FEMALE',
     }));
   });
 

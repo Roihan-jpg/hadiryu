@@ -62,6 +62,7 @@ export type MonthlyReportReadiness = z.infer<
 
 export const MonthlyReportDayStatusSchema = z.enum([
   'WORKED',
+  'MATERNITY_EARLY_DEPARTURE',
   'IN_PROGRESS',
   'INCOMPLETE',
   'LEAVE',
@@ -114,6 +115,23 @@ const WorkedDaySchema = z.strictObject({
   workDeficitMinutes: z.number().int().nonnegative(),
   leaveType: z.null(),
 });
+
+const MaternityEarlyDepartureDaySchema = z
+  .strictObject({
+    ...WorkingDayBase,
+    status: z.literal('MATERNITY_EARLY_DEPARTURE'),
+    attendanceId: z.uuid(),
+    checkInAt: z.iso.datetime({ offset: true }),
+    checkOutAt: z.null(),
+    workedMinutes: z.number().int().positive(),
+    arrivalLateMinutes: z.number().int().nonnegative(),
+    workDeficitMinutes: z.literal(0),
+    leaveType: z.literal('MATERNITY_LEAVE'),
+  })
+  .refine((day) => day.workedMinutes === day.targetMinutes, {
+    message: 'Kredit pulang otomatis wajib sama dengan target menit',
+    path: ['workedMinutes'],
+  });
 
 const IncompleteDaySchema = z.strictObject({
   ...WorkingDayBase,
@@ -203,6 +221,7 @@ const NotYetOccurredDaySchema = z.strictObject({
 
 export const MonthlyReportDaySchema = z.discriminatedUnion('status', [
   WorkedDaySchema,
+  MaternityEarlyDepartureDaySchema,
   InProgressDaySchema,
   IncompleteDaySchema,
   LeaveDaySchema,

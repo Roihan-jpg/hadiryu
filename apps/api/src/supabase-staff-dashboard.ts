@@ -20,10 +20,11 @@ const AttendanceRowSchema = z.strictObject({
   schedule_type: z.enum(['WEEKDAY', 'SATURDAY', 'SECURITY_DAY', 'SECURITY_NIGHT']),
 });
 const LeaveRowSchema = z.strictObject({
-  id: z.uuid(), leave_date: z.string(), leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+  id: z.uuid(), leave_date: z.string(), leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL', 'MATERNITY_LEAVE']),
   reason: z.string(), status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
   decision_note: z.string().nullable(), created_at: z.string(), attachment_original_name: z.string().nullable(),
   attachment_mime_type: z.enum(['application/pdf', 'image/jpeg', 'image/png']).nullable(), attachment_size_bytes: z.number().int().nullable(),
+  full_leave_end_date: z.string().nullable().optional(), early_departure_start_date: z.string().nullable().optional(), early_departure_end_date: z.string().nullable().optional(),
 });
 const EarlyRowSchema = z.strictObject({
   id: z.uuid(), attendance_id: z.uuid(), work_date: z.string(), requested_at: z.string(), reason: z.string(),
@@ -44,7 +45,7 @@ const ProfileRowSchema = z.strictObject({ created_at: z.string() });
 const ReportingRowSchema = z.strictObject({ operational_start_date: z.string() });
 
 const ATTENDANCE_FIELDS = 'id,work_date,check_in_at,check_out_at,work_start,work_end,work_start_at,work_end_at,checkout_close_at,target_minutes,worked_minutes,work_deficit_minutes,arrival_late_minutes,status,schedule_type';
-const LEAVE_FIELDS = 'id,leave_date,leave_type,reason,status,decision_note,created_at,attachment_original_name,attachment_mime_type,attachment_size_bytes';
+const LEAVE_FIELDS = 'id,leave_date,leave_type,reason,status,decision_note,created_at,attachment_original_name,attachment_mime_type,attachment_size_bytes,full_leave_end_date,early_departure_start_date,early_departure_end_date';
 const EARLY_FIELDS = 'id,attendance_id,work_date,requested_at,reason,status,decision_note,attachment_original_name,attachment_mime_type,attachment_size_bytes';
 
 function nextMonth(month: string): string {
@@ -105,7 +106,7 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
 
     const [attendanceResult, leaveResult, earlyResult, schedulesResult, calendarResult] = await Promise.all([
       this.client.from('attendance_records').select(ATTENDANCE_FIELDS).eq('teacher_id', staff.id).gte('work_date', rangeStart).lt('work_date', rangeEnd).order('work_date', { ascending: false }).limit(5000),
-      this.client.from('leave_requests').select(LEAVE_FIELDS).eq('teacher_id', staff.id).gte('leave_date', rangeStart).lt('leave_date', rangeEnd).order('created_at', { ascending: false }).limit(5000),
+      this.client.from('leave_requests').select(LEAVE_FIELDS).eq('teacher_id', staff.id).lt('leave_date', rangeEnd).or(`leave_date.gte.${rangeStart},early_departure_end_date.gte.${rangeStart}`).order('created_at', { ascending: false }).limit(5000),
       this.client.from('early_departure_requests').select(EARLY_FIELDS).eq('teacher_id', staff.id).gte('work_date', monthStart).lt('work_date', monthEnd).order('requested_at', { ascending: false }).limit(5000),
       staff.role === 'USER' ? this.client.from('schedule_rules').select('schedule_type,check_in_close,work_start,work_end,checkout_close,target_minutes,effective_from,effective_to').in('schedule_type', ['WEEKDAY', 'SATURDAY']).lte('effective_from', today).or(`effective_to.is.null,effective_to.gte.${streakStart}`).order('effective_from', { ascending: false }).limit(5000) : Promise.resolve({ data: [], error: null }),
       staff.role === 'USER' ? this.client.from('calendar_exceptions').select('work_date,exception_type,schedule_type').gte('work_date', streakStart).lte('work_date', today).limit(5000) : Promise.resolve({ data: [], error: null }),
@@ -133,6 +134,12 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
         ? jakartaInstant(row.work_date, liveSchedule.checkout_close)
         : row.checkout_close_at;
       const expired = row.status === 'CHECKED_IN' && serverNow.getTime() > new Date(checkoutCloseAt).getTime();
+      const maternityEarlyCredit = staff.role === 'USER' && row.status === 'CHECKED_IN' && leaveRows.some((leave) =>
+        leave.leave_type === 'MATERNITY_LEAVE' && leave.status === 'APPROVED' &&
+        leave.early_departure_start_date && leave.early_departure_end_date &&
+        row.work_date >= leave.early_departure_start_date && row.work_date <= leave.early_departure_end_date &&
+        (row.work_date < today || (row.work_date === today && jakartaDateTime(serverNow).minuteOfDay >= 14 * 60)),
+      );
       return {
         id: row.id, workDate: row.work_date, checkInAt: row.check_in_at, checkOutAt: row.check_out_at,
         workStart: (liveSchedule?.work_start ?? row.work_start).slice(0, 5),
@@ -140,8 +147,8 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
         workStartAt: liveSchedule ? jakartaInstant(row.work_date, liveSchedule.work_start) : row.work_start_at,
         workEndAt: liveSchedule ? jakartaInstant(row.work_date, liveSchedule.work_end) : row.work_end_at,
         targetMinutes,
-        workedMinutes: expired ? Math.max(0, targetMinutes - 60) : row.worked_minutes,
-        workDeficitMinutes: expired ? Math.min(60, targetMinutes) : row.status === 'COMPLETED' && row.worked_minutes !== null
+        workedMinutes: maternityEarlyCredit ? targetMinutes : expired ? Math.max(0, targetMinutes - 60) : row.worked_minutes,
+        workDeficitMinutes: maternityEarlyCredit ? 0 : expired ? Math.min(60, targetMinutes) : row.status === 'COMPLETED' && row.worked_minutes !== null
           ? Math.max(0, targetMinutes - row.worked_minutes)
           : row.work_deficit_minutes,
         arrivalLateMinutes: row.arrival_late_minutes, status: expired ? 'INCOMPLETE' : row.status,
@@ -166,7 +173,13 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
     };
 
     const attendanceByDate = new Map(allAttendance.map((row) => [row.workDate, row]));
-    const approvedAbsence = new Set(leaveRows.filter((row) => row.leave_type !== 'LATE_ARRIVAL' && row.status === 'APPROVED').map((row) => row.leave_date));
+    const approvedAbsence = new Set(leaveRows.filter((row) => row.leave_type !== 'LATE_ARRIVAL' && row.leave_type !== 'MATERNITY_LEAVE' && row.status === 'APPROVED').map((row) => row.leave_date));
+    for (const row of leaveRows) {
+      if (row.leave_type !== 'MATERNITY_LEAVE' || row.status !== 'APPROVED' || !row.full_leave_end_date) continue;
+      for (let date = row.leave_date > rangeStart ? row.leave_date : rangeStart; date <= row.full_leave_end_date && date < rangeEnd; date = addDate(date, 1)) {
+        approvedAbsence.add(date);
+      }
+    }
     const streakDays: DashboardStreakDay[] = [];
     if (staff.role === 'USER') {
       for (let date = today; date >= streakStart; date = addDate(date, -1)) {

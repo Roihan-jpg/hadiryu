@@ -40,6 +40,7 @@ const LEAVE_CODES: Record<LeaveType, string> = {
   FAMILY: 'KELUARGA',
   OTHER: 'LAINNYA',
   LATE_ARRIVAL: 'TERLAMBAT',
+  MATERNITY_LEAVE: 'CUTI MELAHIRKAN',
 };
 const TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Jakarta',

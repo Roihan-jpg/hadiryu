@@ -44,7 +44,7 @@ const AttendanceRowSchema = z.strictObject({
 });
 const LeaveRowSchema = z.strictObject({
   teacher_id: z.uuid(),
-  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL']),
+  leave_type: z.enum(['SICK', 'OFFICIAL_DUTY', 'FAMILY', 'OTHER', 'LATE_ARRIVAL', 'MATERNITY_LEAVE']),
 });
 const LatePermissionRowSchema = z.strictObject({
   teacher_id: z.uuid(),
@@ -221,9 +221,9 @@ export class SupabaseAdminAttendanceRepository
       this.client
         .from('leave_requests')
         .select('teacher_id,leave_type')
-        .eq('leave_date', workDate)
         .eq('status', 'APPROVED')
         .neq('leave_type', 'LATE_ARRIVAL')
+        .or(`and(leave_date.eq.${workDate},leave_type.neq.MATERNITY_LEAVE),and(leave_type.eq.MATERNITY_LEAVE,leave_date.lte.${workDate},full_leave_end_date.gte.${workDate})`)
         .in('teacher_id', teacherIds),
       this.client
         .from('leave_requests')

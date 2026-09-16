@@ -70,6 +70,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
   schedule: ScheduleRule | null = weekdaySchedule;
   geofence: GeofenceRule | null = geofence;
   approvedLeave = false;
+  maternityLeave: { status: 'PENDING' | 'APPROVED'; fullLeaveEndDate: string; earlyDepartureStartDate: string; earlyDepartureEndDate: string } | null = null;
   saveCount = 0;
 
   async findAttendance(): Promise<CheckInRecord | null> {
@@ -90,6 +91,10 @@ class FakeAttendanceRepository implements AttendanceRepository {
 
   async hasApprovedLeave(): Promise<boolean> {
     return this.approvedLeave;
+  }
+
+  async findMaternityLeave() {
+    return this.maternityLeave;
   }
 
   async saveCheckIn(input: SaveCheckInInput): Promise<CheckInRecord> {
@@ -181,6 +186,21 @@ describe('polygon geofence', () => {
 });
 
 describe('check-in domain service', () => {
+  it('blocks check-in throughout a pending maternity leave full-leave period', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.maternityLeave = {
+      status: 'PENDING',
+      fullLeaveEndDate: '2026-10-24',
+      earlyDepartureStartDate: '2026-10-25',
+      earlyDepartureEndDate: '2028-10-24',
+    };
+
+    await expect(serviceAt(repository, '2026-08-25T00:00:00.000Z').checkIn(
+      teacherId,
+      { latitude: -6.2, longitude: 106.816666, accuracyMeters: 10 },
+    )).rejects.toMatchObject({ code: 'MATERNITY_LEAVE_CHECK_IN_BLOCKED' });
+    expect(repository.saveCount).toBe(0);
+  });
   it('uses Asia/Jakarta server date and time, accepts boundary accuracy, and snapshots the result', async () => {
     const repository = new FakeAttendanceRepository();
     const service = serviceAt(repository, '2026-08-25T00:05:59.000Z');

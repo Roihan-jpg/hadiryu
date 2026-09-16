@@ -73,6 +73,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
   schedule: ScheduleRule | null = schedule;
   geofence: GeofenceRule | null = geofence;
   checkoutCount = 0;
+  maternityLeave: { status: 'PENDING' | 'APPROVED'; fullLeaveEndDate: string; earlyDepartureStartDate: string; earlyDepartureEndDate: string } | null = null;
 
   async findAttendance() {
     return this.attendance;
@@ -92,6 +93,10 @@ class FakeAttendanceRepository implements AttendanceRepository {
 
   async hasApprovedLeave(): Promise<boolean> {
     return false;
+  }
+
+  async findMaternityLeave() {
+    return this.maternityLeave;
   }
 
   async saveCheckIn(): Promise<CheckInRecord> {
@@ -131,6 +136,19 @@ function serviceAt(repository: FakeAttendanceRepository, iso: string) {
 }
 
 describe('checkout domain service', () => {
+  it('blocks checkout during an approved maternity early-departure period without changing attendance', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.maternityLeave = {
+      status: 'APPROVED',
+      fullLeaveEndDate: '2026-08-24',
+      earlyDepartureStartDate: '2026-08-25',
+      earlyDepartureEndDate: '2028-08-24',
+    };
+
+    await expect(serviceAt(repository, '2026-08-25T08:35:00.000Z').checkout(teacherId, location))
+      .rejects.toMatchObject({ code: 'MATERNITY_EARLY_DEPARTURE_CHECKOUT_BLOCKED' });
+    expect(repository.checkoutCount).toBe(0);
+  });
   it('uses server time, floors full minutes, and calculates the deficit', async () => {
     const repository = new FakeAttendanceRepository();
 

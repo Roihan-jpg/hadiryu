@@ -510,6 +510,40 @@ describe('Excel monthly report exporter', () => {
     expect(workbook.getWorksheet('Sheet1')!.getCell('B5').value).toBe(code);
   });
 
+  it('preserves the actual check-in for maternity early departure credit', async () => {
+    const report = preview(2026, 8);
+    report.teachers[0]!.days[1] = {
+      workDate: '2026-08-02',
+      scheduleType: 'WEEKDAY',
+      status: 'MATERNITY_EARLY_DEPARTURE',
+      attendanceId: '40000000-0000-4000-8000-000000000003',
+      checkInAt: '2026-08-02T00:00:00.000Z',
+      checkOutAt: null,
+      workStart: '07:00',
+      workEnd: '15:35',
+      targetMinutes: 515,
+      workedMinutes: 515,
+      arrivalLateMinutes: 0,
+      workDeficitMinutes: 0,
+      leaveType: 'MATERNITY_LEAVE',
+      calendarExceptionName: null,
+    };
+    const service = createExcelExportService(
+      new FakeMonthlyReportService(report),
+      new FakeAuditRepository(),
+      { templatePath },
+    );
+
+    const result = await service.export({ year: 2026, month: 8 }, teacherId);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(toArrayBuffer(result.buffer));
+
+    expect(excelMinutes(workbook.getWorksheet('Sheet1')!.getCell('B4').value)).toBe(
+      7 * 60,
+    );
+    expect(workbook.getWorksheet('Sheet1')!.getCell('C4').value).toBeNull();
+  });
+
   it('rejects a remaining error cell before recording the export audit', async () => {
     const temporaryDirectory = await mkdtemp(
       path.join(tmpdir(), 'absensi-excel-export-'),

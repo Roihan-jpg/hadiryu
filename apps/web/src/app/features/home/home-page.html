@@ -150,9 +150,10 @@
             {{ actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan Absen Masuk…') : 'Absen Masuk sekarang' }}
           </button>
         } @else if (today()?.state === 'CHECKED_IN') {
-          <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="actionInProgress()" (click)="checkout()">
-            {{ actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan Absen Pulang…') : 'Absen Pulang sekarang' }}
+          <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="actionInProgress() || maternityEarlyCheckoutBlocked()" (click)="checkout()">
+            {{ maternityEarlyCheckoutBlocked() ? 'Hak pulang pukul 14.00 aktif' : actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan Absen Pulang…') : 'Absen Pulang sekarang' }}
           </button>
+          @if (maternityEarlyCheckoutBlocked()) { <p class="form-blocked" role="status">Sistem memberi kredit kerja penuh; Absen Pulang tidak diperlukan pada periode ini.</p> }
         }
         @if (today()?.state === 'READY_TO_CHECK_IN') {
           <button mat-stroked-button class="late-arrival-trigger" type="button" data-action="late-arrival" [disabled]="actionInProgress()" (click)="toggleLateArrival()">

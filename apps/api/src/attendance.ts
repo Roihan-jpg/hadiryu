@@ -38,6 +38,7 @@ import {
   type ShiftBoundaries,
 } from './security-duty.js';
 import { adjustedAttendanceMetrics, type AttendanceAdjustmentContext } from './attendance-adjustments.js';
+import { maternityLeavePhase, type MaternityLeaveEntitlement } from './maternity-leave.js';
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
@@ -85,6 +86,10 @@ export interface AttendanceRepository {
   findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
   findGeofence(workDate: string): Promise<GeofenceRule | null>;
   hasApprovedLeave(teacherId: string, workDate: string): Promise<boolean>;
+  findMaternityLeave?(
+    teacherId: string,
+    workDate: string,
+  ): Promise<MaternityLeaveEntitlement | null>;
   findAttendancePermissions?(
     teacherId: string,
     records: Array<{ attendanceId: string; workDate: string }>,
@@ -656,6 +661,14 @@ export function createAttendanceService(
           'Check-in tidak dapat dilakukan karena izin sudah disetujui',
         );
       }
+      const maternityLeave = await repository.findMaternityLeave?.(teacherId, workDate);
+      if (maternityLeave && maternityLeavePhase(maternityLeave, workDate) === 'FULL_LEAVE') {
+        throw new AppError(
+          409,
+          'MATERNITY_LEAVE_CHECK_IN_BLOCKED',
+          'Check-in tidak dapat dilakukan selama Cuti Melahirkan aktif atau menunggu persetujuan',
+        );
+      }
       const { distanceMeters, boundaryClearanceMeters } = validatedLocation(location, geofence);
       const boundaries = scheduleBoundaries(workDate, day.schedule);
 
@@ -723,6 +736,16 @@ export function createAttendanceService(
         );
         return CompletedAttendanceRecordSchema.parse(
           applyAttendancePermissions(effectiveExisting, permissionContext?.get(effectiveExisting.workDate) ?? {}),
+        );
+      }
+      const maternityLeave = staff.role === 'USER'
+        ? await repository.findMaternityLeave?.(teacherId, effectiveExisting.workDate)
+        : null;
+      if (maternityLeave?.status === 'APPROVED' && maternityLeavePhase(maternityLeave, effectiveExisting.workDate) === 'EARLY_DEPARTURE') {
+        throw new AppError(
+          409,
+          'MATERNITY_EARLY_DEPARTURE_CHECKOUT_BLOCKED',
+          'Hak pulang pukul 14.00 aktif; sistem memberi kredit penuh tanpa Absen Pulang',
         );
       }
 

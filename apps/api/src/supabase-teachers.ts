@@ -25,6 +25,7 @@ const TeacherProfileRowSchema = z.strictObject({
   nip: z.string(),
   full_name: z.string(),
   whatsapp_number: z.string().nullable(),
+  gender: z.enum(['FEMALE', 'MALE']).nullable().optional(),
   role: z.enum(['USER', 'SECURITY_GUARD']),
   is_active: z.boolean(),
   created_at: z.string(),
@@ -32,7 +33,7 @@ const TeacherProfileRowSchema = z.strictObject({
 });
 
 const PROFILE_FIELDS =
-  'id,nip,full_name,whatsapp_number,role,is_active,created_at,updated_at';
+  'id,nip,full_name,whatsapp_number,gender,role,is_active,created_at,updated_at';
 
 function clientOptions() {
   return {
@@ -51,6 +52,7 @@ function toTeacher(value: unknown): Teacher {
     nip: row.nip,
     fullName: row.full_name,
     whatsappNumber: row.whatsapp_number,
+    gender: row.gender ?? null,
     role: row.role,
     isActive: row.is_active,
     mustChangePassword: false,
@@ -65,6 +67,7 @@ function auditSnapshot(teacher: Teacher) {
     nip: teacher.nip,
     fullName: teacher.fullName,
     whatsappNumber: teacher.whatsappNumber,
+    gender: teacher.gender,
     role: teacher.role,
     isActive: teacher.isActive,
   };
@@ -184,6 +187,7 @@ export class SupabaseTeacherService implements TeacherService {
         nip,
         full_name: input.fullName,
         whatsapp_number: input.whatsappNumber ?? null,
+        gender: input.gender,
         role: input.role ?? 'USER',
         is_active: true,
         must_change_password: false,
@@ -230,15 +234,17 @@ export class SupabaseTeacherService implements TeacherService {
     const nextWhatsappNumber = input.whatsappNumber === undefined
       ? before.whatsappNumber
       : input.whatsappNumber;
+    const nextGender = input.gender === undefined ? before.gender : input.gender;
     if (
       nextNip === before.nip &&
       nextFullName === before.fullName &&
-      nextWhatsappNumber === before.whatsappNumber
+      nextWhatsappNumber === before.whatsappNumber &&
+      nextGender === before.gender
     ) return before;
 
     const { data, error } = await this.client
       .from('profiles')
-      .update({ nip: nextNip, full_name: nextFullName, whatsapp_number: nextWhatsappNumber })
+      .update({ nip: nextNip, full_name: nextFullName, whatsapp_number: nextWhatsappNumber, gender: nextGender })
       .eq('id', teacherId)
       .in('role', ['USER', 'SECURITY_GUARD'])
       .select(PROFILE_FIELDS)
@@ -259,6 +265,7 @@ export class SupabaseTeacherService implements TeacherService {
         nip: before.nip,
         full_name: before.fullName,
         whatsapp_number: before.whatsappNumber,
+        gender: before.gender,
       }).eq('id', teacherId);
       throw auditError;
     }
