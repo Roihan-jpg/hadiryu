@@ -16,6 +16,7 @@ import type {
   SaveEarlyDepartureRequestInput,
 } from './early-departure-requests.js';
 import { SupabaseAttendanceRepository } from './supabase-attendance.js';
+import { findSupabaseOperationalLeaveBlock } from './supabase-operational-leave-block.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 
 const NumericValueSchema = z.union([z.number(), z.string()]);
@@ -141,6 +142,10 @@ export class SupabaseEarlyDepartureRequestRepository
   constructor(config: SupabaseAuthConfig) {
     this.client = createClient(config.url, config.secretKey, clientOptions());
     this.attendance = new SupabaseAttendanceRepository(config);
+  }
+
+  findOperationalLeaveBlock(teacherId: string, workDate: string) {
+    return findSupabaseOperationalLeaveBlock(this.client, teacherId, workDate);
   }
 
   findAttendance(teacherId: string, workDate: string) {

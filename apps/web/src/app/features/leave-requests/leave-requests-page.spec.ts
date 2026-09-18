@@ -124,4 +124,20 @@ describe('LeaveRequestsPage', () => {
     const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
   });
+
+  it('disables every new leave submission while an active absence blocks operations', async () => {
+    await setup();
+    fetchToday.mockResolvedValue({
+      serverNow: '2026-09-06T00:00:00.000Z', workDate: '2026-09-06', state: 'LEAVE_BLOCKED', schedule: null, attendance: null,
+      operationalBlock: { leaveType: 'SICK', status: 'APPROVED', phase: 'SINGLE_DAY', blockedActions: ['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'] },
+    });
+    await fixture.componentInstance.todayQuery.refetch();
+    fixture.detectChanges();
+    fixture.componentInstance.form.controls.reason.setValue('Izin lain');
+
+    await fixture.componentInstance.submit();
+
+    expect(create).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Pengajuan izin ditutup selama izin aktif');
+  });
 });

@@ -89,15 +89,20 @@ export class LeaveRequestsPage {
   }));
   readonly isTodayLeaveBlocked = computed(() => {
     const today = this.todayQuery.data();
+    if (today?.operationalBlock?.blockedActions.includes('CREATE_LEAVE')) return true;
     return today?.workDate === this.selectedLeaveDate() &&
       (today.state === 'CHECKED_IN' || today.state === 'COMPLETED' || today.state === 'INCOMPLETE');
   });
   readonly submitDisabled = computed(() =>
     this.actionInProgress() !== null || this.todayQuery.isPending() || this.isTodayLeaveBlocked(),
   );
-  readonly leaveBlockMessage = computed(() => this.isTodayLeaveBlocked()
-    ? 'Izin untuk hari ini tidak dapat diajukan karena Absen Masuk sudah tercatat.'
-    : '');
+  readonly leaveBlockMessage = computed(() => {
+    const today = this.todayQuery.data();
+    if (today?.operationalBlock?.blockedActions.includes('CREATE_LEAVE')) {
+      return 'Pengajuan izin ditutup selama izin aktif pada hari ini.';
+    }
+    return this.isTodayLeaveBlocked() ? 'Izin untuk hari ini tidak dapat diajukan karena Absen Masuk sudah tercatat.' : '';
+  });
   readonly displayErrorMessage = computed(() => this.errorMessage() || (this.requestsQuery.isError()
     ? 'Daftar izin tidak dapat dimuat. Periksa koneksi lalu coba lagi.'
     : ''));

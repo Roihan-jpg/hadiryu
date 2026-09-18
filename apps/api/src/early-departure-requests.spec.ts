@@ -11,6 +11,7 @@ import {
   createEarlyDepartureRequestService,
   type EarlyDepartureRequestRepository,
 } from './early-departure-requests.js';
+import type { OperationalLeaveBlock } from './operational-leave-block.js';
 
 const teacherId = '50000000-0000-4000-8000-000000000001';
 const adminId = '50000000-0000-4000-8000-000000000002';
@@ -78,10 +79,12 @@ class FakeRepository implements EarlyDepartureRequestRepository {
   geofence: GeofenceRule | null = geofence;
   schedule: ScheduleRule | null = schedule;
   request: EarlyDepartureRequest | null = pending;
+  operationalBlock: OperationalLeaveBlock | null = null;
 
   async findAttendance() { return this.attendance; }
   async findGeofence() { return this.geofence; }
   async findSchedule() { return this.schedule; }
+  async findOperationalLeaveBlock() { return this.operationalBlock; }
   async create(): Promise<EarlyDepartureRequest> { return pending; }
   async findOwn() { return this.request; }
   async listOwn() { return { records: this.request ? [this.request] : [], totalItems: this.request ? 1 : 0 }; }
@@ -107,6 +110,16 @@ function service(repository = new FakeRepository(), now = '2026-08-31T06:00:00.0
 }
 
 describe('early departure request service', () => {
+  it('blocks early departure during maternity 14.00 entitlement', async () => {
+    const repository = new FakeRepository();
+    repository.operationalBlock = {
+      leaveType: 'MATERNITY_LEAVE', status: 'APPROVED', phase: 'EARLY_DEPARTURE',
+      blockedActions: ['CHECKOUT', 'EARLY_DEPARTURE'],
+    };
+    await expect(service(repository).create(teacherId, {
+      reason: 'Keperluan keluarga', latitude: -8.1328, longitude: 113.2219, accuracyMeters: 10,
+    })).rejects.toMatchObject({ code: 'OPERATION_BLOCKED_BY_LEAVE' });
+  });
   it('creates a request only for an active attendance before work end', async () => {
     await expect(
       service().create(teacherId, {

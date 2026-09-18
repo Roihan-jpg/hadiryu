@@ -64,6 +64,8 @@
                 Hari libur
               } @else if (today()?.state === 'CONFIGURATION_ERROR') {
                 Jadwal belum siap
+              } @else if (today()?.state === 'LEAVE_BLOCKED') {
+                Aksi absensi ditutup
               } @else {
                 Belum Absen Masuk
               }
@@ -120,6 +122,8 @@
           <p class="state-copy">Tidak ada jadwal kerja yang perlu dicatat hari ini.</p>
         } @else if (today()?.state === 'CONFIGURATION_ERROR') {
           <p class="state-copy">Konfigurasi hari ini belum lengkap. Hubungi SuperAdmin.</p>
+        } @else if (today()?.state === 'LEAVE_BLOCKED') {
+          <p class="form-blocked" role="status">{{ operationalBlockMessage() }}</p>
         }
 
         @if (errorMessage()) {
@@ -153,7 +157,7 @@
           <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="actionInProgress() || maternityEarlyCheckoutBlocked()" (click)="checkout()">
             {{ maternityEarlyCheckoutBlocked() ? 'Hak pulang pukul 14.00 aktif' : actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan Absen Pulang…') : 'Absen Pulang sekarang' }}
           </button>
-          @if (maternityEarlyCheckoutBlocked()) { <p class="form-blocked" role="status">Sistem memberi kredit kerja penuh; Absen Pulang tidak diperlukan pada periode ini.</p> }
+          @if (maternityEarlyCheckoutBlocked()) { <p class="form-blocked" role="status">{{ operationalBlockMessage() }}</p> }
         }
         @if (today()?.state === 'READY_TO_CHECK_IN') {
           <button mat-stroked-button class="late-arrival-trigger" type="button" data-action="late-arrival" [disabled]="actionInProgress()" (click)="toggleLateArrival()">
@@ -244,7 +248,7 @@
         <p class="permission-note" role="status" aria-live="polite">Mencari lokasi perangkat…</p>
       }
 
-      <button mat-stroked-button data-action="location-preview" type="button" [disabled]="locationRequestInProgress()" (click)="showLocationPreview()">
+      <button mat-stroked-button data-action="location-preview" type="button" [disabled]="locationRequestInProgress() || attendanceActionsBlocked()" (click)="showLocationPreview()">
         @if (locationPreviewInProgress()) { Meningkatkan akurasi… } @else if (locationPreview()) { Perbarui lokasi } @else { Tampilkan lokasi saya }
       </button>
     </section>

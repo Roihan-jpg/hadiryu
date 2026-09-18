@@ -9,7 +9,7 @@
     </div>
     <div class="identity-copy">
       <p class="eyebrow">{{ user()?.role === 'SECURITY_GUARD' ? 'Pos Jaga · Dashboard Satpam' : 'Dashboard Guru' }}</p>
-      <h1 id="home-title">Absen {{ user()?.fullName }}</h1>
+      <h1 id="home-title">{{ user()?.fullName }}</h1>
       <span>NIP {{ user()?.nip }}</span>
       @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
     </div>

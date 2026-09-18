@@ -146,6 +146,23 @@ describe('HomePage check-in', () => {
     fixture.detectChanges();
   }
 
+  it('shows a leave block and does not request GPS for blocked check-in', async () => {
+    await setup({
+      ...ready,
+      state: 'LEAVE_BLOCKED',
+      operationalBlock: {
+        leaveType: 'SICK', status: 'PENDING', phase: 'SINGLE_DAY',
+        blockedActions: ['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'],
+      },
+    } as TodayAttendanceResponse);
+
+    await fixture.componentInstance.checkIn();
+    fixture.detectChanges();
+
+    expect(geolocation.getCurrentPosition).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Aksi absensi dan pengajuan izin ditutup');
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     TestBed.resetTestingModule();

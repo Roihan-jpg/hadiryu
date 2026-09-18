@@ -24,8 +24,8 @@ import {
   PreciseLocationError,
   type LocationAccuracyProgress,
 } from '../attendance/geolocation';
-import { LeaveRequestsService } from '../leave-requests/leave-requests.service';
 import { RequestQuotasService } from '../request-quotas.service';
+import { LeaveRequestsService } from '../leave-requests/leave-requests.service';
 import { TeacherLocationMap } from './teacher-location-map';
 import { SecurityDashboardService } from './security-dashboard.service';
 
@@ -83,8 +83,8 @@ export class HomePage {
   private readonly destroyRef = inject(DestroyRef);
   private readonly geolocation = inject(GEOLOCATION);
   private readonly geolocationPermissions = inject(GEOLOCATION_PERMISSIONS);
-  private readonly leaveRequestsService = inject(LeaveRequestsService);
   private readonly requestQuotasService = inject(RequestQuotasService);
+  private readonly leaveRequestsService = inject(LeaveRequestsService);
   private readonly router = inject(Router);
   private readonly securityDashboardService = inject(SecurityDashboardService, { optional: true });
 
@@ -100,20 +100,18 @@ export class HomePage {
   readonly today = computed<TodayAttendanceResponse | null>(() =>
     this.todayQuery.isError() ? null : this.todayQuery.data() ?? null,
   );
-  readonly maternityLeaveQuery = injectQuery(() => ({
-    queryKey: queryKeys.leaveRequests('own', { page: 1, pageSize: 100 }),
-    queryFn: () => this.leaveRequestsService.fetchOwn({ page: 1, pageSize: 100 }),
-    enabled: this.user()?.role === 'USER',
-  }));
-  readonly maternityEarlyCheckoutBlocked = computed(() => {
-    const today = this.today();
-    if (today?.state !== 'CHECKED_IN') return false;
-    return (this.maternityLeaveQuery.data()?.data ?? []).some((leave) =>
-      leave.leaveType === 'MATERNITY_LEAVE' && leave.status === 'APPROVED' &&
-      leave.earlyDepartureStartDate !== null && leave.earlyDepartureStartDate !== undefined &&
-      leave.earlyDepartureEndDate !== null && leave.earlyDepartureEndDate !== undefined &&
-      today.workDate >= leave.earlyDepartureStartDate && today.workDate <= leave.earlyDepartureEndDate,
-    );
+  readonly maternityEarlyCheckoutBlocked = computed(() =>
+    this.today()?.operationalBlock?.blockedActions.includes('CHECKOUT') ?? false,
+  );
+  readonly attendanceActionsBlocked = computed(() => {
+    const actions = this.today()?.operationalBlock?.blockedActions ?? [];
+    return actions.includes('CHECK_IN') || actions.includes('CHECKOUT');
+  });
+  readonly operationalBlockMessage = computed(() => {
+    const block = this.today()?.operationalBlock;
+    if (!block) return '';
+    if (block.phase === 'EARLY_DEPARTURE') return 'Hak pulang pukul 14.00 aktif. Absen Pulang dan Pulang Awal tidak diperlukan.';
+    return `Aksi absensi dan pengajuan izin ditutup karena izin ${block.status === 'PENDING' ? 'masih menunggu keputusan' : 'telah disetujui'}.`;
   });
   readonly securityDashboardQuery = injectQuery(() => ({
     queryKey: queryKeys.securityDashboard,
@@ -195,7 +193,7 @@ export class HomePage {
   }
 
   async checkIn(): Promise<void> {
-    if (this.actionInProgress()) return;
+    if (this.actionInProgress() || this.today()?.operationalBlock?.blockedActions.includes('CHECK_IN')) return;
     this.actionInProgress.set(true);
     this.errorMessage.set(null);
     this.locationPreviewError.set(null);
@@ -333,6 +331,7 @@ export class HomePage {
   }
 
   async showLocationPreview(): Promise<void> {
+    if (this.attendanceActionsBlocked()) return;
     if (this.actionInProgress()) return;
     try {
       await this.startLocationAcquisition(true);
