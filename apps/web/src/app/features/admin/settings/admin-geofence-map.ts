@@ -37,7 +37,11 @@ export const ADMIN_GEOFENCE_LEAFLET = new InjectionToken<AdminLeafletApi>(
   styles: `
     :host { display: block; }
     .map-host {
+      position: relative;
+      z-index: 0;
+      isolation: isolate;
       min-height: 28rem;
+      overflow: hidden;
       border: 1px solid #aebbd0;
       border-radius: .75rem;
       background: #e9eef5;

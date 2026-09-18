@@ -42,6 +42,7 @@ describe('teacher contracts', () => {
         fullName: 'Guru Baru',
         initialPassword: 'Guru1234',
         whatsappNumber: '  +628123456789  ',
+        gender: 'FEMALE',
       }).whatsappNumber,
     ).toBe('+628123456789');
     expect(
@@ -50,6 +51,7 @@ describe('teacher contracts', () => {
         fullName: 'Guru Baru',
         initialPassword: 'Guru1234',
         whatsappNumber: '08123456789',
+        gender: 'FEMALE',
       }).success,
     ).toBe(false);
   });
@@ -59,6 +61,7 @@ describe('teacher contracts', () => {
       nip: '19870001',
       fullName: 'Guru Baru',
       initialPassword: 'Guru1234',
+      gender: 'FEMALE',
       role: 'SUPER_ADMIN',
     });
 

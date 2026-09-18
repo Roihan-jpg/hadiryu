@@ -40,6 +40,13 @@ describe('staff dashboard service', () => {
           reason: 'Kendaraan bermasalah', decisionNote: null, attachment: null,
         }],
         earlyDepartures: [], latestEarlyDeparture: null,
+        chartDays: [
+          { workDate: '2026-09-10', status: 'OPEN', targetMinutes: 515 },
+          { workDate: '2026-09-11', status: 'ABSENT', targetMinutes: 515 },
+          { workDate: '2026-09-12', status: 'LEAVE_APPROVED', targetMinutes: 515 },
+          { workDate: '2026-09-13', status: 'NON_WORKING_DAY', targetMinutes: null },
+          { workDate: '2026-09-14', status: 'FUTURE', targetMinutes: null },
+        ],
         streakDays: [{
           workDate: '2026-09-10', kind: 'WORKING',
           attendance: { actualLateMinutes: 15, lateArrivalStatus: 'PENDING' },
@@ -57,7 +64,17 @@ describe('staff dashboard service', () => {
 
     expect(result.metrics.actualLateDays).toBe(1);
     expect(result.metrics.effectiveLateDays).toBe(0);
-    expect(result.punctualityTrend[0]).toMatchObject({ actualLateMinutes: 15, effectiveLateMinutes: 0, arrivalOffsetMinutes: -15 });
+    expect(result.attendanceTrend).toEqual([
+      expect.objectContaining({
+        workDate: '2026-09-10', status: 'COMPLETED',
+        actual: expect.objectContaining({ checkInAt: '2026-09-10T00:15:00.000Z', checkOutAt: '2026-09-10T08:30:00.000Z', arrivalOffsetMinutes: -15, lateMinutes: 15, workedMinutes: 495, workDeficitMinutes: 20 }),
+        effective: expect.objectContaining({ arrivalOffsetMinutes: 0, lateMinutes: 0, workedMinutes: 510, workDeficitMinutes: 5 }),
+      }),
+      expect.objectContaining({ workDate: '2026-09-11', status: 'ABSENT', actual: null, effective: null }),
+      expect.objectContaining({ workDate: '2026-09-12', status: 'LEAVE_APPROVED', actual: null, effective: null }),
+      expect.objectContaining({ workDate: '2026-09-13', status: 'NON_WORKING_DAY', actual: null, effective: null }),
+      expect.objectContaining({ workDate: '2026-09-14', status: 'FUTURE', actual: null, effective: null }),
+    ]);
     expect(result.activity.pagination).toMatchObject({ page: 1, pageSize: 1, totalItems: 2, totalPages: 2 });
     expect(result.streak).toMatchObject({ status: 'AVAILABLE', currentDays: 1, provisional: true, nextMilestone: 3, daysRemaining: 2 });
   });

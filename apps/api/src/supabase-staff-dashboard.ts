@@ -5,6 +5,7 @@ import { AppError } from './auth.js';
 import { jakartaDateTime } from './attendance.js';
 import type {
   DashboardAttendanceSource,
+  DashboardChartDay,
   DashboardStreakDay,
   StaffDashboardRepository,
   StaffDashboardSource,
@@ -58,6 +59,10 @@ function addDate(value: string, days: number): string {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function maxDate(left: string, right: string | null): string {
+  return right && right > left ? right : left;
 }
 
 function attachment(row: { attachment_original_name: string | null; attachment_mime_type: 'application/pdf' | 'image/jpeg' | 'image/png' | null; attachment_size_bytes: number | null }) {
@@ -199,6 +204,33 @@ export class SupabaseStaffDashboardRepository implements StaffDashboardRepositor
         } : null });
       }
     }
-    return { attendances: monthAttendance, leaves, earlyDepartures, latestEarlyDeparture: toEarly(latestEarlyResult.data), streakDays };
+    const chartStart = maxDate(createdDate, operationalStart);
+    const chartDays: DashboardChartDay[] = [];
+    if (staff.role === 'USER') {
+      for (let date = monthStart; date < monthEnd; date = addDate(date, 1)) {
+        const absence = leaveRows.find((row) => row.leave_type !== 'LATE_ARRIVAL' && (
+          row.leave_type === 'MATERNITY_LEAVE'
+            ? Boolean(row.full_leave_end_date && date >= row.leave_date && date <= row.full_leave_end_date)
+            : row.leave_date === date
+        ));
+        const exception = calendars.get(date);
+        const scheduleType = exception?.exception_type === 'HOLIDAY' ? null
+          : exception?.exception_type === 'WORKING_DAY' ? exception.schedule_type
+            : defaultScheduleType(date);
+        const schedule = scheduleType ? scheduleFor(schedules, date, scheduleType) : null;
+        const status = date < chartStart ? 'NOT_TRACKED'
+          : date > today ? 'FUTURE'
+            : absence?.status === 'PENDING' ? 'LEAVE_PENDING'
+              : absence?.status === 'APPROVED' ? 'LEAVE_APPROVED'
+                : absence?.status === 'REJECTED' ? 'LEAVE_REJECTED'
+                  : !scheduleType ? 'NON_WORKING_DAY'
+                    : !schedule ? 'CONFIGURATION_MISSING'
+                      : date === today && jakartaDateTime(serverNow).minuteOfDay <= Number(schedule.check_in_close.slice(0, 2)) * 60 + Number(schedule.check_in_close.slice(3, 5)) ? 'OPEN'
+                        : 'ABSENT';
+        chartDays.push({ workDate: date, status, targetMinutes: schedule?.target_minutes ?? null });
+      }
+    }
+
+    return { attendances: monthAttendance, leaves, earlyDepartures, latestEarlyDeparture: toEarly(latestEarlyResult.data), chartDays, streakDays };
   }
 }

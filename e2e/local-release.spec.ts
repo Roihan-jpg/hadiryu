@@ -97,12 +97,14 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     fullName: 'Guru Smoke E2E',
     initialPassword: teacherInitialPassword,
     whatsappNumber: '+6281234567801',
+    gender: 'FEMALE',
   }));
   await expectSuccessfulJsonMutation(page, '/api/admin/teachers', {
     nip: earlyTeacherNip,
     fullName: 'Guru Pulang Awal E2E',
     initialPassword: earlyTeacherInitialPassword,
     whatsappNumber: '+6281234567802',
+    gender: 'MALE',
   });
   const reset = PasswordResetResponseSchema.parse(await expectSuccessfulJsonMutation(
     page,
@@ -112,7 +114,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await logout(page);
   await login(page, teacherNip, reset.newPassword);
   await page.getByRole('link', { name: 'Absen', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /Absen Guru Smoke E2E/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Belum Absen Masuk' })).toBeVisible();
   await expect(page.locator('app-teacher-location-map')).toHaveCount(0);
   await page.getByRole('button', { name: 'Tampilkan lokasi saya' }).click();
   await expect(page.locator('app-teacher-location-map')).toBeVisible();
@@ -135,7 +137,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   );
   await earlyPage.getByRole('link', { name: 'Absen', exact: true }).click();
   await expect(
-    earlyPage.getByRole('heading', { name: /Absen Guru Pulang Awal E2E/ }),
+    earlyPage.getByRole('heading', { name: 'Belum Absen Masuk' }),
   ).toBeVisible();
 
   await waitForJakartaMinute(attendanceWindow);

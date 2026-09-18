@@ -82,6 +82,45 @@ export const PunctualityTrendItemSchema = z.strictObject({
 });
 export type PunctualityTrendItem = z.infer<typeof PunctualityTrendItemSchema>;
 
+export const AttendanceTrendStatusSchema = z.enum([
+  'COMPLETED',
+  'CHECKED_IN',
+  'INCOMPLETE',
+  'LEAVE_PENDING',
+  'LEAVE_APPROVED',
+  'LEAVE_REJECTED',
+  'ABSENT',
+  'OPEN',
+  'NON_WORKING_DAY',
+  'FUTURE',
+  'CONFIGURATION_MISSING',
+  'NOT_TRACKED',
+]);
+export type AttendanceTrendStatus = z.infer<typeof AttendanceTrendStatusSchema>;
+
+const AttendanceTrendMetricsSchema = z.strictObject({
+  arrivalOffsetMinutes: z.number().int(),
+  lateMinutes: z.number().int().nonnegative(),
+  workedMinutes: z.number().int().nonnegative().nullable(),
+  workDeficitMinutes: z.number().int().nonnegative().nullable(),
+});
+
+export const AttendanceTrendDaySchema = z.strictObject({
+  workDate: LocalDateSchema,
+  status: AttendanceTrendStatusSchema,
+  targetMinutes: z.number().int().nonnegative().nullable(),
+  actual: z.strictObject({
+    checkInAt: z.iso.datetime({ offset: true }),
+    checkOutAt: z.iso.datetime({ offset: true }).nullable(),
+  }).merge(AttendanceTrendMetricsSchema).nullable(),
+  effective: AttendanceTrendMetricsSchema.nullable(),
+  credit: z.strictObject({
+    lateArrival: z.boolean(),
+    earlyDeparture: z.boolean(),
+  }),
+});
+export type AttendanceTrendDay = z.infer<typeof AttendanceTrendDaySchema>;
+
 export const StaffDashboardMetricsSchema = z.strictObject({
   attendanceDays: z.number().int().nonnegative(),
   onTimeDays: z.number().int().nonnegative(),
@@ -121,6 +160,7 @@ export const StaffDashboardResponseSchema = z.strictObject({
   requestQuotas: RequestQuotaResponseSchema,
   metrics: StaffDashboardMetricsSchema,
   punctualityTrend: z.array(PunctualityTrendItemSchema),
+  attendanceTrend: z.array(AttendanceTrendDaySchema),
   activity: z.strictObject({
     data: z.array(DashboardActivitySchema),
     pagination: PaginationSchema,

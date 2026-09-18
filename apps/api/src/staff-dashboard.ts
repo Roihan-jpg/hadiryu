@@ -2,6 +2,8 @@ import {
   StaffDashboardQuerySchema,
   StaffDashboardResponseSchema,
   type AuthUser,
+  type AttendanceTrendDay,
+  type AttendanceTrendStatus,
   type DashboardActivity,
   type EarlyDepartureDashboardActivity,
   type LeaveStatus,
@@ -43,11 +45,18 @@ export interface DashboardStreakDay {
   attendance: { actualLateMinutes: number; lateArrivalStatus: LeaveStatus | null } | null;
 }
 
+export interface DashboardChartDay {
+  workDate: string;
+  status: Exclude<AttendanceTrendStatus, 'COMPLETED' | 'CHECKED_IN' | 'INCOMPLETE'>;
+  targetMinutes: number | null;
+}
+
 export interface StaffDashboardSource {
   attendances: DashboardAttendanceSource[];
   leaves: Extract<DashboardActivity, { type: 'LEAVE' }>[];
   earlyDepartures: EarlyDepartureDashboardActivity[];
   latestEarlyDeparture: EarlyDepartureDashboardActivity | null;
+  chartDays?: DashboardChartDay[];
   streakDays: DashboardStreakDay[];
 }
 
@@ -83,6 +92,40 @@ function toAttendanceActivity(attendance: DashboardAttendanceSource): Extract<Da
     lateArrivalStatus: attendance.lateArrivalStatus,
     workedMinutes: effective.workedMinutes,
     workDeficitMinutes: effective.workDeficitMinutes,
+  };
+}
+
+function toAttendanceTrendDay(
+  attendance: DashboardAttendanceSource | undefined,
+  chartDay: DashboardChartDay,
+): AttendanceTrendDay {
+  if (!attendance) {
+    return {
+      workDate: chartDay.workDate, status: chartDay.status, targetMinutes: chartDay.targetMinutes,
+      actual: null, effective: null, credit: { lateArrival: false, earlyDeparture: false },
+    };
+  }
+  const effective = adjustedAttendanceMetrics(attendance, {
+    lateArrivalStatus: attendance.lateArrivalStatus,
+    earlyDepartureStatus: attendance.earlyDepartureStatus,
+  });
+  const lateArrival = attendance.lateArrivalStatus === 'PENDING' || attendance.lateArrivalStatus === 'APPROVED';
+  const earlyDeparture = attendance.earlyDepartureStatus === 'APPROVED';
+  return {
+    workDate: attendance.workDate,
+    status: attendance.status,
+    targetMinutes: attendance.targetMinutes,
+    actual: {
+      checkInAt: attendance.checkInAt, checkOutAt: attendance.checkOutAt,
+      arrivalOffsetMinutes: arrivalOffset(attendance), lateMinutes: attendance.arrivalLateMinutes, workedMinutes: attendance.workedMinutes,
+      workDeficitMinutes: attendance.workDeficitMinutes,
+    },
+    effective: {
+      arrivalOffsetMinutes: arrivalOffset(attendance) > 0 ? arrivalOffset(attendance) : effective.arrivalLateMinutes === 0 ? 0 : -effective.arrivalLateMinutes,
+      lateMinutes: effective.arrivalLateMinutes, workedMinutes: effective.workedMinutes,
+      workDeficitMinutes: effective.workDeficitMinutes,
+    },
+    credit: { lateArrival, earlyDeparture },
   };
 }
 
@@ -131,6 +174,12 @@ export function createStaffDashboardService(dependencies: {
           : Promise.resolve(null),
       ]);
       const attendance = source.attendances.map(toAttendanceActivity);
+      const attendanceByDate = new Map(source.attendances.map((item) => [item.workDate, item]));
+      const attendanceTrend = (source.chartDays ?? source.attendances.map((item) => ({
+        workDate: item.workDate,
+        status: 'ABSENT' as const,
+        targetMinutes: item.targetMinutes,
+      }))).map((chartDay) => toAttendanceTrendDay(attendanceByDate.get(chartDay.workDate), chartDay));
       const metrics = {
         attendanceDays: attendance.length,
         onTimeDays: attendance.filter((item) => item.effectiveLateMinutes === 0).length,
@@ -154,6 +203,7 @@ export function createStaffDashboardService(dependencies: {
             actualLateMinutes: item.actualLateMinutes, effectiveLateMinutes: item.effectiveLateMinutes,
             lateArrivalStatus: item.lateArrivalStatus }))
           .sort((left, right) => left.workDate.localeCompare(right.workDate)),
+        attendanceTrend,
         activity: { data: allActivity.slice(start, start + input.pageSize),
           pagination: { page: input.page, pageSize: input.pageSize, totalItems, totalPages } },
         latestEarlyDeparture: source.latestEarlyDeparture,

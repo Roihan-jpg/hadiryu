@@ -1,15 +1,16 @@
 import type {
   DashboardActivity,
   DashboardActivityFilter,
+  AttendanceTrendDay,
   EarlyDepartureDashboardActivity,
-  PunctualityTrendItem,
   TeacherStreak,
 } from '@absensi/contracts';
 import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorIntl, MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
-import { MatSelectModule } from '@angular/material/select';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
@@ -25,7 +26,7 @@ type AnimatedStreakTier = Exclude<StreakTier, 'NONE'>;
 const STREAK_ANIMATION_BASE_URL = 'https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak';
 
 function animatedStreakTier(streak: TeacherStreak | null | undefined): AnimatedStreakTier | null {
-  return streak?.status === 'AVAILABLE' && streak.tier !== 'NONE' ? streak.tier : 'RED';
+  return streak?.status === 'AVAILABLE' && streak.tier !== 'NONE' ? streak.tier : null;
 }
 
 export function streakAnimationUrl(streak: TeacherStreak | null | undefined): string | null {
@@ -46,7 +47,7 @@ function currentJakartaMonth(): string {
 }
 
 @Component({
-  imports: [MatButtonModule, MatPaginatorModule, MatSelectModule, ReactiveFormsModule, RouterLink],
+  imports: [MatButtonModule, MatFormFieldModule, MatInputModule, MatPaginatorModule, ReactiveFormsModule, RouterLink],
   selector: 'app-staff-dashboard-page',
   providers: [{ provide: MatPaginatorIntl, useFactory: createIndonesianPaginatorIntl }],
   styleUrl: './staff-dashboard-page.scss',
@@ -71,6 +72,7 @@ export class StaffDashboardPage implements OnDestroy {
   readonly previewLoadingId = signal<string | null>(null);
   readonly previewErrorId = signal<string | null>(null);
   readonly failedStreakAnimationTier = signal<AnimatedStreakTier | null>(null);
+  readonly attendanceTrend = computed(() => this.dashboard()?.attendanceTrend ?? []);
   readonly chartBars = computed(() => {
     const values = this.dashboard()?.punctualityTrend ?? [];
     const maximum = Math.max(1, ...values.map((item) => Math.abs(item.arrivalOffsetMinutes)));
@@ -151,10 +153,37 @@ export class StaffDashboardPage implements OnDestroy {
   dateLabel(workDate: string): string { return new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${workDate}T00:00:00.000Z`)); }
   monthLabel(month: string): string { return new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${month}-01T00:00:00.000Z`)); }
   minutesLabel(value: number): string { const hours = Math.floor(value / 60); const minutes = value % 60; return hours ? `${hours} j ${minutes} m` : `${minutes} m`; }
-  timingLabel(item: PunctualityTrendItem): string {
+  timingLabel(item: { arrivalOffsetMinutes: number } | null, effectiveLateMinutes?: number): string {
+    if (!item) return 'Tidak ada Absen Masuk';
     if (item.arrivalOffsetMinutes > 0) return `${item.arrivalOffsetMinutes} menit lebih awal`;
-    if (item.arrivalOffsetMinutes < 0) return `${Math.abs(item.arrivalOffsetMinutes)} menit terlambat${item.effectiveLateMinutes === 0 ? ', efektif 0 menit karena izin' : ''}`;
+    if (item.arrivalOffsetMinutes < 0) return `${Math.abs(item.arrivalOffsetMinutes)} menit terlambat${effectiveLateMinutes === 0 ? ', efektif 0 menit karena izin' : ''}`;
     return 'Tepat waktu';
+  }
+  arrivalBarSize(offsetMinutes: number): number { return Math.max(4, Math.min(92, Math.abs(offsetMinutes) * 3)); }
+  workedHeight(day: AttendanceTrendDay, kind: 'actual' | 'effective'): number {
+    const value = day[kind]?.workedMinutes;
+    if (value === null || value === undefined || !day.targetMinutes) return 0;
+    return Math.max(4, Math.min(100, Math.round(value / day.targetMinutes * 100)));
+  }
+  deficitHeight(day: AttendanceTrendDay, kind: 'actual' | 'effective'): number {
+    const value = day[kind]?.workDeficitMinutes;
+    if (value === null || value === undefined || !day.targetMinutes) return 0;
+    return Math.max(3, Math.min(100, Math.round(value / day.targetMinutes * 100)));
+  }
+  trendStatusLabel(status: AttendanceTrendDay['status']): string {
+    return ({
+      COMPLETED: 'Hadir lengkap', CHECKED_IN: 'Sedang bekerja', INCOMPLETE: 'Belum checkout',
+      LEAVE_PENDING: 'Izin menunggu', LEAVE_APPROVED: 'Izin disetujui', LEAVE_REJECTED: 'Izin ditolak',
+      ABSENT: 'Alpa', OPEN: 'Menunggu Absen Masuk', NON_WORKING_DAY: 'Libur', FUTURE: 'Tanggal mendatang',
+      CONFIGURATION_MISSING: 'Jadwal belum tersedia', NOT_TRACKED: 'Belum berlaku',
+    } as Record<AttendanceTrendDay['status'], string>)[status];
+  }
+  trendAriaLabel(day: AttendanceTrendDay): string {
+    const status = this.trendStatusLabel(day.status);
+    if (!day.actual || !day.effective) return `${this.dateLabel(day.workDate)}: ${status}.`;
+    const credit = [day.credit.lateArrival ? 'Izin terlambat memberi kredit' : '', day.credit.earlyDeparture ? 'Pulang awal memberi kredit' : '']
+      .filter(Boolean).join('. ');
+    return `${this.dateLabel(day.workDate)}: ${status}. Absen Masuk ${this.jakartaTime(day.actual.checkInAt)} WIB; ${day.actual.checkOutAt ? `Absen Pulang ${this.jakartaTime(day.actual.checkOutAt)} WIB` : 'Absen Pulang belum tercatat'}. Datang aktual ${this.timingLabel(day.actual, day.effective.lateMinutes)}; durasi aktual ${this.minutesLabel(day.actual.workedMinutes ?? 0)}, efektif ${this.minutesLabel(day.effective.workedMinutes ?? 0)}; kekurangan aktual ${this.minutesLabel(day.actual.workDeficitMinutes ?? 0)}, efektif ${this.minutesLabel(day.effective.workDeficitMinutes ?? 0)}.${credit ? ` ${credit}.` : ''}`;
   }
   activityTitle(activity: DashboardActivity): string {
     if (activity.type === 'ATTENDANCE') return 'Absensi harian';

@@ -132,6 +132,7 @@ describe('LeaveRequestsPage', () => {
       operationalBlock: { leaveType: 'SICK', status: 'APPROVED', phase: 'SINGLE_DAY', blockedActions: ['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'] },
     });
     await fixture.componentInstance.todayQuery.refetch();
+    await vi.waitFor(() => expect(fixture.componentInstance.isTodayLeaveBlocked()).toBe(true));
     fixture.detectChanges();
     fixture.componentInstance.form.controls.reason.setValue('Izin lain');
 
