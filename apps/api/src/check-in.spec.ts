@@ -13,6 +13,7 @@ import {
   type AttendanceRepository,
   type SaveCheckInInput,
 } from './attendance.js';
+import type { OperationalLeaveBlock } from './operational-leave-block.js';
 
 const teacherId = '50000000-0000-4000-8000-000000000001';
 
@@ -71,6 +72,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
   geofence: GeofenceRule | null = geofence;
   approvedLeave = false;
   maternityLeave: { status: 'PENDING' | 'APPROVED'; fullLeaveEndDate: string; earlyDepartureStartDate: string; earlyDepartureEndDate: string } | null = null;
+  operationalBlock: OperationalLeaveBlock | null = null;
   saveCount = 0;
 
   async findAttendance(): Promise<CheckInRecord | null> {
@@ -95,6 +97,17 @@ class FakeAttendanceRepository implements AttendanceRepository {
 
   async findMaternityLeave() {
     return this.maternityLeave;
+  }
+
+  async findOperationalLeaveBlock() {
+    if (this.operationalBlock) return this.operationalBlock;
+    if (this.approvedLeave || this.maternityLeave) return {
+      leaveType: this.maternityLeave ? 'MATERNITY_LEAVE' : 'SICK',
+      status: this.maternityLeave?.status ?? 'APPROVED',
+      phase: this.maternityLeave ? 'FULL_LEAVE' : 'SINGLE_DAY',
+      blockedActions: ['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'],
+    } satisfies OperationalLeaveBlock;
+    return null;
   }
 
   async saveCheckIn(input: SaveCheckInInput): Promise<CheckInRecord> {
@@ -186,6 +199,22 @@ describe('polygon geofence', () => {
 });
 
 describe('check-in domain service', () => {
+  it('blocks check-in for a pending single-day absence and reports the block in today status', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.operationalBlock = {
+      leaveType: 'SICK', status: 'PENDING', phase: 'SINGLE_DAY',
+      blockedActions: ['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'],
+    };
+    const attendanceService = serviceAt(repository, '2026-08-25T00:00:00.000Z');
+
+    await expect(attendanceService.checkIn(teacherId, {
+      latitude: -6.2, longitude: 106.816666, accuracyMeters: 10,
+    })).rejects.toMatchObject({ code: 'OPERATION_BLOCKED_BY_LEAVE' });
+    await expect(attendanceService.getToday(teacherId)).resolves.toMatchObject({
+      state: 'LEAVE_BLOCKED', operationalBlock: { leaveType: 'SICK', status: 'PENDING' },
+    });
+    expect(repository.saveCount).toBe(0);
+  });
   it('blocks check-in throughout a pending maternity leave full-leave period', async () => {
     const repository = new FakeAttendanceRepository();
     repository.maternityLeave = {
@@ -198,7 +227,7 @@ describe('check-in domain service', () => {
     await expect(serviceAt(repository, '2026-08-25T00:00:00.000Z').checkIn(
       teacherId,
       { latitude: -6.2, longitude: 106.816666, accuracyMeters: 10 },
-    )).rejects.toMatchObject({ code: 'MATERNITY_LEAVE_CHECK_IN_BLOCKED' });
+    )).rejects.toMatchObject({ code: 'OPERATION_BLOCKED_BY_LEAVE' });
     expect(repository.saveCount).toBe(0);
   });
   it('uses Asia/Jakarta server date and time, accepts boundary accuracy, and snapshots the result', async () => {
@@ -310,7 +339,9 @@ describe('check-in domain service', () => {
         longitude: 106.816666,
         accuracyMeters: 10,
       }),
-    ).rejects.toMatchObject({ code } satisfies Partial<AppError>);
+    ).rejects.toMatchObject({
+      code: code === 'ALREADY_HAS_APPROVED_LEAVE' ? 'OPERATION_BLOCKED_BY_LEAVE' : code,
+    } satisfies Partial<AppError>);
   });
 
   it('rejects outside-window, inaccurate, and outside-radius locations separately', async () => {

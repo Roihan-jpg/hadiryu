@@ -16,6 +16,7 @@ import {
   type AttendanceRepository,
   type SaveCheckoutInput,
 } from './attendance.js';
+import type { OperationalLeaveBlock } from './operational-leave-block.js';
 
 const teacherId = '50000000-0000-4000-8000-000000000001';
 const location: LocationInput = {
@@ -74,6 +75,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
   geofence: GeofenceRule | null = geofence;
   checkoutCount = 0;
   maternityLeave: { status: 'PENDING' | 'APPROVED'; fullLeaveEndDate: string; earlyDepartureStartDate: string; earlyDepartureEndDate: string } | null = null;
+  operationalBlock: OperationalLeaveBlock | null = null;
 
   async findAttendance() {
     return this.attendance;
@@ -98,6 +100,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
   async findMaternityLeave() {
     return this.maternityLeave;
   }
+  async findOperationalLeaveBlock() { return this.operationalBlock; }
 
   async saveCheckIn(): Promise<CheckInRecord> {
     return checkedIn;
@@ -136,6 +139,16 @@ function serviceAt(repository: FakeAttendanceRepository, iso: string) {
 }
 
 describe('checkout domain service', () => {
+  it('blocks checkout through the shared leave resolver without changing attendance', async () => {
+    const repository = new FakeAttendanceRepository();
+    repository.operationalBlock = {
+      leaveType: 'MATERNITY_LEAVE', status: 'APPROVED', phase: 'EARLY_DEPARTURE',
+      blockedActions: ['CHECKOUT', 'EARLY_DEPARTURE'],
+    };
+    await expect(serviceAt(repository, '2026-08-25T08:35:00.000Z').checkout(teacherId, location))
+      .rejects.toMatchObject({ code: 'OPERATION_BLOCKED_BY_LEAVE' });
+    expect(repository.checkoutCount).toBe(0);
+  });
   it('blocks checkout during an approved maternity early-departure period without changing attendance', async () => {
     const repository = new FakeAttendanceRepository();
     repository.maternityLeave = {

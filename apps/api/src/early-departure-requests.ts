@@ -46,6 +46,7 @@ import {
   type StoredRequestAttachment,
   type UploadedRequestAttachment,
 } from './request-attachments.js';
+import { OperationalAction, type OperationalLeaveBlock } from './operational-leave-block.js';
 
 const RequestIdSchema = z.uuid();
 
@@ -66,6 +67,7 @@ export interface EarlyDepartureRequestRepository {
     scheduleType: 'WEEKDAY' | 'SATURDAY',
     workDate: string,
   ): Promise<ScheduleRule | null>;
+  findOperationalLeaveBlock?(teacherId: string, workDate: string): Promise<OperationalLeaveBlock | null>;
   create(
     teacherId: string,
     input: SaveEarlyDepartureRequestInput,
@@ -205,6 +207,12 @@ export function createEarlyDepartureRequestService(
           'CHECK_IN_REQUIRED',
           'Pulang awal hanya dapat diajukan setelah check-in',
         );
+      }
+      const operationalBlock = await repository.findOperationalLeaveBlock?.(teacherId, attendance.workDate) ?? null;
+      if (operationalBlock?.blockedActions.includes(OperationalAction.EARLY_DEPARTURE)) {
+        throw new AppError(409, 'OPERATION_BLOCKED_BY_LEAVE', 'Pulang awal tidak tersedia selama izin aktif', {
+          leaveType: operationalBlock.leaveType, status: operationalBlock.status, phase: operationalBlock.phase,
+        });
       }
       if (attendance.status !== 'CHECKED_IN') {
         throw new AppError(

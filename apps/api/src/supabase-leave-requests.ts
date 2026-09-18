@@ -19,6 +19,7 @@ import type { LeaveRequestRepository, ResolvedLeaveRequestInput } from './leave-
 import type { StoredRequestAttachment } from './request-attachments.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 import { SupabaseAttendanceRepository } from './supabase-attendance.js';
+import { findSupabaseOperationalLeaveBlock } from './supabase-operational-leave-block.js';
 
 const LeaveRowSchema = z.strictObject({
   id: z.uuid(), teacher_id: z.uuid(), leave_date: z.string(),
@@ -131,6 +132,9 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
     const { data, error } = await this.client.from('attendance_records').select('id').eq('teacher_id', teacherId).eq('work_date', leaveDate).limit(1).maybeSingle();
     if (error) throw databaseError('LEAVE_LOOKUP_FAILED', 'Status absensi tidak dapat dimuat');
     return data !== null;
+  }
+  findOperationalLeaveBlock(teacherId: string, workDate: string) {
+    return findSupabaseOperationalLeaveBlock(this.client, teacherId, workDate);
   }
   async findCalendarException(workDate: string): Promise<CalendarException | null> {
     const { data, error } = await this.client.from('calendar_exceptions').select('id,work_date,exception_type,name,schedule_type').eq('work_date', workDate).maybeSingle();

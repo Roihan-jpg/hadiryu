@@ -75,11 +75,13 @@ export class EarlyDepartureRequestsPage {
   readonly loading = computed(() => this.requestsQuery.isPending());
   readonly submissionDisabled = computed(() =>
     this.submitting() || this.todayQuery.isPending() || this.todayQuery.data()?.state !== 'CHECKED_IN' ||
+    this.todayQuery.data()?.operationalBlock?.blockedActions.includes('EARLY_DEPARTURE') ||
     this.quotaQuery.data()?.earlyDeparture.remaining === 0,
   );
   readonly submissionHelp = computed(() => {
     const state = this.todayQuery.data()?.state;
     if (this.todayQuery.isPending()) return 'Memeriksa status absensi hari ini…';
+    if (this.todayQuery.data()?.operationalBlock?.blockedActions.includes('EARLY_DEPARTURE')) return 'Pulang awal ditutup selama izin aktif.';
     if (this.quotaQuery.data()?.earlyDeparture.remaining === 0) return 'Kuota pulang awal bulan ini sudah habis (maksimal 2 kali).';
     if (state === 'CHECKED_IN') return '';
     if (state === 'COMPLETED') return 'Absen Pulang sudah tercatat. Permohonan pulang awal tidak dapat dikirim.';

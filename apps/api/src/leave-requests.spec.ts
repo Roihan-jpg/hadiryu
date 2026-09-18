@@ -13,6 +13,7 @@ import {
   type LeaveRequestRepository,
 } from './leave-requests.js';
 import type { RequestAttachmentStorage } from './request-attachments.js';
+import type { OperationalLeaveBlock } from './operational-leave-block.js';
 
 const teacherId = '50000000-0000-4000-8000-000000000001';
 const adminId = '50000000-0000-4000-8000-000000000002';
@@ -50,6 +51,7 @@ class FakeLeaveRepository implements LeaveRequestRepository {
   saved: LeaveRequest | null = null;
   decisions: Array<{ status: 'APPROVED' | 'REJECTED'; actorId: string }> = [];
   securitySchedules?: SecurityScheduleSettingsResponse;
+  operationalBlock: OperationalLeaveBlock | null = null;
 
   async findAttendance(): Promise<boolean> { return this.attendance; }
   async findCalendarException() { return null; }
@@ -58,6 +60,7 @@ class FakeLeaveRepository implements LeaveRequestRepository {
     if (!this.securitySchedules) throw new Error('not configured');
     return this.securitySchedules;
   }
+  async findOperationalLeaveBlock() { return this.operationalBlock; }
   async create(_teacherId: string, input: { leaveDate: string; leaveType: LeaveRequest['leaveType']; reason: string }): Promise<LeaveRequest> {
     this.saved = { ...pending, ...input, id: '40000000-0000-4000-8000-000000000009', teacherId: _teacherId };
     return this.saved;
@@ -81,6 +84,16 @@ function service(repository = new FakeLeaveRepository(), now = '2026-08-25T05:00
 }
 
 describe('leave request service', () => {
+  it('blocks a new leave request while another absence blocks operations', async () => {
+    const repository = new FakeLeaveRepository();
+    repository.operationalBlock = {
+      leaveType: 'FAMILY', status: 'APPROVED', phase: 'SINGLE_DAY',
+      blockedActions: ['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'],
+    };
+    await expect(createLeaveRequestService(repository, () => new Date('2026-08-25T05:00:00.000Z')).create(
+      teacherId, { leaveDate: '2026-08-26', leaveType: 'LATE_ARRIVAL', reason: 'Terlambat' },
+    )).rejects.toMatchObject({ code: 'OPERATION_BLOCKED_BY_LEAVE' });
+  });
   it('gives approved leave the full target credit with no deficit', () => {
     expect(calculateApprovedLeaveCredit(515)).toEqual({
       workedMinutes: 515,

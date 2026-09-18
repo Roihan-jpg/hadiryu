@@ -39,6 +39,7 @@ import {
 } from './security-duty.js';
 import { adjustedAttendanceMetrics, type AttendanceAdjustmentContext } from './attendance-adjustments.js';
 import { maternityLeavePhase, type MaternityLeaveEntitlement } from './maternity-leave.js';
+import { OperationalAction, type OperationalLeaveBlock } from './operational-leave-block.js';
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
@@ -90,6 +91,7 @@ export interface AttendanceRepository {
     teacherId: string,
     workDate: string,
   ): Promise<MaternityLeaveEntitlement | null>;
+  findOperationalLeaveBlock?(teacherId: string, workDate: string): Promise<OperationalLeaveBlock | null>;
   findAttendancePermissions?(
     teacherId: string,
     records: Array<{ attendanceId: string; workDate: string }>,
@@ -117,6 +119,13 @@ export interface AttendanceService {
 
 function staffIdentity(value: string | StaffIdentity): StaffIdentity {
   return typeof value === 'string' ? { id: value, role: 'USER' } : value;
+}
+
+function assertOperationalActionAllowed(block: OperationalLeaveBlock | null, action: OperationalAction): void {
+  if (!block?.blockedActions.includes(action)) return;
+  throw new AppError(409, 'OPERATION_BLOCKED_BY_LEAVE', 'Aksi tidak tersedia selama izin aktif', {
+    leaveType: block.leaveType, status: block.status, phase: block.phase, action,
+  });
 }
 
 export interface JakartaDateTime {
@@ -553,6 +562,7 @@ export function createAttendanceService(
           ? null
           : (await resolveStaffDay(repository, staff, existing.workDate)).schedule);
         const geofence = await repository.findGeofence(existing.workDate);
+        const operationalBlock = await repository.findOperationalLeaveBlock?.(teacherId, existing.workDate) ?? null;
         return TodayAttendanceResponseSchema.parse({
           serverNow: serverNow.toISOString(),
           workDate: existing.workDate,
@@ -564,6 +574,7 @@ export function createAttendanceService(
           locationRequirement: geofence
             ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
             : null,
+          operationalBlock,
         });
       }
 
@@ -578,11 +589,13 @@ export function createAttendanceService(
         });
       }
       const geofence = await repository.findGeofence(workDate);
+      const operationalBlock = await repository.findOperationalLeaveBlock?.(teacherId, workDate) ?? null;
       return TodayAttendanceResponseSchema.parse({
         serverNow: serverNow.toISOString(),
         workDate,
-        state:
-          day.schedule && geofence
+        state: operationalBlock?.blockedActions.includes(OperationalAction.CHECK_IN)
+          ? 'LEAVE_BLOCKED'
+          : day.schedule && geofence
             ? 'READY_TO_CHECK_IN'
             : 'CONFIGURATION_ERROR',
         schedule: day.schedule ? todaySchedule(day.schedule) : null,
@@ -590,6 +603,7 @@ export function createAttendanceService(
         locationRequirement: geofence
           ? { maxAccuracyMeters: geofence.maxAccuracyMeters }
           : null,
+        operationalBlock,
       });
     },
 
@@ -622,6 +636,8 @@ export function createAttendanceService(
       }
 
       const day = await resolveStaffDay(repository, staff, workDate);
+      const operationalBlock = await repository.findOperationalLeaveBlock?.(teacherId, workDate) ?? null;
+      assertOperationalActionAllowed(operationalBlock, OperationalAction.CHECK_IN);
       if (!day.isWorkingDay) {
         throw new AppError(422, 'NOT_A_WORKING_DAY', 'Hari ini bukan hari kerja');
       }
@@ -652,21 +668,6 @@ export function createAttendanceService(
             checkInOpen: day.schedule.checkInOpen,
             checkInClose: day.schedule.checkInClose,
           },
-        );
-      }
-      if (await repository.hasApprovedLeave(teacherId, workDate)) {
-        throw new AppError(
-          409,
-          'ALREADY_HAS_APPROVED_LEAVE',
-          'Check-in tidak dapat dilakukan karena izin sudah disetujui',
-        );
-      }
-      const maternityLeave = await repository.findMaternityLeave?.(teacherId, workDate);
-      if (maternityLeave && maternityLeavePhase(maternityLeave, workDate) === 'FULL_LEAVE') {
-        throw new AppError(
-          409,
-          'MATERNITY_LEAVE_CHECK_IN_BLOCKED',
-          'Check-in tidak dapat dilakukan selama Cuti Melahirkan aktif atau menunggu persetujuan',
         );
       }
       const { distanceMeters, boundaryClearanceMeters } = validatedLocation(location, geofence);
@@ -738,6 +739,8 @@ export function createAttendanceService(
           applyAttendancePermissions(effectiveExisting, permissionContext?.get(effectiveExisting.workDate) ?? {}),
         );
       }
+      const operationalBlock = await repository.findOperationalLeaveBlock?.(teacherId, effectiveExisting.workDate) ?? null;
+      assertOperationalActionAllowed(operationalBlock, OperationalAction.CHECKOUT);
       const maternityLeave = staff.role === 'USER'
         ? await repository.findMaternityLeave?.(teacherId, effectiveExisting.workDate)
         : null;

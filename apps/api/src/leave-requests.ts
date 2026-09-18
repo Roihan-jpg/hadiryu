@@ -35,6 +35,7 @@ import {
   type UploadedRequestAttachment,
 } from './request-attachments.js';
 import { maternityLeavePeriods } from './maternity-leave.js';
+import { OperationalAction, type OperationalLeaveBlock } from './operational-leave-block.js';
 
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 const LeaveRequestIdSchema = z.uuid();
@@ -44,6 +45,7 @@ export interface LeaveRequestRepository {
   findCalendarException(workDate: string): Promise<CalendarException | null>;
   findSchedule(scheduleType: ScheduleType, workDate: string): Promise<ScheduleRule | null>;
   findSecuritySchedules?(workDate: string): Promise<SecurityScheduleSettingsResponse>;
+  findOperationalLeaveBlock?(teacherId: string, workDate: string): Promise<OperationalLeaveBlock | null>;
   create(
     teacherId: string,
     input: ResolvedLeaveRequestInput,
@@ -146,6 +148,18 @@ function paginated<T>(records: T[], totalItems: number, page: number, pageSize: 
   return { data: records, pagination: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) } };
 }
 
+async function assertLeaveCreationAllowed(
+  repository: LeaveRequestRepository,
+  teacherId: string,
+  workDate: string,
+): Promise<void> {
+  const block = await repository.findOperationalLeaveBlock?.(teacherId, workDate) ?? null;
+  if (!block?.blockedActions.includes(OperationalAction.CREATE_LEAVE)) return;
+  throw new AppError(409, 'OPERATION_BLOCKED_BY_LEAVE', 'Pengajuan izin tidak tersedia selama izin aktif', {
+    leaveType: block.leaveType, status: block.status, phase: block.phase,
+  });
+}
+
 export function calculateApprovedLeaveCredit(targetMinutes: number): {
   workedMinutes: number;
   workDeficitMinutes: 0;
@@ -192,6 +206,7 @@ export function createLeaveRequestService(
       const input = CreateLeaveRequestSchema.parse(rawInput);
       const serverNow = now();
       const current = jakartaDateTime(serverNow);
+      await assertLeaveCreationAllowed(repository, teacherId, current.workDate);
       if (input.leaveType === 'MATERNITY_LEAVE') {
         if (teacher.role !== 'USER' || teacher.gender !== 'FEMALE') {
           throw new AppError(403, 'MATERNITY_LEAVE_FORBIDDEN', 'Cuti Melahirkan hanya tersedia untuk Guru Perempuan');

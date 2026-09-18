@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { LeaveTypeSchema } from './leave-requests.js';
+
 import { LocalDateSchema, ScheduleTypeSchema } from './settings.js';
 import { PaginationSchema } from './teachers.js';
 
@@ -91,12 +93,23 @@ const TodayResponseBaseSchema = z.strictObject({
   locationRequirement: z.strictObject({
     maxAccuracyMeters: z.number().int().min(5).max(200),
   }).nullable().optional(),
+  operationalBlock: z.strictObject({
+    leaveType: LeaveTypeSchema.exclude(['LATE_ARRIVAL']),
+    status: z.enum(['PENDING', 'APPROVED']),
+    phase: z.enum(['SINGLE_DAY', 'FULL_LEAVE', 'EARLY_DEPARTURE']),
+    blockedActions: z.array(z.enum(['CHECK_IN', 'CHECKOUT', 'EARLY_DEPARTURE', 'CREATE_LEAVE'])).min(1),
+  }).nullable().optional(),
 });
 
 export const TodayAttendanceResponseSchema = z.discriminatedUnion('state', [
   TodayResponseBaseSchema.extend({
     state: z.literal('READY_TO_CHECK_IN'),
     schedule: TodayScheduleSchema,
+    attendance: z.null(),
+  }),
+  TodayResponseBaseSchema.extend({
+    state: z.literal('LEAVE_BLOCKED'),
+    schedule: TodayScheduleSchema.nullable(),
     attendance: z.null(),
   }),
   TodayResponseBaseSchema.extend({

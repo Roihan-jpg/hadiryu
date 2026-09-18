@@ -27,6 +27,7 @@ import type { AttendanceAdjustmentContext } from './attendance-adjustments.js';
 import type { MaternityLeaveEntitlement } from './maternity-leave.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
 import { securityRotationPreview } from './security-duty.js';
+import { findSupabaseOperationalLeaveBlock } from './supabase-operational-leave-block.js';
 
 const NumericValueSchema = z.union([z.number(), z.string()]);
 const AttendanceRowSchema = z.strictObject({
@@ -375,6 +376,10 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       earlyDepartureStartDate: row.early_departure_start_date,
       earlyDepartureEndDate: row.early_departure_end_date,
     };
+  }
+
+  findOperationalLeaveBlock(teacherId: string, workDate: string) {
+    return findSupabaseOperationalLeaveBlock(this.client, teacherId, workDate);
   }
 
   async findAttendancePermissions(
