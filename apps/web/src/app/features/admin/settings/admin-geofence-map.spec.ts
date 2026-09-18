@@ -55,4 +55,13 @@ describe('AdminGeofenceMap', () => {
       { latitude: -8.1328, longitude: 113.2219 },
     ]]);
   });
+
+  it('keeps Leaflet layers contained below the admin sidebar', () => {
+    const mapHost = fixture.nativeElement.querySelector('.map-host') as HTMLElement | null;
+
+    expect(mapHost).not.toBeNull();
+    expect(getComputedStyle(mapHost!).position).toBe('relative');
+    expect(getComputedStyle(mapHost!).zIndex).toBe('0');
+    expect(getComputedStyle(mapHost!).isolation).toBe('isolate');
+  });
 });

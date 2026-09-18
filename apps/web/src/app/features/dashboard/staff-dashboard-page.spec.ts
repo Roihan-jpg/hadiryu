@@ -30,7 +30,24 @@ function dashboard(streak: TeacherStreak): StaffDashboardResponse {
       attendanceDays: 0, onTimeDays: 0, actualLateDays: 0, effectiveLateDays: 0,
       lateArrivalPermissionDays: 0, totalWorkedMinutes: 0, totalWorkDeficitMinutes: 0,
     },
-    punctualityTrend: [], activity: { data: [], pagination: { page: 1, pageSize: 8, totalItems: 0, totalPages: 1 } },
+    punctualityTrend: [],
+    attendanceTrend: [
+      {
+        workDate: '2026-09-10', status: 'COMPLETED', targetMinutes: 515,
+        actual: { checkInAt: '2026-09-10T00:15:00.000Z', checkOutAt: '2026-09-10T08:30:00.000Z', arrivalOffsetMinutes: -15, lateMinutes: 15, workedMinutes: 495, workDeficitMinutes: 20 },
+        effective: { arrivalOffsetMinutes: 0, lateMinutes: 0, workedMinutes: 510, workDeficitMinutes: 5 },
+        credit: { lateArrival: true, earlyDeparture: false },
+      },
+      {
+        workDate: '2026-09-11', status: 'LEAVE_APPROVED', targetMinutes: 515,
+        actual: null, effective: null, credit: { lateArrival: false, earlyDeparture: false },
+      },
+      {
+        workDate: '2026-09-12', status: 'NON_WORKING_DAY', targetMinutes: null,
+        actual: null, effective: null, credit: { lateArrival: false, earlyDeparture: false },
+      },
+    ],
+    activity: { data: [], pagination: { page: 1, pageSize: 8, totalItems: 0, totalPages: 1 } },
     latestEarlyDeparture: null, streak,
   };
 }
@@ -58,6 +75,29 @@ describe('StaffDashboardPage streak animation', () => {
     const fixture = await setup(available('NONE'));
 
     expect(fixture.nativeElement.querySelector('.today-stat--desktop-balanced')).not.toBeNull();
+  });
+
+  it('labels and groups the month and activity filters for accessible responsive styling', async () => {
+    const fixture = await setup(available('NONE'));
+    const month = fixture.nativeElement.querySelector('#dashboard-month') as HTMLInputElement | null;
+    const type = fixture.nativeElement.querySelector('#dashboard-type') as HTMLSelectElement | null;
+
+    expect(month?.labels?.[0]?.textContent).toContain('Bulan');
+    expect(type?.labels?.[0]?.textContent).toContain('Jenis aktivitas');
+    expect(month?.closest('.dashboard-filter-field')).not.toBeNull();
+    expect(type?.closest('.dashboard-filter-field')).not.toBeNull();
+  });
+
+  it('renders the layered attendance trend with daily server statuses and keyboard-readable detail', async () => {
+    const fixture = await setup(available('NONE'));
+    const trend = fixture.nativeElement.querySelector('#attendance-trend-title') as HTMLElement | null;
+    const day = fixture.nativeElement.querySelector('.attendance-trend-day') as HTMLButtonElement | null;
+
+    expect(trend?.textContent).toContain('Ringkasan kehadiran');
+    expect(fixture.nativeElement.textContent).toContain('Aktual dan efektif');
+    expect(fixture.nativeElement.querySelectorAll('.attendance-trend-status .attendance-trend-day')).toHaveLength(3);
+    expect(day?.getAttribute('aria-label')).toContain('10 Sep 2026');
+    expect(day?.getAttribute('aria-label')).toContain('Izin terlambat memberi kredit');
   });
 
   async function setup(streak: TeacherStreak) {

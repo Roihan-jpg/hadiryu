@@ -53,7 +53,7 @@ describe('HomePage Satpam dashboard', () => {
     await vi.waitFor(() => expect(fixture.componentInstance.securityDashboard()).not.toBeNull());
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Pos Jaga · Dashboard Satpam');
+    expect(text).toContain('Tugas kalender hari ini');
     expect(text).toContain('Shift Malam');
     expect(text).toContain('Hari berikutnya');
     expect(fixture.nativeElement.querySelector('a[href="/satpam/riwayat"]')).not.toBeNull();

@@ -11,17 +11,22 @@
       <p class="eyebrow">{{ user()?.role === 'SECURITY_GUARD' ? 'Pos Jaga · Dashboard Satpam' : 'Dashboard Guru' }}</p>
       <h1 id="home-title">{{ user()?.fullName }}</h1>
       <span>NIP {{ user()?.nip }}</span>
-      @if (user()?.whatsappNumber; as whatsappNumber) { <span>WhatsApp {{ whatsappNumber }}</span> }
     </div>
   </header>
-    <form class="dashboard-filters" (ngSubmit)="applyFilters()">
-      <input id="dashboard-month" type="month" [formControl]="monthControl" />
-      <select id="dashboard-type" [formControl]="typeControl">
+  <form class="dashboard-filters" (ngSubmit)="applyFilters()">
+    <mat-form-field class="dashboard-filter-field" appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Bulan</mat-label>
+      <input id="dashboard-month" matInput type="month" [formControl]="monthControl" />
+    </mat-form-field>
+    <mat-form-field class="dashboard-filter-field" appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Jenis aktivitas</mat-label>
+      <select id="dashboard-type" matNativeControl [formControl]="typeControl">
         <option value="ALL">Semua</option><option value="ATTENDANCE">Absensi</option>
         <option value="LEAVE">Izin</option><option value="EARLY_DEPARTURE">Pulang Awal</option>
       </select>
-      <button mat-stroked-button type="submit">Terapkan</button>
-    </form>
+    </mat-form-field>
+    <button mat-stroked-button type="submit">Terapkan</button>
+  </form>
   @if (dashboardQuery.isPending()) {
     <section class="dashboard-loading" aria-busy="true" role="status">
       <span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block wide"></span>
@@ -97,21 +102,68 @@
         <div><span>Kekurangan</span><strong>{{ minutesLabel(data.metrics.totalWorkDeficitMinutes) }}</strong><small>efektif</small></div>
       </section>
 
-      <section class="trend-ledger ledger-panel" aria-labelledby="trend-title">
-        <header><div><h2 id="trend-title">Pola kedatangan</h2><p>Di atas garis = lebih awal · di bawah garis = terlambat.</p></div><span>{{ data.metrics.lateArrivalPermissionDays }} hari memakai izin terlambat</span></header>
-        @if (chartBars().length) {
-          <div class="trend-chart" role="img" aria-describedby="trend-description">
-            <p id="trend-description" class="visually-hidden">Grafik batang waktu kedatangan aktual per hari. Setiap batang dapat difokuskan untuk membaca nilainya.</p>
-            @for (bar of chartBars(); track bar.item.workDate) {
-              <button class="trend-day" type="button" [attr.aria-label]="dateLabel(bar.item.workDate) + ': ' + timingLabel(bar.item)">
-                <span class="chart-half chart-half--early"><i class="bar bar--early" [style.height.%]="bar.item.arrivalOffsetMinutes > 0 ? bar.size : 0"></i></span>
-                <span class="chart-baseline"></span>
-                <span class="chart-half chart-half--late"><i class="bar bar--late" [class.credited]="bar.item.actualLateMinutes > 0 && bar.item.effectiveLateMinutes === 0" [style.height.%]="bar.item.arrivalOffsetMinutes < 0 ? bar.size : 0"></i></span>
-                <small>{{ bar.item.workDate.slice(8) }}</small><span class="chart-tooltip" role="tooltip">{{ timingLabel(bar.item) }}</span>
-              </button>
-            }
+      <section class="trend-ledger ledger-panel" aria-label="Grafik kehadiran">
+        @if (data.role === 'USER') {
+          <header><div><h2 id="attendance-trend-title">Ringkasan kehadiran</h2><p>Waktu, durasi, kekurangan, dan status setiap tanggal.</p></div><span>Aktual dan efektif</span></header>
+          @if (attendanceTrend().length) {
+          <div class="attendance-trend-legend" aria-label="Legenda grafik">
+            <span><i class="legend-mark legend-mark--actual"></i>Aktual</span><span><i class="legend-mark legend-mark--effective"></i>Efektif setelah kredit</span>
+            <span><i class="legend-mark legend-mark--deficit"></i>Kekurangan</span><span><i class="legend-mark legend-mark--status"></i>Status harian</span>
           </div>
-        } @else { <div class="empty-copy"><strong>Belum ada pola kedatangan</strong><p>Grafik akan terisi setelah Absen Masuk pertama pada bulan ini.</p></div> }
+          <div class="attendance-trend" aria-describedby="attendance-trend-description">
+            <p id="attendance-trend-description" class="visually-hidden">Grafik berlapis per tanggal. Setiap kolom dapat difokuskan untuk membaca waktu Absen Masuk dan Pulang, durasi, kekurangan, kredit izin, serta status resmi dari server.</p>
+            <div class="attendance-trend-layer attendance-trend-layer--arrival">
+              <div class="trend-layer-label"><strong>Datang</strong><span>lebih awal ↑ · terlambat ↓</span></div>
+              <div class="attendance-trend-days">
+                @for (day of attendanceTrend(); track day.workDate) {
+                  <button [class]="'attendance-trend-day status-' + day.status.toLowerCase()" type="button" [attr.aria-label]="trendAriaLabel(day)">
+                    <span class="arrival-track" aria-hidden="true">
+                      <i class="arrival-baseline"></i>
+                      @if (day.actual; as actual) {
+                        <i class="arrival-bar arrival-bar--actual" [class.is-early]="actual.arrivalOffsetMinutes > 0" [class.is-late]="actual.arrivalOffsetMinutes < 0" [style.height.%]="arrivalBarSize(actual.arrivalOffsetMinutes)"></i>
+                        <i class="arrival-bar arrival-bar--effective" [class.is-early]="day.effective!.arrivalOffsetMinutes > 0" [class.is-late]="day.effective!.arrivalOffsetMinutes < 0" [style.height.%]="arrivalBarSize(day.effective!.arrivalOffsetMinutes)"></i>
+                      }
+                    </span>
+                    <span class="trend-tooltip" role="tooltip">{{ trendAriaLabel(day) }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+            <div class="attendance-trend-layer attendance-trend-layer--work">
+              <div class="trend-layer-label"><strong>Kerja</strong><span>durasi terhadap target</span></div>
+              <div class="attendance-trend-days" aria-hidden="true">
+                @for (day of attendanceTrend(); track day.workDate) {
+                  <span [class]="'attendance-trend-day status-' + day.status.toLowerCase()">
+                    @if (day.actual) {
+                      <span class="worked-track"><i class="worked-bar worked-bar--actual" [style.height.%]="workedHeight(day, 'actual')"></i><i class="worked-bar worked-bar--effective" [style.height.%]="workedHeight(day, 'effective')"></i><i class="deficit-tick deficit-tick--actual" [style.height.%]="deficitHeight(day, 'actual')"></i><i class="deficit-tick deficit-tick--effective" [style.height.%]="deficitHeight(day, 'effective')"></i></span>
+                    }
+                  </span>
+                }
+              </div>
+            </div>
+            <div class="attendance-trend-status" aria-hidden="true">
+              @for (day of attendanceTrend(); track day.workDate) {
+                <span [class]="'attendance-trend-day status-' + day.status.toLowerCase()"><i></i><small>{{ day.workDate.slice(8) }}</small></span>
+              }
+            </div>
+          </div>
+          } @else { <div class="empty-copy"><strong>Belum ada data kehadiran</strong><p>Grafik akan menampilkan status setiap tanggal setelah data bulan ini tersedia.</p></div> }
+        } @else {
+          <header><div><h2 id="trend-title">Pola kedatangan</h2><p>Di atas garis = lebih awal · di bawah garis = terlambat.</p></div><span>{{ data.metrics.lateArrivalPermissionDays }} hari memakai izin terlambat</span></header>
+          @if (chartBars().length) {
+            <div class="trend-chart" role="img" aria-describedby="trend-description">
+              <p id="trend-description" class="visually-hidden">Grafik batang waktu kedatangan aktual per hari. Setiap batang dapat difokuskan untuk membaca nilainya.</p>
+              @for (bar of chartBars(); track bar.item.workDate) {
+                <button class="trend-day" type="button" [attr.aria-label]="dateLabel(bar.item.workDate) + ': ' + timingLabel(bar.item, bar.item.effectiveLateMinutes)">
+                  <span class="chart-half chart-half--early"><i class="bar bar--early" [style.height.%]="bar.item.arrivalOffsetMinutes > 0 ? bar.size : 0"></i></span>
+                  <span class="chart-baseline"></span>
+                  <span class="chart-half chart-half--late"><i class="bar bar--late" [class.credited]="bar.item.actualLateMinutes > 0 && bar.item.effectiveLateMinutes === 0" [style.height.%]="bar.item.arrivalOffsetMinutes < 0 ? bar.size : 0"></i></span>
+                  <small>{{ bar.item.workDate.slice(8) }}</small><span class="chart-tooltip" role="tooltip">{{ timingLabel(bar.item, bar.item.effectiveLateMinutes) }}</span>
+                </button>
+              }
+            </div>
+          } @else { <div class="empty-copy"><strong>Belum ada pola kedatangan</strong><p>Grafik akan terisi setelah Absen Masuk pertama pada bulan ini.</p></div> }
+        }
       </section>
 
       <section class="activity-ledger ledger-panel" aria-labelledby="activity-title">

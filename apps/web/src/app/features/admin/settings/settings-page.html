@@ -254,6 +254,7 @@
             <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="undoGeofenceVertex()">Urungkan titik</button>
             <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="clearGeofenceVertices()">Hapus semua</button>
           </div>
+          <br>
           <mat-form-field appearance="outline">
             <mat-label>Akurasi maksimum (meter)</mat-label>
             <input matInput type="number" min="5" max="30" name="maxAccuracyMeters" inputmode="numeric" autocomplete="off" formControlName="maxAccuracyMeters" />

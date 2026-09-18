@@ -101,6 +101,7 @@ describe('Supabase early departure request integration', () => {
   let teacherClient: SupabaseClient;
   let config: SupabaseAuthConfig;
   let teacherId: string;
+  let teacherNip: string;
   let teacherEmail: string;
   let teacherPassword: string;
   let adminId: string;
@@ -120,8 +121,8 @@ describe('Supabase early departure request integration', () => {
       auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     });
 
-    const nip = `early-${randomUUID()}`;
-    teacherEmail = internalEmailForNip(nip);
+    teacherNip = `early-${randomUUID()}`;
+    teacherEmail = internalEmailForNip(teacherNip);
     teacherPassword = `Teacher-${randomUUID()}!`;
     const { data: teacher, error: teacherError } =
       await adminClient.auth.admin.createUser({
@@ -146,7 +147,7 @@ describe('Supabase early departure request integration', () => {
     const { error: profileError } = await adminClient.from('profiles').insert([
       {
         id: teacherId,
-        nip,
+        nip: teacherNip,
         full_name: 'Guru Pulang Awal',
         role: 'USER',
         is_active: true,
@@ -193,7 +194,7 @@ describe('Supabase early departure request integration', () => {
         work_start: '00:00',
         work_end: '23:59',
         checkout_close: '23:59',
-        schedule_type: 'WEEKDAY',
+        schedule_type: 'SECURITY_DAY',
         check_in_open_at: `${workDate}T00:00:00+07:00`,
         work_start_at: `${workDate}T00:00:00+07:00`,
         check_in_close_at: `${workDate}T00:00:00+07:00`,
@@ -252,7 +253,7 @@ describe('Supabase early departure request integration', () => {
       pageSize: 10,
       status: 'APPROVED',
       workDate,
-      search: 'Guru Pulang Awal',
+      search: teacherNip,
     });
     expect(adminList.data).toEqual([
       expect.objectContaining({

@@ -160,6 +160,7 @@ describe('teacher HTTP API', () => {
         nip: '19870001',
         fullName: 'Guru Contoh',
         initialPassword: 'Guru1234',
+        gender: 'FEMALE',
         role: 'SUPER_ADMIN',
       });
     const response = await request(app)
@@ -169,6 +170,7 @@ describe('teacher HTTP API', () => {
         nip: '19870001',
         fullName: 'Guru Contoh',
         initialPassword: 'Guru1234',
+        gender: 'FEMALE',
       });
 
     expect(invalid.status).toBe(400);
