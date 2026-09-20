@@ -48,7 +48,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
 
   await login(page, adminNip, adminInitialPassword);
   await changeInitialPassword(page, adminInitialPassword, adminPassword);
-  await expect(page.getByRole('heading', { name: 'Monitoring kehadiran' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
 
   const attendanceWindow = jakartaDateTime(new Date(Date.now() + 60_000));
   const schedule = {

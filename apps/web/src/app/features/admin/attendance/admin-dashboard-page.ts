@@ -1,4 +1,7 @@
 import type {
+  AdminDashboardResponse,
+  AdminLeaveRequestListResponse,
+  AdminEarlyDepartureRequestListResponse,
   AdminAttendanceRecord,
   AdminAttendanceStatus,
   AdminAttendanceSummary,
@@ -27,6 +30,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
 import { createIndonesianPaginatorIntl } from '../../../core/ui/paginator-intl';
 import { AdminDashboardService } from './admin-dashboard.service';
+import { RouterLink } from '@angular/router';
+import { ArrivalChart } from './arrival-chart';
 
 type StatusFilter = AdminAttendanceStatus | 'ALL';
 
@@ -86,6 +91,7 @@ export class AttendanceNoteDialog {
 
 @Component({
   imports: [
+    RouterLink, ArrivalChart,
     MatButtonModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -110,6 +116,20 @@ export class AdminDashboardPage implements OnInit {
   private readonly service = inject(AdminDashboardService);
   private readonly dialog = inject(MatDialog);
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  readonly dashboard = signal<AdminDashboardResponse | null>(null);
+  readonly dashboardLoading = signal(true);
+  readonly dashboardError = signal('');
+  readonly leaves = signal<AdminLeaveRequestListResponse | null>(null);
+  readonly departures = signal<AdminEarlyDepartureRequestListResponse | null>(null);
+  readonly leavesError = signal('');
+  readonly departuresError = signal('');
+  readonly queueLoading = signal(true);
+  readonly refreshing = signal(false);
+  readonly roleControl = new FormControl<'ALL' | 'USER' | 'SECURITY_GUARD'>('ALL', { nonNullable: true });
+  readonly checkedIn = signal<'yes' | 'no' | undefined>(undefined);
+  readonly lateOnly = signal(false);
+
   readonly dateControl = new FormControl('', { nonNullable: true });
   readonly statusControl = new FormControl<StatusFilter>('ALL', {
     nonNullable: true,
@@ -130,6 +150,8 @@ export class AdminDashboardPage implements OnInit {
 
   ngOnInit(): void {
     void this.load();
+    void this.loadDashboard();
+    void this.loadQueues();
   }
 
   async load(): Promise<void> {
@@ -146,6 +168,9 @@ export class AdminDashboardPage implements OnInit {
         ...(this.statusControl.value === 'ALL'
           ? {}
           : { status: this.statusControl.value }),
+        ...(this.roleControl.value === 'ALL' ? {} : { role: this.roleControl.value }),
+        ...(this.checkedIn() ? { checkedIn: this.checkedIn() } : {}),
+        ...(this.lateOnly() ? { lateOnly: 'yes' as const } : {}),
         ...(search ? { search } : {}),
       });
       this.summary.set(result.summary);
@@ -158,12 +183,73 @@ export class AdminDashboardPage implements OnInit {
       this.errorMessage.set(
         await this.errorText(
           error,
-          'Monitoring kehadiran tidak dapat dimuat. Periksa koneksi lalu coba lagi.',
+          'Daftar kehadiran tidak dapat dimuat. Periksa koneksi lalu coba lagi.',
         ),
       );
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async loadDashboard(): Promise<void> {
+    this.dashboardLoading.set(true);
+    this.dashboardError.set('');
+    const selected = this.dateControl.value;
+    try {
+      const result = await this.service.dashboard(selected || undefined);
+      this.dashboard.set(result);
+      if (!this.dateControl.value) this.dateControl.setValue(result.workDate);
+    } catch {
+      this.dashboardError.set('Dashboard gagal diperbarui. Data terakhir tetap ditampilkan bila tersedia.');
+    } finally { this.dashboardLoading.set(false); }
+  }
+
+  async loadQueues(): Promise<void> {
+    this.queueLoading.set(true);
+    this.leavesError.set(''); this.departuresError.set('');
+    await Promise.all([
+      this.service.pendingLeaves().then((value) => this.leaves.set(value)).catch(() => this.leavesError.set('Antrean izin gagal diperbarui.')),
+      this.service.pendingDepartures().then((value) => this.departures.set(value)).catch(() => this.departuresError.set('Antrean pulang awal gagal diperbarui.')),
+    ]);
+    this.queueLoading.set(false);
+  }
+
+  async refresh(): Promise<void> {
+    if (this.refreshing() || this.loading() || this.dashboardLoading() || this.queueLoading()) return;
+    this.refreshing.set(true);
+    try {
+      await this.service.refresh();
+      await Promise.all([this.load(), this.loadDashboard(), this.loadQueues()]);
+    } finally { this.refreshing.set(false); }
+  }
+
+  async selectDate(date: string): Promise<void> {
+    if (this.loading() || this.dashboardLoading()) return;
+    this.dateControl.setValue(date);
+    this.pagination.update((value) => ({ ...value, page: 1 }));
+    await Promise.all([this.load(), this.loadDashboard()]);
+  }
+
+  async summaryFilter(filter: 'arrived' | 'waiting' | 'leave' | 'late'): Promise<void> {
+    if (this.loading()) return;
+    this.roleControl.setValue('USER');
+    this.searchControl.setValue('');
+    this.checkedIn.set(filter === 'arrived' ? 'yes' : undefined);
+    this.lateOnly.set(filter === 'late');
+    this.statusControl.setValue(filter === 'waiting' ? 'NOT_PRESENT' : filter === 'leave' ? 'LEAVE' : 'ALL');
+    await this.applyFilters();
+    const title = this.host.nativeElement.querySelector<HTMLElement>('#attendance-title');
+    title?.focus();
+    title?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
+  }
+
+  dateLabel(date: string, short = false): string {
+    return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', ...(short ? { day: 'numeric', month: 'short' } as const : { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' } as const) }).format(new Date(`${date}T12:00:00+07:00`));
+  }
+
+  shiftTime(at: string | null): string {
+    if (!at) return '—';
+    return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(new Date(at));
   }
 
   async applyFilters(): Promise<void> {
@@ -264,7 +350,7 @@ export class AdminDashboardPage implements OnInit {
     }).format(new Date(timestamp));
   }
 
-  private leaveLabel(type: AdminAttendanceRecord['leaveType']): string {
+  leaveLabel(type: AdminAttendanceRecord['leaveType']): string {
     if (!type) return 'Izin disetujui';
     return {
       SICK: 'Sakit',

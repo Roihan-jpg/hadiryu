@@ -110,6 +110,7 @@ export type AdminLeaveRequestDetailResponse = z.infer<
 >;
 
 export const ListAdminLeaveRequestsQuerySchema = ListLeaveRequestsQuerySchema.extend({
+  sort: z.enum(['oldest']).optional(),
   leaveDate: LocalDateSchema.optional(),
   search: z.string().trim().min(1).max(200).optional(),
 });

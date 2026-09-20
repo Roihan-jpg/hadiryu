@@ -17,10 +17,10 @@
     <form (ngSubmit)="submit()" [formGroup]="form" novalidate>
       <p class="eyebrow">Akses Guru dan Super Admin</p>
       <h2 id="login-title">Masuk ke akun</h2>
-      <p class="form-intro">Gunakan NIP dan password yang diberikan sekolah.</p>
+      <p class="form-intro">Gunakan Username dan password yang diberikan sekolah.</p>
 
       <mat-form-field appearance="outline">
-        <mat-label>NIP</mat-label>
+        <mat-label>Username</mat-label>
         <input
           matInput
           autocomplete="username"
@@ -30,9 +30,9 @@
           spellcheck="false"
         />
         @if (form.controls.nip.hasError('required')) {
-          <mat-error>NIP wajib diisi.</mat-error>
+          <mat-error>Username wajib diisi.</mat-error>
         } @else if (form.controls.nip.hasError('maxlength')) {
-          <mat-error>NIP maksimal 64 karakter.</mat-error>
+          <mat-error>Username maksimal 64 karakter.</mat-error>
         }
       </mat-form-field>
 

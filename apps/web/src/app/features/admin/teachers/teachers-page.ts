@@ -59,10 +59,10 @@ interface ConfirmDialogData {
     <mat-dialog-content>
       <form class="dialog-form" [formGroup]="form" (ngSubmit)="submit()">
         <mat-form-field appearance="outline">
-          <mat-label>NIP</mat-label>
+          <mat-label>Username</mat-label>
           <input matInput formControlName="nip" name="nip" autocomplete="off" spellcheck="false" />
           @if (form.controls.nip.invalid) {
-            <mat-error>NIP wajib diisi dengan format yang valid.</mat-error>
+            <mat-error>Username wajib diisi dengan format yang valid.</mat-error>
           }
         </mat-form-field>
         <mat-form-field appearance="outline">

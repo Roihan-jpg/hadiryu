@@ -198,7 +198,9 @@ export class SupabaseLeaveRequestRepository implements LeaveRequestRepository {
   }
   async listAdmin(input: ListAdminLeaveRequestsQuery) {
     const start = (input.page - 1) * input.pageSize;
-    let query = this.client.from('leave_requests').select(`${LEAVE_FIELDS},profiles!leave_requests_teacher_id_fkey(nip,full_name,whatsapp_number)`, { count: 'exact' }).order('leave_date', { ascending: true }).order('created_at', { ascending: true }).range(start, start + input.pageSize - 1);
+    let query = this.client.from('leave_requests').select(`${LEAVE_FIELDS},profiles!leave_requests_teacher_id_fkey(nip,full_name,whatsapp_number)`, { count: 'exact' });
+    if (input.sort !== 'oldest') query = query.order('leave_date', { ascending: true });
+    query = query.order('created_at', { ascending: true }).order('id', { ascending: true }).range(start, start + input.pageSize - 1);
     if (input.status) query = query.eq('status', input.status);
     if (input.leaveDate) query = query.eq('leave_date', input.leaveDate);
     if (input.search) query = query.or(`nip.ilike.%${input.search}%,full_name.ilike.%${input.search}%`, { referencedTable: 'profiles' });

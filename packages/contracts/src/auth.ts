@@ -9,8 +9,8 @@ export type Gender = z.infer<typeof GenderSchema>;
 export const NipSchema = z
   .string()
   .trim()
-  .min(1, 'NIP wajib diisi')
-  .max(64, 'NIP maksimal 64 karakter')
+  .min(1, 'Username wajib diisi')
+  .max(64, 'Username maksimal 64 karakter')
   .regex(
     /^[a-zA-Z0-9._-]+$/,
     'NIP hanya boleh berisi huruf, angka, titik, garis bawah, atau tanda hubung',
