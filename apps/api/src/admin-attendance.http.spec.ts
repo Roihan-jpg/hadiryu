@@ -89,6 +89,7 @@ class FakeAuthService implements AuthService {
 }
 
 class FakeAdminAttendanceService implements AdminAttendanceService {
+  async dashboard(): Promise<import('@absensi/contracts').AdminDashboardResponse> { throw new Error('not used'); }
   listCalls: ListAdminAttendanceQuery[] = [];
   noteCalls: Array<{
     actorId: string;
@@ -123,6 +124,13 @@ function testApp(user: AuthUser) {
 }
 
 describe('admin attendance HTTP API', () => {
+  it('protects dashboard data and validates its query before aggregation', async () => {
+    const adminApp = testApp(admin).app;
+    expect((await request(adminApp).get('/api/admin/dashboard?workDate=not-a-date').set('Cookie', 'absensi_session=token')).status).toBe(400);
+    expect((await request(adminApp).get('/api/admin/dashboard?role=SUPER_ADMIN').set('Cookie', 'absensi_session=token')).status).toBe(400);
+    expect((await request(testApp(teacher).app).get('/api/admin/dashboard').set('Cookie', 'absensi_session=token')).status).toBe(403);
+    expect((await request(adminApp).get('/api/admin/dashboard')).status).toBe(401);
+  });
   it('allows SuperAdmin to filter the paginated daily monitoring table', async () => {
     const { app, adminAttendanceService } = testApp(admin);
 

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  AdminDashboardResponseSchema,
   MonthlyReportPreviewSchema,
   PasswordResetResponseSchema,
   TeacherResponseSchema,
@@ -48,7 +49,7 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
 
   await login(page, adminNip, adminInitialPassword);
   await changeInitialPassword(page, adminInitialPassword, adminPassword);
-  await expect(page.getByRole('heading', { name: 'Monitoring kehadiran' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
 
   const attendanceWindow = jakartaDateTime(new Date(Date.now() + 60_000));
   const schedule = {
@@ -271,6 +272,12 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   expect(exportBody.byteLength).toBeGreaterThan(1_000);
 
   await page.getByRole('link', { name: 'Laporan', exact: true }).click();
+  const dashboardResponse = await page.context().request.get(`${APP_BASE_URL}/api/admin/dashboard`);
+  expect(dashboardResponse.ok()).toBe(true);
+  const dashboard = AdminDashboardResponseSchema.parse(await dashboardResponse.json());
+  expect(dashboard.trend).toHaveLength(7);
+  expect(dashboard.day.arrived).toBeGreaterThanOrEqual(1);
+  expect(dashboard.arrivals.at(-1)?.cumulative).toBe(dashboard.day.arrived);
   await expect(page.getByRole('heading', { name: 'Laporan Absensi' })).toBeVisible();
   await page.getByRole('link', { name: 'Audit Log', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();

@@ -1,4 +1,5 @@
 @use '@angular/material' as mat;
+@use '@fontsource-variable/manrope/index.css';
 
 @font-face {
   font-family: 'Poppins';
@@ -656,3 +657,4 @@ app-staff-dashboard-page {
   .dashboard-loading .skeleton-block { min-height: 180px; }
   .dashboard-loading .wide { grid-column: 1 / -1; min-height: 300px; }
 }
+

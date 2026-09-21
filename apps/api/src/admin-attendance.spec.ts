@@ -99,6 +99,22 @@ function serviceAt(repository: FakeAdminAttendanceRepository, iso: string) {
 }
 
 describe('admin attendance monitoring service', () => {
+  it('keeps Guru drill-down within the same account and operational relevance as the dashboard', async () => {
+    const repository = new FakeAdminAttendanceRepository();
+    repository.records = [source(1), source(2, { createdAt: '2026-08-25T18:00:00Z' })];
+    const result = await serviceAt(repository, '2026-08-25T10:00:00Z').list({ page: 1, pageSize: 20, workDate, role: 'USER' });
+    expect(result.data.map((item) => item.teacherId)).toEqual([source(1).teacherId]);
+  });
+  it('filters actual arrivals across exclusive statuses and keeps full totals before pagination', async () => {
+    const repository = new FakeAdminAttendanceRepository();
+    repository.records = [source(1, { attendance }), source(2, { attendance: { ...attendance, arrivalLateMinutes: 8 } }), source(3)];
+    const result = await serviceAt(repository, '2026-08-25T10:00:00Z').list({ page: 1, pageSize: 1, workDate, role: 'USER', checkedIn: 'yes' });
+    expect(result.pagination.totalItems).toBe(2);
+    expect(result.data).toHaveLength(1);
+    expect(result.summary.total).toBe(3);
+    const late = await serviceAt(repository, '2026-08-25T10:00:00Z').list({ page: 1, pageSize: 20, workDate, role: 'USER', lateOnly: 'yes' });
+    expect(late.data.map((item) => item.teacherId)).toEqual([source(2).teacherId]);
+  });
   it('derives five exclusive statuses and an exactly matching summary', async () => {
     const repository = new FakeAdminAttendanceRepository();
     repository.records = [

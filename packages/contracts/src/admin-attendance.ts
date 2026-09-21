@@ -54,6 +54,9 @@ export const ListAdminAttendanceQuerySchema = z.strictObject({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   workDate: LocalDateSchema.optional(),
   status: AdminAttendanceStatusSchema.optional(),
+  role: StaffRoleSchema.optional(),
+  checkedIn: z.enum(['yes', 'no']).optional(),
+  lateOnly: z.literal('yes').optional(),
   search: z
     .string()
     .trim()

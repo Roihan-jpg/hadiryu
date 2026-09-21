@@ -48,7 +48,7 @@ describe('LoginPage', () => {
     fixture.detectChanges();
 
     expect(login).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('NIP wajib diisi');
+    expect(fixture.nativeElement.textContent).toContain('Username wajib diisi');
     expect(document.activeElement).toBe(
       fixture.nativeElement.querySelector('input[formControlName="nip"]'),
     );

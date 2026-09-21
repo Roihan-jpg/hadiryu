@@ -196,6 +196,7 @@ const unavailableEarlyDepartureRequestService: EarlyDepartureRequestService = {
 };
 
 const unavailableAdminAttendanceService: AdminAttendanceService = {
+  async dashboard() { throw new AppError(500, 'ADMIN_ATTENDANCE_NOT_CONFIGURED', 'Dashboard belum dikonfigurasi'); },
   async list() {
     throw new AppError(
       500,

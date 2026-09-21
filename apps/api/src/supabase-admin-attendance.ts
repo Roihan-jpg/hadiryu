@@ -22,6 +22,7 @@ const ProfileRowSchema = z.strictObject({
   nip: z.string(),
   full_name: z.string(),
   role: z.enum(['USER', 'SECURITY_GUARD']),
+  created_at: z.string(),
 });
 const AttendanceRowSchema = z.strictObject({
   id: z.uuid(),
@@ -162,6 +163,12 @@ export class SupabaseAdminAttendanceRepository
     return this.attendanceRepository.findSecuritySchedules(workDate);
   }
 
+  async findOperationalStart(): Promise<string | null> {
+    const { data, error } = await this.client.from('reporting_settings').select('operational_start_date').eq('singleton', true).maybeSingle();
+    if (error) throw databaseError('ADMIN_DASHBOARD_LOOKUP_FAILED', 'Tanggal operasional tidak dapat dimuat');
+    return data ? z.object({ operational_start_date: z.iso.date() }).parse(data).operational_start_date : null;
+  }
+
   async findCalendarException(
     workDate: string,
   ): Promise<CalendarException | null> {
@@ -189,7 +196,7 @@ export class SupabaseAdminAttendanceRepository
   ): Promise<AdminAttendanceSource[]> {
     let profileQuery = this.client
       .from('profiles')
-      .select('id,nip,full_name,role')
+      .select('id,nip,full_name,role,created_at')
       .in('role', ['USER', 'SECURITY_GUARD'])
       .eq('is_active', true)
       .order('full_name', { ascending: true })
@@ -299,6 +306,7 @@ export class SupabaseAdminAttendanceRepository
       const leaveRow = leaveByTeacher.get(profile.id);
       return {
         teacherId: profile.id,
+        createdAt: profile.created_at,
         teacherNip: profile.nip,
         teacherFullName: profile.full_name,
         role: profile.role,

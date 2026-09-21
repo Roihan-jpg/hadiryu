@@ -1,4 +1,5 @@
 import type {
+  AdminDashboardResponse,
   AdminAttendanceListResponse,
   AdminAttendanceRecord,
   AttendanceAdminNote,
@@ -57,14 +58,24 @@ const note: AttendanceAdminNote = {
   createdAt: '2026-08-25T10:05:00.000Z',
 };
 
+const day = { workDate: '2026-08-25', state: 'WORKING' as const, description: 'Jadwal kerja Guru', provisional: true, scheduled: 5, arrived: 3, notCheckedIn: 1, leave: 1, late: 1 };
+const overview: AdminDashboardResponse = {
+  workDate: day.workDate, generatedAt: response.summary.generatedAt, day,
+  window: { openAt: '2026-08-24T23:00:00Z', startAt: '2026-08-25T00:00:00Z', closeAt: '2026-08-25T02:00:00Z', observedUntil: '2026-08-25T01:00:00Z' },
+  arrivals: [{ at: record.checkInAt!, count: 1, cumulative: 1 }],
+  trend: Array.from({ length: 7 }, (_, i) => ({ ...day, workDate: `2026-08-${19 + i}` })), guards: [], rosterAvailable: false,
+};
+
 describe('AdminDashboardPage', () => {
   let fixture: ComponentFixture<AdminDashboardPage>;
   let list: ReturnType<typeof vi.fn>;
   let addNote: ReturnType<typeof vi.fn>;
   let open: ReturnType<typeof vi.fn>;
+  let dashboard: ReturnType<typeof vi.fn>;
 
   async function setup(): Promise<void> {
     list = vi.fn(async () => response);
+    dashboard = vi.fn(async () => overview);
     addNote = vi.fn(async () => note);
     open = vi.fn(() => ({
       afterClosed: () => of({ note: 'Dokumen sudah diperiksa' }),
@@ -75,7 +86,7 @@ describe('AdminDashboardPage', () => {
         provideRouter([]),
         {
           provide: AdminDashboardService,
-          useValue: { list, addNote },
+          useValue: { list, addNote, dashboard, refresh: vi.fn(async () => undefined), pendingLeaves: vi.fn(async () => ({ data: [], pagination: { totalItems: 0 } })), pendingDepartures: vi.fn(async () => ({ data: [], pagination: { totalItems: 0 } })) },
         },
       ],
     });
@@ -93,11 +104,11 @@ describe('AdminDashboardPage', () => {
     await setup();
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Monitoring kehadiran');
-    expect(text).toContain('Hadir');
+    expect(text).toContain('Ritme kedatangan Guru');
+    expect(text).toContain('Sudah hadir');
     expect(text).toContain('Terlambat');
-    expect(text).toContain('Belum hadir');
-    expect(text).toContain('Tidak lengkap');
+    expect(text).toContain('Belum check-in tanpa izin');
+    expect(text).toContain('Kehadiran 7 hari terakhir');
     expect(text).toContain('Izin');
     expect(text).toContain('Guru Satu');
     expect(text).toContain('8 menit terlambat');
@@ -181,5 +192,23 @@ describe('AdminDashboardPage', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Monitoring gagal dimuat.');
     expect(text).not.toContain('Tidak ada data kehadiran yang sesuai filter.');
+  });
+
+  it('filters actual arrivals without changing dashboard totals and focuses results', async () => {
+    await setup();
+    await fixture.componentInstance.summaryFilter('arrived');
+    expect(list).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, workDate: day.workDate, role: 'USER', checkedIn: 'yes' });
+    expect(fixture.componentInstance.dashboard()?.day.arrived).toBe(3);
+    expect(dashboard).toHaveBeenCalledTimes(1);
+    expect(document.activeElement?.id).toBe('attendance-title');
+  });
+
+  it('retains last good overview when refresh fails', async () => {
+    await setup();
+    dashboard.mockRejectedValueOnce(new Error('offline'));
+    await fixture.componentInstance.loadDashboard();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.dashboard()).toEqual(overview);
+    expect(fixture.nativeElement.textContent).toContain('Data terakhir tetap ditampilkan');
   });
 });

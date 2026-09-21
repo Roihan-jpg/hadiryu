@@ -16,3 +16,4 @@ export * from './settings.js';
 export * from './security-dashboard.js';
 export * from './staff-dashboard.js';
 export * from './teachers.js';
+export * from './admin-dashboard.js';

@@ -1,39 +1,93 @@
 <section class="dashboard-shell" aria-labelledby="dashboard-title">
-  <header class="page-header">
-    <div>
-      <p class="eyebrow">Dashboard SuperAdmin</p>
-      <h1 id="dashboard-title">Monitoring kehadiran</h1>
-      <p class="intro">Pantau satu hari kerja, temukan pengecualian, lalu beri catatan tanpa mengubah data absensi.</p>
+<header class="page-header">
+  <div><p class="eyebrow">Administrasi sekolah</p><h1 id="dashboard-title">Dashboard</h1>
+    @if (dashboard(); as value) { <p class="intro">{{ dateLabel(value.workDate) }} <span>· Diperbarui {{ jakartaTime(value.generatedAt) }} WIB</span></p> }
+  </div>
+  <div class="date-tools"><label for="dashboard-date">Tanggal kehadiran<input id="dashboard-date" type="date" [formControl]="dateControl" [readonly]="loading() || dashboardLoading()" (change)="selectDate(dateControl.value)" /></label><button mat-stroked-button type="button" (click)="refresh()" [disabled]="refreshing() || loading() || dashboardLoading() || queueLoading()">{{ refreshing() ? 'Memperbarui…' : 'Perbarui' }}</button></div>
+</header>
+@if (dashboardError()) { <p class="feedback error" role="alert">{{ dashboardError() }} <button mat-button (click)="loadDashboard()" [disabled]="dashboardLoading()">Coba lagi</button></p> }
+@if (dashboardLoading()) { <p role="status" class="loading-caption">Memuat dashboard…</p> }
+@if (dashboard(); as value) {
+  <section class="rhythm-panel" [attr.aria-busy]="dashboardLoading()" aria-labelledby="rhythm-title">
+    <div class="rhythm-heading"><div><p class="eyebrow">Kehadiran hari terpilih</p><h2 id="rhythm-title">Ritme kedatangan Guru</h2></div><span class="quiet-label">{{ value.day.provisional ? 'Sementara' : value.day.description }}</span></div>
+    <div class="rhythm-body">
+      <div class="chart-area">@for (item of [value]; track item.generatedAt + item.workDate) { <app-arrival-chart [data]="item" /> }</div>
+      <aside class="day-summary" aria-label="Ringkasan kehadiran Guru">
+        <button class="arrival-total" (click)="summaryFilter('arrived')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.arrived === null"><span>Sudah hadir</span><strong>{{ value.day.arrived ?? '—' }}</strong><span>dari {{ value.day.scheduled ?? '—' }} Guru terjadwal</span></button>
+        <div class="summary-rows">
+          <button (click)="summaryFilter('waiting')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.notCheckedIn === null"><span>Belum check-in tanpa izin</span><b>{{ value.day.notCheckedIn ?? '—' }}</b></button>
+          <button (click)="summaryFilter('leave')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.leave === null"><span>Izin disetujui</span><b>{{ value.day.leave ?? '—' }}</b></button>
+          <button (click)="summaryFilter('late')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.late === null"><span>Terlambat efektif</span><b [class.warning]="(value.day.late ?? 0) > 0">{{ value.day.late ?? '—' }}</b></button>
+        </div>
+        <p class="summary-note">Terlambat termasuk sudah hadir. Izin termasuk Guru terjadwal.</p>
+      </aside>
     </div>
-  </header>
-
-  @if (summary(); as value) {
-    <section class="status-ledger" aria-label="Ringkasan kehadiran">
-      <button type="button" [attr.aria-pressed]="statusControl.value === 'PRESENT'" [disabled]="loading()" (click)="filterStatus('PRESENT')"><span>Hadir</span><strong>{{ value.present }}</strong></button>
-      <button type="button" [attr.aria-pressed]="statusControl.value === 'LATE'" [disabled]="loading()" (click)="filterStatus('LATE')"><span>Terlambat</span><strong>{{ value.late }}</strong></button>
-      <button type="button" [attr.aria-pressed]="statusControl.value === 'NOT_PRESENT'" [disabled]="loading()" (click)="filterStatus('NOT_PRESENT')"><span>Belum hadir</span><strong>{{ value.notPresent }}</strong></button>
-      <button type="button" [attr.aria-pressed]="statusControl.value === 'INCOMPLETE'" [disabled]="loading()" (click)="filterStatus('INCOMPLETE')"><span>Tidak lengkap</span><strong>{{ value.incomplete }}</strong></button>
-      <button type="button" [attr.aria-pressed]="statusControl.value === 'LEAVE'" [disabled]="loading()" (click)="filterStatus('LEAVE')"><span>Izin</span><strong>{{ value.leave }}</strong></button>
-      <button type="button" [attr.aria-pressed]="statusControl.value === 'OFF'" [disabled]="loading()" (click)="filterStatus('OFF')"><span>Libur rotasi</span><strong>{{ value.off }}</strong></button>
-    </section>
-  }
-
+  </section>
+}
+<div class="secondary-grid">
+  <section class="trend-panel" aria-labelledby="trend-title">
+    <div class="section-heading"><div><p class="eyebrow">Pola mingguan</p><h2 id="trend-title">Kehadiran 7 hari terakhir</h2></div></div>
+    <p class="panel-description">Proporsi Guru terjadwal yang sudah check-in.</p>
+    @if (dashboard(); as value) {
+      <div class="trend-bars">
+        @for (day of value.trend; track day.workDate) {
+          <button type="button" [disabled]="loading() || dashboardLoading()" (click)="selectDate(day.workDate)" [attr.aria-pressed]="day.workDate === value.workDate" [attr.aria-label]="dateLabel(day.workDate) + ': ' + (day.state === 'WORKING' ? day.arrived + ' dari ' + day.scheduled + ' Guru' : day.description) + (day.provisional ? ', sementara' : '')">
+            <span class="bar-value">{{ day.state === 'WORKING' ? day.arrived + '/' + day.scheduled : '—' }}</span>
+            <span class="bar-track"><span class="bar-fill" [style.height.%]="day.scheduled ? (day.arrived ?? 0) / day.scheduled * 100 : 0"></span></span>
+            <span class="bar-date">{{ dateLabel(day.workDate, true) }}</span>
+            <span class="bar-note">{{ day.provisional ? 'Sementara' : day.state === 'HOLIDAY' ? 'Libur' : day.state === 'UNCONFIGURED' ? 'Belum diatur' : day.state === 'NOT_STARTED' ? 'Belum mulai' : '' }}</span>
+          </button>
+        }
+      </div>
+    } @else { <p class="panel-description">{{ dashboardLoading() ? 'Memuat tren…' : 'Tren belum dapat ditampilkan.' }}</p> }
+  </section>
+  <section class="review-panel" aria-labelledby="review-title">
+    <div class="section-heading"><div><p class="eyebrow">Tindak lanjut</p><h2 id="review-title">Perlu ditinjau</h2></div></div>
+    <p class="panel-description">Pengajuan terlama · Seluruh tanggal</p>
+    @if (queueLoading()) { <p role="status" class="loading-caption">Memuat antrean…</p> }
+    <div class="queue-group"><h3><a routerLink="/admin/leave-requests">Izin</a><span>{{ leaves()?.pagination?.totalItems ?? '—' }}</span></h3>
+      @if (leavesError()) { <p class="inline-error" role="alert">{{ leavesError() }}</p> }
+      @if (leaves(); as queue) { @for (request of queue.data; track request.id) {
+        <a class="request-row" [routerLink]="['/admin/leave-requests', request.id]"><span><strong>{{ request.teacherFullName }}</strong><small>{{ leaveLabel(request.leaveType) }} · {{ dateLabel(request.leaveDate, true) }}</small></span><span class="review-action">Tinjau →</span></a>
+      } @empty { <p class="queue-empty">Tidak ada pengajuan menunggu keputusan.</p> } }
+    </div>
+    <div class="queue-group"><h3><a routerLink="/admin/early-departure-requests">Pulang awal</a><span>{{ departures()?.pagination?.totalItems ?? '—' }}</span></h3>
+      @if (departuresError()) { <p class="inline-error" role="alert">{{ departuresError() }}</p> }
+      @if (departures(); as queue) { @for (request of queue.data; track request.id) {
+        <a class="request-row" [routerLink]="['/admin/early-departure-requests', request.id]"><span><strong>{{ request.teacherFullName }}</strong><small>Pulang awal · {{ dateLabel(request.workDate, true) }}</small></span><span class="review-action">Tinjau →</span></a>
+      } @empty { <p class="queue-empty">Tidak ada pengajuan menunggu keputusan.</p> } }
+    </div>
+    @if (leavesError() || departuresError()) { <button mat-button (click)="loadQueues()" [disabled]="queueLoading()">Coba lagi</button> }
+  </section>
+</div>
+@if (dashboard(); as value) {
+  <section class="guards-panel" aria-labelledby="guards-title"><div class="section-heading"><div><p class="eyebrow">Penugasan {{ dateLabel(value.workDate, true) }}</p><h2 id="guards-title">Jadwal Satpam</h2></div>@if (!value.rosterAvailable) { <a routerLink="/admin/settings">Atur roster →</a> }</div>
+    @if (!value.rosterAvailable) { <p class="panel-description">Roster belum tersedia untuk tanggal ini.</p> }
+    <div class="guard-list">@for (guard of value.guards; track guard.teacherId) {
+      <article><span class="guard-assignment">{{ guard.assignment === 'DAY' ? 'Shift Pagi' : guard.assignment === 'NIGHT' ? 'Shift Malam' : guard.assignment === 'OFF' ? 'Libur Rotasi' : 'Belum ditugaskan' }}</span><h3>{{ guard.name }}</h3><p>{{ guard.status }}</p>@if (guard.startAt) { <small>{{ shiftTime(guard.startAt) }} — {{ shiftTime(guard.endAt) }} WIB</small> }</article>
+    } @empty { <p class="panel-description">Belum ada Satpam untuk ditampilkan.</p> }</div>
+  </section>
+}
+<div class="table-heading"><div><p class="eyebrow">Rincian harian</p><h2 id="attendance-title" tabindex="-1">Daftar kehadiran</h2></div>@if (summary(); as value) { <span>{{ dateLabel(value.workDate, true) }} · {{ pagination().totalItems }} hasil</span> }</div>
   <form class="filters" (ngSubmit)="applyFilters()" novalidate>
-    <mat-form-field appearance="outline"><mat-label>Tanggal</mat-label><input matInput type="date" name="workDate" autocomplete="off" [formControl]="dateControl" /></mat-form-field>
-    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select name="attendanceStatus" [formControl]="statusControl"><mat-option value="ALL">Semua status</mat-option><mat-option value="PRESENT">Hadir</mat-option><mat-option value="LATE">Terlambat</mat-option><mat-option value="NOT_PRESENT">Belum hadir</mat-option><mat-option value="INCOMPLETE">Tidak lengkap</mat-option><mat-option value="LEAVE">Izin</mat-option><mat-option value="OFF">Libur rotasi</mat-option></mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Peran</mat-label><mat-select [formControl]="roleControl"><mat-option value="ALL">Semua staf</mat-option><mat-option value="USER">Guru</mat-option><mat-option value="SECURITY_GUARD">Satpam</mat-option></mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select name="attendanceStatus" [formControl]="statusControl" (selectionChange)="checkedIn.set(undefined); lateOnly.set(false)"><mat-option value="ALL">Semua status</mat-option><mat-option value="PRESENT">Hadir</mat-option><mat-option value="LATE">Terlambat</mat-option><mat-option value="NOT_PRESENT">Belum hadir</mat-option><mat-option value="INCOMPLETE">Tidak lengkap</mat-option><mat-option value="LEAVE">Izin</mat-option><mat-option value="OFF">Libur rotasi</mat-option></mat-select></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Cari Guru atau Satpam</mat-label><input matInput name="teacherSearch" autocomplete="off" [formControl]="searchControl" placeholder="Contoh: Siti atau 1987001…" /></mat-form-field>
     <button mat-stroked-button type="submit" [disabled]="loading()">Terapkan filter</button>
   </form>
 
+  @if (checkedIn()) { <p class="active-filter">Filter: sudah check-in <button mat-button (click)="checkedIn.set(undefined); applyFilters()">Hapus filter</button></p> }
+  @if (lateOnly()) { <p class="active-filter">Filter: terlambat efektif <button mat-button (click)="lateOnly.set(false); applyFilters()">Hapus filter</button></p> }
   @if (successMessage()) { <p class="feedback success" role="status" aria-live="polite">{{ successMessage() }}</p> }
   @if (errorMessage()) { <div class="feedback error" role="alert"><span>{{ errorMessage() }}</span><button mat-button type="button" (click)="load()">Coba lagi</button></div> }
 
   @if (loading()) {
-    <div class="state" role="status" aria-live="polite"><mat-spinner diameter="28" aria-hidden="true" /> Memuat monitoring kehadiran…</div>
-  } @else if (errorMessage()) {
-  } @else if (records().length === 0) {
+    <div class="state" role="status" aria-live="polite"><mat-spinner diameter="28" aria-hidden="true" /> Memuat daftar kehadiran…</div>
+  }
+  @if (records().length === 0 && !loading() && !errorMessage()) {
     <div class="state empty-state" role="status"><div><strong>Tidak ada data kehadiran</strong><p>Ubah tanggal, status, atau pencarian untuk melihat hasil lain.</p></div></div>
-  } @else {
+  }
+  @if (records().length > 0) {
     <div class="table-frame" tabindex="0" role="region" aria-label="Tabel monitoring kehadiran, dapat digeser secara horizontal pada layar sempit">
       <table>
         <caption class="visually-hidden">Rincian monitoring kehadiran Guru dan Satpam</caption>

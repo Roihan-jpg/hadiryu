@@ -26,7 +26,7 @@ export class App {
   protected readonly teacherMenuOpen = signal(false);
   protected readonly sidebarCollapsed = signal(this.savedSidebarState());
   protected readonly adminNavigation: readonly SidebarNavigationItem[] = [
-    { path: '/admin', label: 'Monitoring', exact: true, icon: 'M4 13h6V4H4v9zm0 7h6v-4H4v4zm10 0h6v-9h-6v9zm0-16v4h6V4h-6z' },
+    { path: '/admin', label: 'Dashboard', exact: true, icon: 'M4 13h6V4H4v9zm0 7h6v-4H4v4zm10 0h6v-9h-6v9zm0-16v4h6V4h-6z' },
     { path: '/admin/teachers', label: 'Guru & Satpam', exact: false, icon: 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
     { path: '/admin/leave-requests', label: 'Approval Izin', exact: false, icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' },
     { path: '/admin/early-departure-requests', label: 'Approval Pulang Awal', exact: false, icon: 'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z' },

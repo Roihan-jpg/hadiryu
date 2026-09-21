@@ -1,4 +1,6 @@
 import {
+  AdminDashboardQuerySchema,
+  type AdminDashboardResponse,
   AdminAttendanceListResponseSchema,
   CreateAttendanceAdminNoteSchema,
   AttendanceAdminNoteSchema,
@@ -27,6 +29,7 @@ import {
 import { resolveCalendarDay } from './calendar-payroll.js';
 import { resolveSecurityAssignment } from './security-duty.js';
 import { adjustedAttendanceMetrics } from './attendance-adjustments.js';
+import { createAdminDashboard } from './admin-dashboard.js';
 
 const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
 const AttendanceIdSchema = z.uuid();
@@ -53,6 +56,7 @@ export interface AdminAttendanceSourceAttendance {
 }
 
 export interface AdminAttendanceSource {
+  createdAt?: string;
   teacherId: string;
   teacherNip: string;
   teacherFullName: string;
@@ -63,6 +67,7 @@ export interface AdminAttendanceSource {
 }
 
 export interface AdminAttendanceRepository {
+  findOperationalStart?(): Promise<string | null>;
   findCalendarException(workDate: string): Promise<CalendarException | null>;
   findSchedule?(
     scheduleType: 'WEEKDAY' | 'SATURDAY',
@@ -82,6 +87,7 @@ export interface AdminAttendanceRepository {
 }
 
 export interface AdminAttendanceService {
+  dashboard(workDate?: string): Promise<AdminDashboardResponse>;
   list(input: ListAdminAttendanceQuery): Promise<AdminAttendanceListResponse>;
   addNote(
     actorId: string,
@@ -96,7 +102,7 @@ interface JakartaDateTime {
   timestampMs: number;
 }
 
-function jakartaDateTime(value: Date): JakartaDateTime {
+export function jakartaDateTime(value: Date): JakartaDateTime {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: JAKARTA_TIME_ZONE,
     year: 'numeric',
@@ -124,7 +130,7 @@ function jakartaInstant(workDate: string, time: string): string {
   return new Date(`${workDate}T${time}:00+07:00`).toISOString();
 }
 
-function withLiveUserSchedule(
+export function withLiveUserSchedule(
   attendance: AdminAttendanceSourceAttendance,
   schedule: ScheduleRule,
   workDate: string,
@@ -161,7 +167,7 @@ function isIncomplete(
   );
 }
 
-function toRecord(
+export function toRecord(
   source: AdminAttendanceSource,
   workDate: string,
   current: JakartaDateTime,
@@ -274,6 +280,7 @@ export function createAdminAttendanceService(
   now: () => Date = () => new Date(),
 ): AdminAttendanceService {
   return {
+    dashboard(workDate) { return createAdminDashboard(repository, now(), workDate); },
     async list(input) {
       const serverNow = now();
       const current = jakartaDateTime(serverNow);
@@ -284,12 +291,16 @@ export function createAdminAttendanceService(
         ? await repository.findSchedule?.(day.scheduleType, workDate)
         : null;
       const sources = await repository.listDailySources(workDate, input.search);
+      const operationalStart = input.role === 'USER' ? await repository.findOperationalStart?.() : null;
       const securitySettings = sources.some(
         (source) => source.role === 'SECURITY_GUARD' && !source.attendance,
       )
         ? await repository.findSecuritySchedules?.(workDate)
         : undefined;
       const records = sources
+        .filter((source) => input.role !== 'USER' ||
+          ((!operationalStart || workDate >= operationalStart) &&
+          (!source.createdAt || jakartaDateTime(new Date(source.createdAt)).workDate <= workDate)))
         .filter((source) => day.isWorkingDay || source.role === 'SECURITY_GUARD')
         .map((source) => {
           const resolvedSource = source.role !== 'SECURITY_GUARD' && source.attendance && liveUserSchedule
@@ -320,9 +331,11 @@ export function createAdminAttendanceService(
             left.teacherFullName.localeCompare(right.teacherFullName, 'id') ||
             left.teacherNip.localeCompare(right.teacherNip, 'id'),
         );
-      const filtered = input.status
-        ? records.filter((record) => record.status === input.status)
-        : records;
+      const filtered = records.filter((record) =>
+        (!input.status || record.status === input.status) &&
+        (!input.role || (record.role ?? 'USER') === input.role) &&
+        (!input.lateOnly || (record.arrivalLateMinutes ?? 0) > 0) &&
+        (!input.checkedIn || (input.checkedIn === 'yes') === Boolean(record.checkInAt)));
       const start = (input.page - 1) * input.pageSize;
       const totalItems = filtered.length;
 
@@ -378,6 +391,14 @@ export function registerAdminAttendanceRoutes(
     createSessionGuard(authService),
     requireRole('SUPER_ADMIN'),
   ];
+
+  app.get('/api/admin/dashboard', ...adminGuards, async (request, response, next) => {
+    try {
+      const parsed = AdminDashboardQuerySchema.safeParse(request.query);
+      if (!parsed.success) throw new AppError(400, 'VALIDATION_ERROR', 'Tanggal dashboard tidak valid');
+      response.json(await attendanceService.dashboard(parsed.data.workDate));
+    } catch (error) { next(error); }
+  });
 
   app.get(
     '/api/admin/attendance',

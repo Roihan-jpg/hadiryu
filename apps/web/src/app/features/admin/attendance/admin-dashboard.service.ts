@@ -15,6 +15,32 @@ export class AdminDashboardService {
   private readonly http = inject(HttpClient);
   private readonly queries = inject(QueryGateway);
 
+  async dashboard(workDate?: string) {
+    return this.queries.get(['admin', 'dashboard', workDate ?? 'today'], async () => {
+      const { AdminDashboardResponseSchema } = await import('@absensi/contracts');
+      const params = workDate ? new HttpParams().set('workDate', workDate) : new HttpParams();
+      return AdminDashboardResponseSchema.parse(await firstValueFrom(this.http.get<unknown>('/api/admin/dashboard', { params, withCredentials: true })));
+    }, 0);
+  }
+
+  async pendingLeaves() {
+    return this.queries.get(['admin', 'dashboard', 'leaves'], async () => {
+      const { AdminLeaveRequestListResponseSchema } = await import('@absensi/contracts');
+      return AdminLeaveRequestListResponseSchema.parse(await firstValueFrom(this.http.get<unknown>('/api/admin/leave-requests', { params: { page: 1, pageSize: 3, status: 'PENDING', sort: 'oldest' }, withCredentials: true })));
+    }, 0);
+  }
+
+  async pendingDepartures() {
+    return this.queries.get(['admin', 'dashboard', 'departures'], async () => {
+      const { AdminEarlyDepartureRequestListResponseSchema } = await import('@absensi/contracts');
+      return AdminEarlyDepartureRequestListResponseSchema.parse(await firstValueFrom(this.http.get<unknown>('/api/admin/early-departure-requests', { params: { page: 1, pageSize: 3, status: 'PENDING' }, withCredentials: true })));
+    }, 0);
+  }
+
+  async refresh() {
+    await this.queries.write(async () => undefined, [['admin', 'dashboard'], queryKeys.monitoring()]);
+  }
+
   async list(
     input: ListAdminAttendanceQuery,
   ): Promise<AdminAttendanceListResponse> {
@@ -29,6 +55,9 @@ export class AdminDashboardService {
       .set('pageSize', input.pageSize);
     if (input.workDate) params = params.set('workDate', input.workDate);
     if (input.status) params = params.set('status', input.status);
+    if (input.role) params = params.set('role', input.role);
+    if (input.checkedIn) params = params.set('checkedIn', input.checkedIn);
+    if (input.lateOnly) params = params.set('lateOnly', input.lateOnly);
     if (input.search) params = params.set('search', input.search);
     const value = await firstValueFrom(
       this.http.get<unknown>('/api/admin/attendance', {
