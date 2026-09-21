@@ -1,9 +1,10 @@
-:host { --font-body:'Manrope Variable',sans-serif; --font-display:'Manrope Variable',sans-serif; font-family:var(--font-body); display:block; min-height:100%; background:#f6f4ee; color:#283e3a; }
+:host { font-family:var(--font-body); display:block; min-height:100%; background:#f6f4ee; color:#283e3a; }
 * { box-sizing:border-box; }
 .dashboard-shell { width:min(1280px,calc(100% - 64px)); margin:auto; padding:36px 0 64px; font-size:14px; }
 .page-header,.section-heading,.rhythm-heading,.table-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; }
 .page-header { margin-bottom:28px; align-items:end; }
-h1,h2,h3,button,input { font-family:var(--font-body); }
+h1,h2,h3,button { font-family:var(--font-display); }
+input { font-family:var(--font-body); }
 h1,h2,h3,p { margin-top:0; }
 h1 { margin-bottom:8px; font-size:32px; font-weight:750; letter-spacing:-1px; }
 h2 { margin:0; font-size:20px; font-weight:750; letter-spacing:-.5px; }
@@ -86,4 +87,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,#attendance-title:focus
 .trend-bars { gap:2px; }.bar-track { height:100px; }.bar-note { font-size:12px; }.guard-list { grid-template-columns:1fr; gap:20px; }
 .filters { grid-template-columns:1fr; gap:0; }.filters button { min-height:44px; margin-bottom:16px; }.table-heading { align-items:start; gap:12px; }
 th:first-child,td:first-child { position:sticky; left:0; z-index:1; min-width:150px; max-width:170px; background:#fffdf9; box-shadow:1px 0 #dddfd7; } th:first-child { background:#eef1e9; }.feedback { align-items:start; flex-wrap:wrap; }
+}
+:host { container-type:inline-size; }
+@container (max-width:700px) {
+  .rhythm-body { display:flex; flex-direction:column; }
+  .day-summary { order:-1; padding:0 0 16px; border-left:0; border-bottom:1px solid #dddfd7; }
+}
+:host {
+  --mat-form-field-container-text-font:var(--font-body);
+  --mat-form-field-outlined-label-text-font:var(--font-body);
+  --mat-select-trigger-text-font:var(--font-body);
+  --mat-paginator-container-text-font:var(--font-body);
+  --mat-button-outlined-label-text-font:var(--font-display);
+  --mat-button-text-label-text-font:var(--font-display);
 }

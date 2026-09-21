@@ -13,11 +13,11 @@
     <div class="rhythm-body">
       <div class="chart-area">@for (item of [value]; track item.generatedAt + item.workDate) { <app-arrival-chart [data]="item" /> }</div>
       <aside class="day-summary" aria-label="Ringkasan kehadiran Guru">
-        <button class="arrival-total" (click)="summaryFilter('arrived')" [disabled]="loading() || value.day.arrived === null"><span>Sudah hadir</span><strong>{{ value.day.arrived ?? '—' }}</strong><span>dari {{ value.day.scheduled ?? '—' }} Guru terjadwal</span></button>
+        <button class="arrival-total" (click)="summaryFilter('arrived')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.arrived === null"><span>Sudah hadir</span><strong>{{ value.day.arrived ?? '—' }}</strong><span>dari {{ value.day.scheduled ?? '—' }} Guru terjadwal</span></button>
         <div class="summary-rows">
-          <button (click)="summaryFilter('waiting')" [disabled]="loading() || value.day.notCheckedIn === null"><span>Belum check-in tanpa izin</span><b>{{ value.day.notCheckedIn ?? '—' }}</b></button>
-          <button (click)="summaryFilter('leave')" [disabled]="loading() || value.day.leave === null"><span>Izin disetujui</span><b>{{ value.day.leave ?? '—' }}</b></button>
-          <button (click)="summaryFilter('late')" [disabled]="loading() || value.day.late === null"><span>Terlambat efektif</span><b [class.warning]="(value.day.late ?? 0) > 0">{{ value.day.late ?? '—' }}</b></button>
+          <button (click)="summaryFilter('waiting')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.notCheckedIn === null"><span>Belum check-in tanpa izin</span><b>{{ value.day.notCheckedIn ?? '—' }}</b></button>
+          <button (click)="summaryFilter('leave')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.leave === null"><span>Izin disetujui</span><b>{{ value.day.leave ?? '—' }}</b></button>
+          <button (click)="summaryFilter('late')" [disabled]="loading() || dashboardLoading() || !!dashboardError() || value.day.late === null"><span>Terlambat efektif</span><b [class.warning]="(value.day.late ?? 0) > 0">{{ value.day.late ?? '—' }}</b></button>
         </div>
         <p class="summary-note">Terlambat termasuk sudah hadir. Izin termasuk Guru terjadwal.</p>
       </aside>

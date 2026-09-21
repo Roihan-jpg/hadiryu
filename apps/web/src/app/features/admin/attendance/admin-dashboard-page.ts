@@ -231,7 +231,7 @@ export class AdminDashboardPage implements OnInit {
   }
 
   async summaryFilter(filter: 'arrived' | 'waiting' | 'leave' | 'late'): Promise<void> {
-    if (this.loading()) return;
+    if (this.loading() || this.dashboardLoading() || this.dashboardError()) return;
     this.roleControl.setValue('USER');
     this.searchControl.setValue('');
     this.checkedIn.set(filter === 'arrived' ? 'yes' : undefined);

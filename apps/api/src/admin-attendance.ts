@@ -291,12 +291,16 @@ export function createAdminAttendanceService(
         ? await repository.findSchedule?.(day.scheduleType, workDate)
         : null;
       const sources = await repository.listDailySources(workDate, input.search);
+      const operationalStart = input.role === 'USER' ? await repository.findOperationalStart?.() : null;
       const securitySettings = sources.some(
         (source) => source.role === 'SECURITY_GUARD' && !source.attendance,
       )
         ? await repository.findSecuritySchedules?.(workDate)
         : undefined;
       const records = sources
+        .filter((source) => input.role !== 'USER' ||
+          ((!operationalStart || workDate >= operationalStart) &&
+          (!source.createdAt || jakartaDateTime(new Date(source.createdAt)).workDate <= workDate)))
         .filter((source) => day.isWorkingDay || source.role === 'SECURITY_GUARD')
         .map((source) => {
           const resolvedSource = source.role !== 'SECURITY_GUARD' && source.attendance && liveUserSchedule

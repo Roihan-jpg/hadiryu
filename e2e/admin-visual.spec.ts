@@ -128,3 +128,20 @@ test('master akun keeps identity and actions visible without mobile overflow', a
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test.describe('dashboard touch interaction', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test('shows point details by touch and keeps the last overview on refresh failure', async ({ page }) => {
+    await mockAdminApi(page);
+    await page.goto('/admin');
+    await expect(page.locator('.arrival-line')).toBeVisible();
+    await page.locator('app-arrival-chart g').last().tap();
+    await expect(page.locator('.readout')).toContainText('07.08 WIB');
+    await page.route('**/api/admin/dashboard**', (route) => route.fulfill({ status: 503, json: { error: { code: 'UNAVAILABLE', message: 'Tidak tersedia' } } }));
+    await page.getByRole('button', { name: 'Perbarui', exact: true }).tap();
+    await expect(page.getByRole('alert').filter({ hasText: 'Dashboard gagal diperbarui' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.arrival-line')).toBeVisible();
+    await expect(page.locator('.arrival-total strong')).toHaveText('3');
+    await expect(page.getByRole('heading', { name: 'Perlu ditinjau' })).toBeVisible();
+  });
+});
+

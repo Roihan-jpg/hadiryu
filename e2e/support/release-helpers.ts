@@ -46,7 +46,7 @@ export async function login(
   password: string,
 ): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel('NIP').fill(nip);
+  await page.getByLabel('Username', { exact: true }).fill(nip);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Masuk' }).click();
   await expect(page).not.toHaveURL(/\/login$/);

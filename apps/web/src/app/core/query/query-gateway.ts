@@ -6,8 +6,8 @@ import { appQueryClient } from './query-client';
 export class QueryGateway {
   private readonly client = appQueryClient;
 
-  get<T>(queryKey: QueryKey, queryFn: () => Promise<T>): Promise<T> {
-    return this.client.fetchQuery({ queryKey, queryFn });
+  get<T>(queryKey: QueryKey, queryFn: () => Promise<T>, staleTime?: number): Promise<T> {
+    return this.client.fetchQuery({ queryKey, queryFn, ...(staleTime === undefined ? {} : { staleTime }) });
   }
 
   async write<T>(mutationFn: () => Promise<T>, keys: readonly QueryKey[]): Promise<T> {

@@ -20,21 +20,21 @@ export class AdminDashboardService {
       const { AdminDashboardResponseSchema } = await import('@absensi/contracts');
       const params = workDate ? new HttpParams().set('workDate', workDate) : new HttpParams();
       return AdminDashboardResponseSchema.parse(await firstValueFrom(this.http.get<unknown>('/api/admin/dashboard', { params, withCredentials: true })));
-    });
+    }, 0);
   }
 
   async pendingLeaves() {
     return this.queries.get(['admin', 'dashboard', 'leaves'], async () => {
       const { AdminLeaveRequestListResponseSchema } = await import('@absensi/contracts');
       return AdminLeaveRequestListResponseSchema.parse(await firstValueFrom(this.http.get<unknown>('/api/admin/leave-requests', { params: { page: 1, pageSize: 3, status: 'PENDING', sort: 'oldest' }, withCredentials: true })));
-    });
+    }, 0);
   }
 
   async pendingDepartures() {
     return this.queries.get(['admin', 'dashboard', 'departures'], async () => {
       const { AdminEarlyDepartureRequestListResponseSchema } = await import('@absensi/contracts');
       return AdminEarlyDepartureRequestListResponseSchema.parse(await firstValueFrom(this.http.get<unknown>('/api/admin/early-departure-requests', { params: { page: 1, pageSize: 3, status: 'PENDING' }, withCredentials: true })));
-    });
+    }, 0);
   }
 
   async refresh() {
