@@ -23,7 +23,7 @@ import { StaffDashboardService } from './staff-dashboard.service';
 type StreakTier = Extract<TeacherStreak, { status: 'AVAILABLE' }>['tier'];
 type AnimatedStreakTier = Exclude<StreakTier, 'NONE'>;
 
-const STREAK_ANIMATION_BASE_URL = 'https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak';
+const STREAK_ANIMATION_BASE_URL = '/assets/streak';
 
 function animatedStreakTier(streak: TeacherStreak | null | undefined): AnimatedStreakTier | null {
   return streak?.status === 'AVAILABLE' && streak.tier !== 'NONE' ? streak.tier : null;

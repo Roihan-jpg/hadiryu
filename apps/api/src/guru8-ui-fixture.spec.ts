@@ -88,24 +88,24 @@ describe('guru8 UI fixture', () => {
   it.each([
     ['http://127.0.0.1:54321', true],
     ['http://localhost:54321', true],
-    ['https://jlqzeytwwdnooepagknb.supabase.co', false],
+    ['https://buyerproject.supabase.co', false],
     ['http://localhost.evil.example:54321', false],
   ])('accepts only local Supabase URLs: %s', (url, expected) => {
     expect(isLocalSupabaseUrl(url)).toBe(expected);
   });
 
-  it('permits hosted seeding only for the confirmed project', () => {
+  it('permits hosted seeding only for a valid Supabase hosted project URL', () => {
     expect(isGuru8UiFixtureTargetUrl(
       'hosted',
-      'https://jlqzeytwwdnooepagknb.supabase.co',
+      'https://buyerproject.supabase.co',
     )).toBe(true);
     expect(isGuru8UiFixtureTargetUrl(
       'hosted',
-      'https://wrong-project.supabase.co',
+      'https://example.com',
     )).toBe(false);
     expect(isGuru8UiFixtureTargetUrl(
       'local',
-      'https://jlqzeytwwdnooepagknb.supabase.co',
+      'https://buyerproject.supabase.co',
     )).toBe(false);
   });
 });

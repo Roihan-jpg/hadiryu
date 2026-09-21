@@ -1,7 +1,7 @@
 :host { display: block; min-height: 100dvh; background: var(--ag-bg); }
 .login-layout { display: grid; min-height: 100dvh; grid-template-columns: minmax(300px, .95fr) minmax(420px, 1.05fr); }
 .login-context { display: flex; min-height: 100%; flex-direction: column; justify-content: center; align-items: center; gap: 24px; padding: clamp(40px, 7vw, 96px); color: #fff; background: #2d6660; text-align: center; }
-.login-context > img { width: clamp(116px, 14vw, 170px); height: clamp(116px, 14vw, 170px); object-fit: contain; filter: drop-shadow(0 12px 24px rgb(0 32 29 / 18%)); }
+.brand-mark { display: grid; width: clamp(92px, 12vw, 132px); height: clamp(92px, 12vw, 132px); place-items: center; color: #2d6660; background: #fff; border-radius: 20px; box-shadow: 0 12px 24px rgb(0 32 29 / 18%); font-size: clamp(28px, 4vw, 44px); font-weight: 850; letter-spacing: -.08em; }
 .login-context .eyebrow { color: #cce3dd; }
 .login-context h1 { max-width: 15ch; margin: 0; font-size: clamp(30px, 4vw, 48px); line-height: 1.05; letter-spacing: -.04em; }
 .login-context p:not(.eyebrow) { margin: 10px 0 0; color: #e5f4ef; font-size: 14px; }
@@ -21,7 +21,7 @@ button[mat-flat-button] { width: 100%; min-height: 48px; margin-top: 6px; }
   .login-context { display: none; }
   .form-region { align-content: start; padding: 18px 16px 40px; }
   .mobile-brand { display: flex; width: min(100%, 420px); align-items: center; gap: 9px; margin-bottom: 42px; color: var(--ag-text); text-decoration: none; }
-  .mobile-brand img { width: 38px; height: 38px; object-fit: contain; }
+  .mobile-brand .brand-mark { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 7px; color: #fff; background: var(--ag-primary); box-shadow: none; font-size: 12px; }
   .mobile-brand span { display: grid; }
   .mobile-brand strong { font-size: 13px; }
   .mobile-brand small { color: var(--ag-muted); font-size: 10px; }

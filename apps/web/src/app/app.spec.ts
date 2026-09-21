@@ -121,7 +121,7 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
 
     expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header__brand')?.getAttribute('href')).toBe('/admin');
-    expect(compiled.querySelector('.app-mobile-header__brand')?.textContent).toContain('SD Islam Tompokersan');
+    expect(compiled.querySelector('.app-mobile-header__brand')?.textContent).toContain('HadirYu');
     expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header a[href="/profile"]')?.getAttribute('aria-label')).toBe('Buka profil Admin Contoh');
     const adminButton = compiled.querySelector<HTMLButtonElement>('[aria-label="Buka menu Super Admin"]');
     adminButton?.click();

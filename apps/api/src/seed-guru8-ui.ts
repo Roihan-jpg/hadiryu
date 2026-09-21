@@ -169,12 +169,13 @@ async function ensureGuru8(
   return profileId;
 }
 
-function assertHostedProjectLink(): void {
+function assertHostedProjectLink(supabaseUrl: string): void {
   const linkedProjectRef = readFileSync(
     resolve('supabase/.temp/project-ref'),
     'utf8',
   ).trim();
-  if (linkedProjectRef !== 'jlqzeytwwdnooepagknb') {
+  const projectRef = new URL(supabaseUrl).hostname.replace(/\.supabase\.co$/, '');
+  if (linkedProjectRef !== projectRef) {
     throw new Error('Project Supabase hosted yang ter-link bukan target fixture guru8.');
   }
 }
@@ -207,6 +208,7 @@ async function clearFixtureRange(
   teacherId: string,
   target: Guru8UiFixtureTarget,
   fixture: Guru8UiFixture,
+  supabaseUrl: string,
 ): Promise<void> {
   const sql = `
     delete from public.early_departure_requests
@@ -228,7 +230,7 @@ async function clearFixtureRange(
       return;
     }
     if (!await hasFixtureData(client, teacherId, fixture)) return;
-    assertHostedProjectLink();
+    assertHostedProjectLink(supabaseUrl);
     execFileSync(process.execPath, [
       resolve('node_modules/supabase/dist/supabase.js'),
       'db', 'query', '--linked', sql,
@@ -264,7 +266,7 @@ export async function seedGuru8UiFixture(
   await ensureFixtureAdmin(client);
   await ensureReportingStart(client);
   const teacherId = await ensureGuru8(client, password);
-  await clearFixtureRange(client, teacherId, target, fixture);
+  await clearFixtureRange(client, teacherId, target, fixture, config.url);
 
   const leaveRows = fixture.leaves.map((leave) => ({
     teacher_id: teacherId,

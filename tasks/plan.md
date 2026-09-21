@@ -2,7 +2,7 @@
 
 ## Overview
 
-Menambahkan harness Playwright yang menjalankan smoke test MVP melalui API dan UI nyata, command hosted Supabase yang terkunci ke project `jlqzeytwwdnooepagknb`, bootstrap SuperAdmin berbasis environment secret, serta dokumentasi deployment tanpa menyimpan credential atau mereset/seed database hosted.
+Menambahkan harness Playwright yang menjalankan smoke test MVP melalui API dan UI nyata, command hosted Supabase yang terkunci ke project dari environment pembeli, bootstrap SuperAdmin berbasis environment secret, serta dokumentasi deployment tanpa menyimpan credential atau mereset/seed database hosted.
 
 ## Architecture Decisions
 

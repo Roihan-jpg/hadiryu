@@ -100,7 +100,7 @@ for (const viewport of [
       const header = page.locator('.app-mobile-header');
       const menuButton = page.getByRole('button', { name: 'Buka menu Super Admin' });
       await expect(header).toBeVisible();
-      await expect(header.getByRole('link', { name: 'SD Islam Tompokersan, halaman utama' })).toBeVisible();
+      await expect(header.getByRole('link', { name: 'HadirYu, halaman utama' })).toBeVisible();
       await expect(header.getByRole('link', { name: 'Buka profil Admin Sekolah' })).toBeVisible();
       await expect(menuButton).toBeVisible();
       await menuButton.focus();

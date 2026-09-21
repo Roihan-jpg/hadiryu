@@ -197,7 +197,7 @@ for (const viewport of [
     if (viewport.width <= 760) {
       const mobileHeader = page.locator('.app-mobile-header');
       await expect(mobileHeader).toBeVisible();
-      await expect(mobileHeader.getByRole('link', { name: 'SD Islam Tompokersan, halaman utama' })).toBeVisible();
+      await expect(mobileHeader.getByRole('link', { name: 'HadirYu, halaman utama' })).toBeVisible();
       await expect(mobileHeader.getByRole('link', { name: 'Buka profil Guru Tujuh' })).toBeVisible();
       await expect(menuButton).toBeVisible();
       await expect(drawer).toBeHidden();

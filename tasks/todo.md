@@ -8,7 +8,7 @@
 - [x] Hosted smoke memakai credential khusus dari environment dan tidak membuat/menimpa akun secara otomatis.
 - [x] Dokumentasi environment/deployment menyertakan dry-run, advisors, dan larangan reset/seed hosted.
 - [x] Seluruh verification gate lokal lulus setelah perubahan upah bulanan/pulang awal.
-- [x] Repository terhubung ke project `jlqzeytwwdnooepagknb` dan migration history local/remote cocok.
+- [x] Repository dapat dihubungkan ke project Supabase dari environment dan migration history local/remote dapat diverifikasi.
 - [x] Migration awal dan remediation advisors berhasil diterapkan tanpa reset/seed remote.
 - [x] Migration upah bulanan/pulang awal berhasil diterapkan tanpa reset/seed remote.
 - [x] Advisors hosted pascamigration baru lulus tanpa warning atau temuan kritis.
