@@ -66,8 +66,17 @@ export interface AdminAttendanceSource {
   notes: AttendanceAdminNote[];
 }
 
+export interface AdminDashboardDaySources {
+  workDate: string;
+  exception: CalendarException | null;
+  sources: AdminAttendanceSource[];
+}
+
 export interface AdminAttendanceRepository {
   findOperationalStart?(): Promise<string | null>;
+  listDashboardDays?(
+    workDates: readonly string[],
+  ): Promise<AdminDashboardDaySources[]>;
   findCalendarException(workDate: string): Promise<CalendarException | null>;
   findSchedule?(
     scheduleType: 'WEEKDAY' | 'SATURDAY',
