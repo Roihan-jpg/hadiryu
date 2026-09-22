@@ -82,4 +82,22 @@ describe('LoginPage', () => {
     expect(input?.type).toBe('text');
     expect(toggle?.getAttribute('aria-pressed')).toBe('true');
   });
+
+  it('uses the official logo variants for dark and light surfaces', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const desktopLogo = element.querySelector<HTMLImageElement>(
+      '.login-context .brand-logo',
+    );
+    const mobileLogo = element.querySelector<HTMLImageElement>(
+      '.mobile-brand .brand-logo',
+    );
+
+    expect(desktopLogo?.getAttribute('src')).toBe(
+      '/assets/brand/hadiryu-on-dark.png',
+    );
+    expect(mobileLogo?.getAttribute('src')).toBe(
+      '/assets/brand/hadiryu-on-light.png',
+    );
+    expect(element.querySelector('.brand-mark')).toBeNull();
+  });
 });

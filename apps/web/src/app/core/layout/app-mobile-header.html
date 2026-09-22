@@ -3,8 +3,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
   </button>
   <a class="app-mobile-header__brand" [routerLink]="brandHomePath" aria-label="HadirYu, halaman utama">
-    <span class="app-mobile-header__brand-mark" aria-hidden="true">HY</span>
-    <span><strong>HadirYu</strong></span>
+    <img class="app-mobile-header__brand-logo" src="/assets/brand/hadiryu-on-dark.png" width="720" height="316" alt="" />
   </a>
   <a class="app-mobile-header__profile" routerLink="/profile" [attr.aria-label]="'Buka profil ' + user.fullName">
     @if (user.photo) { <img [src]="photoUrl(user.photo.updatedAt)" alt="" /> } @else { <span aria-hidden="true">{{ initials(user.fullName) }}</span> }

@@ -101,6 +101,7 @@ for (const viewport of [
       const menuButton = page.getByRole('button', { name: 'Buka menu Super Admin' });
       await expect(header).toBeVisible();
       await expect(header.getByRole('link', { name: 'HadirYu, halaman utama' })).toBeVisible();
+      await expect(header.locator('.app-mobile-header__brand-logo')).toHaveAttribute('src', '/assets/brand/hadiryu-on-dark.png');
       await expect(header.getByRole('link', { name: 'Buka profil Admin Sekolah' })).toBeVisible();
       await expect(menuButton).toBeVisible();
       await menuButton.focus();
@@ -110,6 +111,7 @@ for (const viewport of [
     } else {
       await expect(page.getByRole('region', { name: 'Akun aktif' })).toBeVisible();
       await expect(page.getByText('Admin Sekolah', { exact: true })).toBeVisible();
+      await expect(page.locator('.app-sidebar__brand-logo')).toHaveAttribute('src', '/assets/brand/hadiryu-on-light.png');
     }
   });
 }

@@ -121,7 +121,11 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
 
     expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header__brand')?.getAttribute('href')).toBe('/admin');
-    expect(compiled.querySelector('.app-mobile-header__brand')?.textContent).toContain('HadirYu');
+    expect(
+      compiled
+        .querySelector<HTMLImageElement>('.app-mobile-header__brand-logo')
+        ?.getAttribute('src'),
+    ).toBe('/assets/brand/hadiryu-on-dark.png');
     expect(compiled.querySelector<HTMLAnchorElement>('.app-mobile-header a[href="/profile"]')?.getAttribute('aria-label')).toBe('Buka profil Admin Contoh');
     const adminButton = compiled.querySelector<HTMLButtonElement>('[aria-label="Buka menu Super Admin"]');
     adminButton?.click();
@@ -176,6 +180,15 @@ describe('App', () => {
 
     expect(compiled.querySelector('.app-sidebar--admin .app-sidebar__account-card')).not.toBeNull();
     expect(compiled.querySelector('.app-sidebar--admin .app-sidebar__school')).toBeNull();
+    expect(
+      compiled
+        .querySelector<HTMLImageElement>('.app-sidebar__brand-logo')
+        ?.getAttribute('src'),
+    ).toBe('/assets/brand/hadiryu-on-light.png');
+    expect(compiled.querySelector('.app-sidebar__brand-mark')).toBeNull();
+    expect(compiled.querySelector('.app-sidebar__avatar')?.textContent?.trim()).toBe(
+      'AC',
+    );
     compactButton?.click();
     fixture.detectChanges();
 
