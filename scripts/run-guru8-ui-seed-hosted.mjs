@@ -3,22 +3,23 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
-  HOSTED_PROJECT_REF,
   loadGuru8UiFixtureHostedEnvironment,
+  projectRefFromSupabaseUrl,
 } from './release-config.mjs';
 
 if (!process.env.GURU8_UI_PASSWORD) {
   throw new Error('GURU8_UI_PASSWORD wajib diisi saat menjalankan fixture hosted.');
 }
 
-loadGuru8UiFixtureHostedEnvironment(process.env);
+const hostedEnvironment = loadGuru8UiFixtureHostedEnvironment(process.env);
+const hostedProjectRef = projectRefFromSupabaseUrl(hostedEnvironment.SUPABASE_URL);
 
 const linkedProjectRef = readFileSync(
   resolve('supabase/.temp/project-ref'),
   'utf8',
 ).trim();
-if (linkedProjectRef !== HOSTED_PROJECT_REF) {
-  throw new Error(`Project ter-link bukan ${HOSTED_PROJECT_REF}; seed hosted dibatalkan.`);
+if (linkedProjectRef !== hostedProjectRef) {
+  throw new Error(`Project ter-link bukan ${hostedProjectRef}; seed hosted dibatalkan.`);
 }
 
 const result = spawnSync(

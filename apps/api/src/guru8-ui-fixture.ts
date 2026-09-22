@@ -2,8 +2,6 @@ export const GURU8_UI_FIXTURE_START = '2026-08-14';
 export const GURU8_UI_FIXTURE_END = '2026-09-12';
 export const GURU8_HOSTED_UI_FIXTURE_START = '2026-08-31';
 export const GURU8_HOSTED_UI_FIXTURE_END = '2026-09-12';
-const HOSTED_GURU8_UI_FIXTURE_URL = 'https://jlqzeytwwdnooepagknb.supabase.co';
-
 export type Guru8UiFixtureTarget = 'local' | 'hosted';
 
 export type FixtureLeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
@@ -114,7 +112,11 @@ export function isGuru8UiFixtureTargetUrl(
   target: Guru8UiFixtureTarget,
   value: string,
 ): boolean {
-  return target === 'local'
-    ? isLocalSupabaseUrl(value)
-    : value === HOSTED_GURU8_UI_FIXTURE_URL;
+  if (target === 'local') return isLocalSupabaseUrl(value);
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && /^[a-z0-9]+\.supabase\.co$/.test(url.hostname);
+  } catch {
+    return false;
+  }
 }

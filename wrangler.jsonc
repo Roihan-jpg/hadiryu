@@ -1,12 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "absensi-guru",
-  "compatibility_date": "2026-09-03",
+  "name": "hadir-yu",
+  "compatibility_date": "2026-09-21",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./worker/index.ts",
-  "vars": {
-    "SUPABASE_URL": "https://jlqzeytwwdnooepagknb.supabase.co"
-  },
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "invocation_logs": true }

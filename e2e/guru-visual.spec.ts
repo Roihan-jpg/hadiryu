@@ -40,6 +40,20 @@ const dashboard = {
     { workDate: '2026-09-01', arrivalOffsetMinutes: 12, actualLateMinutes: 0, effectiveLateMinutes: 0, lateArrivalStatus: null },
     { workDate: '2026-09-02', arrivalOffsetMinutes: -8, actualLateMinutes: 8, effectiveLateMinutes: 0, lateArrivalStatus: 'APPROVED' },
   ],
+  attendanceTrend: [
+    {
+      workDate: '2026-09-01', status: 'COMPLETED', targetMinutes: 515,
+      actual: { checkInAt: '2026-09-01T00:00:00.000Z', checkOutAt: '2026-09-01T08:35:00.000Z', arrivalOffsetMinutes: 0, lateMinutes: 0, workedMinutes: 515, workDeficitMinutes: 0 },
+      effective: { arrivalOffsetMinutes: 0, lateMinutes: 0, workedMinutes: 515, workDeficitMinutes: 0 },
+      credit: { lateArrival: false, earlyDeparture: false },
+    },
+    {
+      workDate: '2026-09-02', status: 'COMPLETED', targetMinutes: 515,
+      actual: { checkInAt: '2026-09-02T00:08:00.000Z', checkOutAt: '2026-09-02T08:35:00.000Z', arrivalOffsetMinutes: -8, lateMinutes: 8, workedMinutes: 507, workDeficitMinutes: 8 },
+      effective: { arrivalOffsetMinutes: 0, lateMinutes: 0, workedMinutes: 515, workDeficitMinutes: 0 },
+      credit: { lateArrival: true, earlyDeparture: false },
+    },
+  ],
   activity: { data: [], pagination: { page: 1, pageSize: 8, totalItems: 0, totalPages: 1 } },
   latestEarlyDeparture: null,
   streak: { status: 'AVAILABLE', currentDays: 7, tier: 'BLUE', nextMilestone: 14, daysRemaining: 7, provisional: false },
@@ -147,7 +161,7 @@ for (const viewport of [
     await mockTeacherApi(page);
     await page.goto('/guru');
 
-    await expect(page.getByRole('heading', { name: 'Absen Guru Tujuh' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Guru Tujuh', exact: true })).toBeVisible();
     const video = page.locator('.fire-slot video');
     await expect(video).toHaveAttribute('src', /api-biru\.webm$/);
     await expect(video).toHaveJSProperty('autoplay', true);
@@ -163,7 +177,7 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 1440, height: 900 
     await page.setViewportSize(viewport);
     await mockGuardApi(page);
     await page.goto('/satpam');
-    await expect(page.getByRole('heading', { name: 'Jejak kerja Satpam Satu' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Satpam Satu', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Shift Pagi' })).toBeVisible();
     await expect(page.getByText('Streak datang tepat waktu')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -184,7 +198,7 @@ for (const viewport of [
     await mockTeacherApi(page);
     await page.goto('/guru');
 
-    await expect(page.getByRole('heading', { name: 'Jejak kerja Guru Tujuh' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Guru Tujuh', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Siap mencatat Absen Masuk' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Buka halaman Absen' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -197,7 +211,8 @@ for (const viewport of [
     if (viewport.width <= 760) {
       const mobileHeader = page.locator('.app-mobile-header');
       await expect(mobileHeader).toBeVisible();
-      await expect(mobileHeader.getByRole('link', { name: 'SD Islam Tompokersan, halaman utama' })).toBeVisible();
+      await expect(mobileHeader.getByRole('link', { name: 'HadirYu, halaman utama' })).toBeVisible();
+      await expect(mobileHeader.locator('.app-mobile-header__brand-logo')).toHaveAttribute('src', '/assets/brand/hadiryu-on-dark.png');
       await expect(mobileHeader.getByRole('link', { name: 'Buka profil Guru Tujuh' })).toBeVisible();
       await expect(menuButton).toBeVisible();
       await expect(drawer).toBeHidden();
@@ -208,6 +223,7 @@ for (const viewport of [
     } else {
       await expect(menuButton).toBeHidden();
       await expect(drawer).toBeVisible();
+      await expect(drawer.locator('.app-sidebar__brand-logo')).toHaveAttribute('src', '/assets/brand/hadiryu-on-light.png');
     }
 
     await expect(drawerNavigation).toHaveCSS('display', 'grid');

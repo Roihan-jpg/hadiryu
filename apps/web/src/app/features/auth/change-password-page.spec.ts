@@ -107,4 +107,16 @@ describe('ChangePasswordPage auth completion', () => {
     });
     expect(navigate).toHaveBeenCalledWith('/guru');
   });
+
+  it('uses the official light-on-dark HadirYu wordmark', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const logo = element.querySelector<HTMLImageElement>(
+      '.school-brand .brand-logo',
+    );
+
+    expect(logo?.getAttribute('src')).toBe(
+      '/assets/brand/hadiryu-on-dark.png',
+    );
+    expect(element.querySelector('.brand-mark')).toBeNull();
+  });
 });

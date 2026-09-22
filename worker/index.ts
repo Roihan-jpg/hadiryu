@@ -36,8 +36,6 @@ interface WorkerBindings {
   SUPABASE_SECRET_KEY: string;
 }
 
-const publicOrigin = 'https://absensi-guru.roihanboizz2006.workers.dev';
-
 const bindings = env as unknown as WorkerBindings;
 const supabaseConfig: SupabaseAuthConfig = {
   url: bindings.SUPABASE_URL,
@@ -110,7 +108,7 @@ export default {
   async fetch(request, workerEnv, context) {
     const pathname = new URL(request.url).pathname;
     if (isApiRequest(pathname)) {
-      if (hasForeignOrigin(request, [publicOrigin])) {
+      if (hasForeignOrigin(request)) {
         return Response.json({
           error: { code: 'CORS_ORIGIN_FORBIDDEN', message: 'Origin request tidak diizinkan' },
         }, { status: 403 });

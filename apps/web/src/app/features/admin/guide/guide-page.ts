@@ -4,7 +4,7 @@ import { Component } from '@angular/core';
   selector: 'app-guide-page',
   template: `
     <section class="page-shell">
-      <header><p>PUSAT BANTUAN</p><h1>Panduan Super Admin</h1><span>Prosedur ringkas pengelolaan absensi SD Islam Tompokersan Lumajang.</span></header>
+      <header><p>PUSAT BANTUAN</p><h1>Panduan Super Admin</h1><span>Prosedur ringkas pengelolaan absensi sekolah dengan HadirYu.</span></header>
       <nav class="toc" aria-label="Daftar isi">@for (section of sections; track section.id) { <a [href]="'#' + section.id">{{ section.title }}</a> }</nav>
       <div class="guide-grid">
         @for (section of sections; track section.id; let index = $index) {

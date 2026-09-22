@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
-export const HOSTED_PROJECT_REF = 'jlqzeytwwdnooepagknb';
-export const HOSTED_SUPABASE_URL = `https://${HOSTED_PROJECT_REF}.supabase.co`;
-
 const RequiredText = z.string().trim().min(1);
+const HostedUrl = z.url().refine((value) => {
+  const url = new URL(value);
+  return url.protocol === 'https:' && /^[a-z0-9]+\.supabase\.co$/.test(url.hostname);
+}, 'SUPABASE_URL wajib berupa URL project Supabase hosted');
 const Password = z.string()
   .length(8)
   .regex(/^[A-Za-z0-9]+$/)
@@ -12,7 +13,7 @@ const Password = z.string()
   .regex(/[0-9]/);
 
 const HostedEnvironmentSchema = z.strictObject({
-  SUPABASE_URL: z.literal(HOSTED_SUPABASE_URL),
+  SUPABASE_URL: HostedUrl,
   SUPABASE_PUBLISHABLE_KEY: RequiredText,
   SUPABASE_SECRET_KEY: RequiredText,
   SUPER_ADMIN_NIP: RequiredText,
@@ -37,15 +38,21 @@ const HostedSetupEnvironmentSchema = HostedEnvironmentSchema.extend({
 });
 
 const Guru8UiFixtureHostedEnvironmentSchema = z.strictObject({
-  SUPABASE_URL: z.literal(HOSTED_SUPABASE_URL),
+  SUPABASE_URL: HostedUrl,
   SUPABASE_PUBLISHABLE_KEY: RequiredText,
   SUPABASE_SECRET_KEY: RequiredText,
 });
 
 const HostedCliEnvironmentSchema = z.strictObject({
+  SUPABASE_URL: HostedUrl,
   SUPABASE_ACCESS_TOKEN: RequiredText,
   SUPABASE_DB_PASSWORD: RequiredText,
 });
+
+export function projectRefFromSupabaseUrl(value) {
+  const url = new URL(HostedUrl.parse(value));
+  return url.hostname.slice(0, -'.supabase.co'.length);
+}
 
 function selected(environment, names) {
   return Object.fromEntries(names.map((name) => [name, environment[name]]));
@@ -103,9 +110,10 @@ export function parseSupabaseStatus(output) {
     });
 }
 
-export function hostedCommands(action) {
+export function hostedCommands(action, projectRef) {
+  const parsedProjectRef = z.string().regex(/^[a-z0-9]+$/).parse(projectRef);
   if (action === 'link') {
-    return [['link', '--project-ref', HOSTED_PROJECT_REF, '--yes']];
+    return [['link', '--project-ref', parsedProjectRef, '--yes']];
   }
   if (action === 'deploy') {
     return [

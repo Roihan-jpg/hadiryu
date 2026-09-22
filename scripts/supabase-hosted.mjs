@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
-  HOSTED_PROJECT_REF,
   hostedCommands,
   loadHostedCliEnvironment,
+  projectRefFromSupabaseUrl,
 } from './release-config.mjs';
 
 const action = process.argv[2];
@@ -15,13 +15,15 @@ if (!supportedActions.has(action)) {
   throw new Error('Gunakan aksi hosted: link, deploy, atau advisors');
 }
 
+let hostedEnvironment;
 try {
-  loadHostedCliEnvironment(process.env);
+  hostedEnvironment = loadHostedCliEnvironment(process.env);
 } catch {
   throw new Error(
     'SUPABASE_ACCESS_TOKEN dan SUPABASE_DB_PASSWORD wajib tersedia di environment.',
   );
 }
+const hostedProjectRef = projectRefFromSupabaseUrl(hostedEnvironment.SUPABASE_URL);
 
 if (action !== 'link') {
   const linkedRefPath = resolve('supabase/.temp/project-ref');
@@ -31,14 +33,14 @@ if (action !== 'link') {
   } catch {
     throw new Error('Repository belum di-link. Jalankan npm run db:link:hosted.');
   }
-  if (linkedRef !== HOSTED_PROJECT_REF) {
+  if (linkedRef !== hostedProjectRef) {
     throw new Error(
-      `Project ter-link bukan ${HOSTED_PROJECT_REF}; command hosted dibatalkan.`,
+      `Project ter-link bukan ${hostedProjectRef}; command hosted dibatalkan.`,
     );
   }
 }
 
-for (const command of hostedCommands(action)) {
+for (const command of hostedCommands(action, hostedProjectRef)) {
   const result = spawnSync(
     process.execPath,
     [resolve('node_modules/supabase/dist/supabase.js'), ...command],

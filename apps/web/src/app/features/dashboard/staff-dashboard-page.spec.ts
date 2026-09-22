@@ -64,9 +64,9 @@ describe('StaffDashboardPage streak animation', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   it('maps active tiers to their public animation assets', () => {
-    expect(streakAnimationUrl(available('RED'))).toBe('https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak/api-merah.webm');
-    expect(streakAnimationUrl(available('BLUE'))).toBe('https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak/api-biru.webm');
-    expect(streakAnimationUrl(available('PURPLE'))).toBe('https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak/api-merah.webm');
+    expect(streakAnimationUrl(available('RED'))).toBe('/assets/streak/api-merah.webm');
+    expect(streakAnimationUrl(available('BLUE'))).toBe('/assets/streak/api-biru.webm');
+    expect(streakAnimationUrl(available('PURPLE'))).toBe('/assets/streak/api-merah.webm');
     expect(streakAnimationUrl(available('NONE'))).toBeNull();
     expect(streakAnimationUrl({ status: 'UNAVAILABLE', reason: 'CONFIGURATION_MISSING' })).toBeNull();
   });
@@ -121,7 +121,7 @@ describe('StaffDashboardPage streak animation', () => {
     const fixture = await setup(available('RED'));
     const video = fixture.nativeElement.querySelector('.fire-slot video') as HTMLVideoElement | null;
 
-    expect(video?.src).toBe('https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak/api-merah.webm');
+    expect(video?.getAttribute('src')).toBe('/assets/streak/api-merah.webm');
     expect(video?.autoplay).toBe(true);
     expect(video?.loop).toBe(true);
     expect(video?.muted).toBe(true);
@@ -135,8 +135,8 @@ describe('StaffDashboardPage streak animation', () => {
 
   it('uses the red animation temporarily for the purple tier and retains SVG for NONE', async () => {
     const purpleFixture = await setup(available('PURPLE'));
-    expect((purpleFixture.nativeElement.querySelector('.fire-slot video') as HTMLVideoElement | null)?.src)
-      .toBe('https://jlqzeytwwdnooepagknb.supabase.co/storage/v1/object/public/streak/api-merah.webm');
+    expect((purpleFixture.nativeElement.querySelector('.fire-slot video') as HTMLVideoElement | null)?.getAttribute('src'))
+      .toBe('/assets/streak/api-merah.webm');
 
     TestBed.resetTestingModule();
     const noneFixture = await setup(available('NONE'));
