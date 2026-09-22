@@ -24,13 +24,24 @@ export async function createAdminDashboard(
   const current = jakartaDateTime(now);
   const workDate = selected ?? current.workDate;
   const operationalStart = await repository.findOperationalStart?.();
+  const workDates = Array.from({ length: 7 }, (_, index) =>
+    addLocalDays(workDate, index - 6),
+  );
+  const batchedDays = repository.listDashboardDays
+    ? await repository.listDashboardDays(workDates)
+    : null;
+  const batchedByDate = new Map(
+    batchedDays?.map((day) => [day.workDate, day]) ?? [],
+  );
   const daily = await Promise.all(
-    Array.from({ length: 7 }, async (_, index) => {
-      const date = addLocalDays(workDate, index - 6);
-      const [exception, sources] = await Promise.all([
-        repository.findCalendarException(date),
-        repository.listDailySources(date),
-      ]);
+    workDates.map(async (date) => {
+      const batched = batchedByDate.get(date);
+      const [exception, sources] = batched
+        ? [batched.exception, batched.sources]
+        : await Promise.all([
+            repository.findCalendarException(date),
+            repository.listDailySources(date),
+          ]);
       const calendar = resolveCalendarDay(date, exception);
       const schedule =
         calendar.scheduleType === "WEEKDAY" ||

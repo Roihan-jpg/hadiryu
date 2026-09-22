@@ -12,6 +12,7 @@ import type {
   AdminAttendanceRepository,
   AdminAttendanceSource,
   AdminAttendanceSourceAttendance,
+  AdminDashboardDaySources,
 } from './admin-attendance.js';
 import { AppError } from './auth.js';
 import type { SupabaseAuthConfig } from './supabase-auth.js';
@@ -56,6 +57,17 @@ const EarlyPermissionRowSchema = z.strictObject({
   attendance_id: z.uuid(),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
   created_at: z.string(),
+});
+const DashboardAttendanceRowSchema = AttendanceRowSchema.extend({});
+const DashboardLeaveRowSchema = LeaveRowSchema.extend({
+  leave_date: z.string(),
+  full_leave_end_date: z.string().nullable(),
+});
+const DashboardLatePermissionRowSchema = LatePermissionRowSchema.extend({
+  leave_date: z.string(),
+});
+const DashboardEarlyPermissionRowSchema = EarlyPermissionRowSchema.extend({
+  work_date: z.string(),
 });
 const CalendarRowSchema = z.strictObject({
   id: z.uuid(),
@@ -188,6 +200,164 @@ export class SupabaseAdminAttendanceRepository
 
   findSchedule(scheduleType: 'WEEKDAY' | 'SATURDAY', workDate: string) {
     return this.attendanceRepository.findSchedule(scheduleType, workDate);
+  }
+
+  async listDashboardDays(
+    workDates: readonly string[],
+  ): Promise<AdminDashboardDaySources[]> {
+    if (workDates.length === 0) return [];
+    const firstDate = workDates[0]!;
+    const lastDate = workDates.at(-1)!;
+    const [profileResult, calendarResult] = await Promise.all([
+      this.client
+        .from('profiles')
+        .select('id,nip,full_name,role,created_at')
+        .in('role', ['USER', 'SECURITY_GUARD'])
+        .eq('is_active', true)
+        .order('full_name', { ascending: true })
+        .order('nip', { ascending: true }),
+      this.client
+        .from('calendar_exceptions')
+        .select('id,work_date,exception_type,name,schedule_type')
+        .in('work_date', [...workDates]),
+    ]);
+    if (profileResult.error || calendarResult.error) {
+      throw databaseError(
+        'ADMIN_DASHBOARD_LOOKUP_FAILED',
+        'Data dasar dashboard tidak dapat dimuat',
+      );
+    }
+    const profiles = (profileResult.data ?? []).map((value) =>
+      ProfileRowSchema.parse(value),
+    );
+    const calendarByDate = new Map(
+      (calendarResult.data ?? []).map((value) => {
+        const exception = toCalendarException(value);
+        return [exception.workDate, exception] as const;
+      }),
+    );
+    if (profiles.length === 0) {
+      return workDates.map((date) => ({
+        workDate: date,
+        exception: calendarByDate.get(date) ?? null,
+        sources: [],
+      }));
+    }
+
+    const teacherIds = profiles.map((profile) => profile.id);
+    const [attendanceResult, leaveResult, lateResult, earlyResult] =
+      await Promise.all([
+        this.client
+          .from('attendance_records')
+          .select(ATTENDANCE_FIELDS)
+          .in('work_date', [...workDates])
+          .in('teacher_id', teacherIds),
+        this.client
+          .from('leave_requests')
+          .select('teacher_id,leave_type,leave_date,full_leave_end_date')
+          .eq('status', 'APPROVED')
+          .neq('leave_type', 'LATE_ARRIVAL')
+          .or(
+            `and(leave_type.neq.MATERNITY_LEAVE,leave_date.gte.${firstDate},leave_date.lte.${lastDate}),and(leave_type.eq.MATERNITY_LEAVE,leave_date.lte.${lastDate},full_leave_end_date.gte.${firstDate})`,
+          )
+          .in('teacher_id', teacherIds),
+        this.client
+          .from('leave_requests')
+          .select('teacher_id,status,created_at,leave_date')
+          .in('leave_date', [...workDates])
+          .eq('leave_type', 'LATE_ARRIVAL')
+          .in('teacher_id', teacherIds)
+          .order('created_at', { ascending: false }),
+        this.client
+          .from('early_departure_requests')
+          .select('attendance_id,status,created_at,work_date')
+          .in('work_date', [...workDates])
+          .in('teacher_id', teacherIds)
+          .order('created_at', { ascending: false }),
+      ]);
+    if (
+      attendanceResult.error ||
+      leaveResult.error ||
+      lateResult.error ||
+      earlyResult.error
+    ) {
+      throw databaseError(
+        'ADMIN_DASHBOARD_LOOKUP_FAILED',
+        'Data tujuh hari dashboard tidak dapat dimuat',
+      );
+    }
+
+    const attendanceRows = (attendanceResult.data ?? []).map((value) =>
+      DashboardAttendanceRowSchema.parse(value),
+    );
+    const leaveRows = (leaveResult.data ?? []).map((value) =>
+      DashboardLeaveRowSchema.parse(value),
+    );
+    const lateRows = (lateResult.data ?? []).map((value) =>
+      DashboardLatePermissionRowSchema.parse(value),
+    );
+    const earlyRows = (earlyResult.data ?? []).map((value) =>
+      DashboardEarlyPermissionRowSchema.parse(value),
+    );
+
+    return workDates.map((date) => {
+      const attendanceByTeacher = new Map(
+        attendanceRows
+          .filter((row) => row.work_date === date)
+          .map((row) => [row.teacher_id, row]),
+      );
+      const leaveByTeacher = new Map(
+        leaveRows
+          .filter(
+            (row) =>
+              (row.leave_type === 'MATERNITY_LEAVE' &&
+                row.leave_date <= date &&
+                row.full_leave_end_date !== null &&
+                row.full_leave_end_date >= date) ||
+              (row.leave_type !== 'MATERNITY_LEAVE' && row.leave_date === date),
+          )
+          .map((row) => [row.teacher_id, row]),
+      );
+      const lateByTeacher = new Map<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'>();
+      for (const row of lateRows) {
+        if (row.leave_date === date && !lateByTeacher.has(row.teacher_id)) {
+          lateByTeacher.set(row.teacher_id, row.status);
+        }
+      }
+      const earlyByAttendance = new Map<string, 'PENDING' | 'APPROVED' | 'REJECTED'>();
+      for (const row of earlyRows) {
+        if (row.work_date === date && !earlyByAttendance.has(row.attendance_id)) {
+          earlyByAttendance.set(row.attendance_id, row.status);
+        }
+      }
+      return {
+        workDate: date,
+        exception: calendarByDate.get(date) ?? null,
+        sources: profiles.map((profile) => {
+          const attendanceRow = attendanceByTeacher.get(profile.id);
+          const leaveRow = leaveByTeacher.get(profile.id);
+          return {
+            teacherId: profile.id,
+            createdAt: profile.created_at,
+            teacherNip: profile.nip,
+            teacherFullName: profile.full_name,
+            role: profile.role,
+            attendance: attendanceRow
+              ? {
+                  ...toAttendance(attendanceRow),
+                  lateArrivalStatus: lateByTeacher.get(profile.id) ?? null,
+                  earlyDepartureStatus:
+                    earlyByAttendance.get(attendanceRow.id) ?? null,
+                }
+              : null,
+            approvedLeave: leaveRow
+              ? { leaveType: leaveRow.leave_type }
+              : null,
+            notes: [],
+          };
+        }),
+      };
+    });
   }
 
   async listDailySources(

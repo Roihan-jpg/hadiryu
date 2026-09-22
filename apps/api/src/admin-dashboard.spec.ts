@@ -72,4 +72,36 @@ describe('Ritme Sekolah dashboard', () => {
     expect(result.day.arrived).toBe(130);
     expect(result.arrivals[0]?.cumulative).toBe(130);
   });
+
+  it('uses one batched seven-day source load for edge runtimes with subrequest limits', async () => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const workDate = new Date(Date.UTC(2026, 7, 19 + index)).toISOString().slice(0, 10);
+      return {
+        workDate,
+        exception: null,
+        sources: workDate === date ? [source(1, `${date}T00:08:00.000Z`)] : [],
+      };
+    });
+    const repo = {
+      ...repository([]),
+      listDashboardDays: async (workDates: readonly string[]) => {
+        expect(workDates).toEqual(days.map((day) => day.workDate));
+        return days;
+      },
+      findCalendarException: async () => {
+        throw new Error('per-day calendar lookup must not run');
+      },
+      listDailySources: async () => {
+        throw new Error('per-day source lookup must not run');
+      },
+    } as AdminAttendanceRepository;
+
+    const result = await createAdminDashboard(
+      repo,
+      new Date(`${date}T01:00:00Z`),
+      date,
+    );
+
+    expect(result.day.arrived).toBe(1);
+  });
 });
