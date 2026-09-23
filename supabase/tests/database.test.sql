@@ -1,6 +1,6 @@
 begin;
 
-select plan(62);
+select plan(65);
 
 select has_type('public', 'user_role', 'user_role enum exists');
 select has_type('public', 'schedule_type', 'schedule_type enum exists');
@@ -22,6 +22,7 @@ select has_table('public', 'attendance_admin_notes', 'attendance_admin_notes tab
 select has_table('public', 'audit_logs', 'audit_logs table exists');
 select has_table('public', 'early_departure_requests', 'early departure requests table exists');
 select has_table('public', 'reporting_settings', 'reporting settings table exists');
+select has_table('public', 'geofence_templates', 'geofence template catalog exists');
 
 select col_is_pk('public', 'profiles', 'id', 'profiles.id is the primary key');
 select col_is_fk('public', 'app_accounts', 'profile_id', 'app_accounts.profile_id references profiles');
@@ -36,6 +37,8 @@ select has_column('public', 'payroll_rules', 'absent_deduction_amount', 'absence
 select has_column('public', 'payroll_rules', 'rejected_early_departure_rate_per_hour', 'rejected early departure rate is versioned');
 select has_column('public', 'payroll_rules', 'calculation_mode', 'payroll calculation mode is versioned');
 select has_column('public', 'geofence_rules', 'polygon_vertices', 'polygon geofence vertices are versioned');
+select has_column('public', 'geofence_rules', 'template_id', 'effective geofence keeps its template source');
+select has_column('public', 'geofence_templates', 'deleted_at', 'geofence templates use soft deletion');
 select has_column('public', 'attendance_records', 'check_in_boundary_clearance_meters', 'check-in snapshots polygon clearance');
 select has_column('public', 'attendance_records', 'check_out_boundary_clearance_meters', 'checkout snapshots polygon clearance');
 select has_column('public', 'early_departure_requests', 'boundary_clearance_meters', 'early departure snapshots polygon clearance');
@@ -57,11 +60,12 @@ select is(
         'attendance_admin_notes',
         'audit_logs',
         'early_departure_requests',
-        'reporting_settings'
+        'reporting_settings',
+        'geofence_templates'
       )
       and table_class.relrowsecurity
   ),
-  11::bigint,
+  12::bigint,
   'RLS is enabled on every exposed application table'
 );
 

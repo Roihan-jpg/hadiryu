@@ -2,9 +2,9 @@ import type {
   CalendarExceptionInput,
   CalendarExceptionsResponse,
   GeofenceSettingsResponse,
-  SaveGeofenceSettingsRequest,
   SaveScheduleSettingsRequest,
   ScheduleSettingsResponse,
+  GeofenceTemplate,
 } from '@absensi/contracts';
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -84,7 +84,7 @@ describe('SettingsService', () => {
     });
   });
 
-  it('posts schedule and geofence settings without client dates', async () => {
+  it('posts schedule settings without client dates', async () => {
     const scheduleInput: SaveScheduleSettingsRequest = {
       weekday: {
         checkInOpen: '05:30',
@@ -105,30 +105,13 @@ describe('SettingsService', () => {
         targetMinutes: 215,
       },
     };
-    const geofenceInput: SaveGeofenceSettingsRequest = {
-      shape: 'POLYGON',
-      vertices: [
-        { latitude: -8.1330, longitude: 113.2218 },
-        { latitude: -8.1330, longitude: 113.2221 },
-        { latitude: -8.1327, longitude: 113.2221 },
-      ],
-      maxAccuracyMeters: 15,
-    };
-
     const schedulePromise = service.saveSchedules(scheduleInput);
     const scheduleRequest = http.expectOne('/api/admin/settings/schedules');
     expect(scheduleRequest.request.method).toBe('POST');
     expect(scheduleRequest.request.body).toEqual(scheduleInput);
     scheduleRequest.flush({ ...schedules, effectiveOn: '2026-09-01' });
 
-    const geofencePromise = service.saveGeofence(geofenceInput);
-    const geofenceRequest = http.expectOne('/api/admin/settings/geofence');
-    expect(geofenceRequest.request.method).toBe('POST');
-    expect(geofenceRequest.request.body).toEqual(geofenceInput);
-    geofenceRequest.flush({ ...geofence, effectiveOn: '2026-09-01' });
-
     await schedulePromise;
-    await geofencePromise;
   });
 
   it('rejects API responses outside the shared contracts', async () => {
@@ -138,6 +121,30 @@ describe('SettingsService', () => {
       .flush({ effectiveOn: 'bukan-tanggal', geofence: [] });
 
     await expect(promise).rejects.toBeDefined();
+  });
+
+  it('manages and activates named geofence templates separately', async () => {
+    const id = '20000000-0000-4000-8000-000000000099';
+    const template: GeofenceTemplate = {
+      id, name: 'Halaman Utama', shape: 'POLYGON',
+      vertices: [
+        { latitude: -8.1330, longitude: 113.2218 },
+        { latitude: -8.1330, longitude: 113.2221 },
+        { latitude: -8.1327, longitude: 113.2221 },
+      ],
+      maxAccuracyMeters: 15, isActive: false,
+      createdAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z',
+    };
+    const listPromise = service.getGeofenceTemplates();
+    http.expectOne('/api/admin/settings/geofence-templates').flush({ templates: [template] });
+    const createPromise = service.createGeofenceTemplate({ name: template.name, shape: template.shape, vertices: template.vertices, maxAccuracyMeters: 15 });
+    const createRequest = http.expectOne('/api/admin/settings/geofence-templates');
+    expect(createRequest.request.method).toBe('POST'); createRequest.flush(template);
+    const activatePromise = service.activateGeofenceTemplate(id);
+    const activateRequest = http.expectOne('/api/admin/settings/geofence/activate');
+    expect(activateRequest.request.body).toEqual({ templateId: id }); activateRequest.flush(geofence);
+    await expect(listPromise).resolves.toEqual({ templates: [template] });
+    await createPromise; await activatePromise;
   });
 
   it('manages calendar exceptions', async () => {

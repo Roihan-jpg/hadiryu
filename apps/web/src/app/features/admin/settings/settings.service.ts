@@ -3,7 +3,9 @@ import type {
   CalendarExceptionInput,
   CalendarExceptionsResponse,
   GeofenceSettingsResponse,
-  SaveGeofenceSettingsRequest,
+  GeofenceTemplate,
+  GeofenceTemplateInput,
+  GeofenceTemplatesResponse,
   SaveScheduleSettingsRequest,
   SaveSecurityScheduleSettingsRequest,
   SecurityScheduleSettingsResponse,
@@ -105,17 +107,39 @@ export class SettingsService {
     });
   }
 
-  async saveGeofence(
-    input: SaveGeofenceSettingsRequest,
-  ): Promise<GeofenceSettingsResponse> {
+  async getGeofenceTemplates(): Promise<GeofenceTemplatesResponse> {
+    return this.queries.get(queryKeys.settings('geofence-templates'), async () => {
+      const value = await firstValueFrom(this.http.get<unknown>('/api/admin/settings/geofence-templates', { withCredentials: true }));
+      const { GeofenceTemplatesResponseSchema } = await import('@absensi/contracts');
+      return GeofenceTemplatesResponseSchema.parse(value);
+    });
+  }
+
+  async createGeofenceTemplate(input: GeofenceTemplateInput): Promise<GeofenceTemplate> {
     return this.queries.write(async () => {
-    const value = await firstValueFrom(
-      this.http.post<unknown>('/api/admin/settings/geofence', input, {
-        withCredentials: true,
-      }),
-    );
-    const { GeofenceSettingsResponseSchema } = await import('@absensi/contracts');
-    return GeofenceSettingsResponseSchema.parse(value);
+      const value = await firstValueFrom(this.http.post<unknown>('/api/admin/settings/geofence-templates', input, { withCredentials: true }));
+      const { GeofenceTemplateSchema } = await import('@absensi/contracts');
+      return GeofenceTemplateSchema.parse(value);
+    }, [queryKeys.settings()]);
+  }
+
+  async updateGeofenceTemplate(id: string, input: GeofenceTemplateInput): Promise<GeofenceTemplate> {
+    return this.queries.write(async () => {
+      const value = await firstValueFrom(this.http.patch<unknown>(`/api/admin/settings/geofence-templates/${id}`, input, { withCredentials: true }));
+      const { GeofenceTemplateSchema } = await import('@absensi/contracts');
+      return GeofenceTemplateSchema.parse(value);
+    }, [queryKeys.settings()]);
+  }
+
+  async deleteGeofenceTemplate(id: string): Promise<void> {
+    await this.queries.write(async () => { await firstValueFrom(this.http.delete(`/api/admin/settings/geofence-templates/${id}`, { withCredentials: true })); }, [queryKeys.settings()]);
+  }
+
+  async activateGeofenceTemplate(templateId: string): Promise<GeofenceSettingsResponse> {
+    return this.queries.write(async () => {
+      const value = await firstValueFrom(this.http.post<unknown>('/api/admin/settings/geofence/activate', { templateId }, { withCredentials: true }));
+      const { GeofenceSettingsResponseSchema } = await import('@absensi/contracts');
+      return GeofenceSettingsResponseSchema.parse(value);
     }, [queryKeys.settings()]);
   }
 

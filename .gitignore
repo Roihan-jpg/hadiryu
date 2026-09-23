@@ -8,11 +8,53 @@ node_modules/
 dist/
 coverage/
 .angular/
+.cache/
+*.tsbuildinfo
+
+# Runtime configuration and credentials
 .env
 .env.*
-!.env.production.example
-*.log
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local platform state
+.wrangler/
+.turbo/
+.nx/
 apps/web/.cache/
+
+# Test and generated output
 playwright-report/
 test-results/
+blob-report/
+out-tsc/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+tmp/
+temp/
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Codex local attachments
 .codex-remote-attachments/

@@ -254,6 +254,8 @@ export type GeofenceRuleInput = z.infer<typeof GeofenceRuleInputSchema>;
 
 const GeofenceVersionSchema = z.strictObject({
   id: z.uuid(),
+  templateId: z.uuid().nullable().optional(),
+  templateName: z.string().trim().min(1).max(100).nullable().optional(),
   effectiveFrom: LocalDateSchema,
   effectiveTo: LocalDateSchema.nullable(),
 });
@@ -264,10 +266,33 @@ export const GeofenceRuleSchema = z.union([
 ]);
 export type GeofenceRule = z.infer<typeof GeofenceRuleSchema>;
 
+const GeofenceTemplateNameSchema = z.string().trim().min(1).max(100);
+
+export const GeofenceTemplateInputSchema = PolygonGeofenceRuleInputSchema.extend({
+  name: GeofenceTemplateNameSchema,
+});
+export type GeofenceTemplateInput = z.infer<typeof GeofenceTemplateInputSchema>;
+
+export const GeofenceTemplateSchema = GeofenceTemplateInputSchema.extend({
+  id: z.uuid(),
+  isActive: z.boolean(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type GeofenceTemplate = z.infer<typeof GeofenceTemplateSchema>;
+
+export const GeofenceTemplatesResponseSchema = z.strictObject({
+  templates: z.array(GeofenceTemplateSchema),
+});
+export type GeofenceTemplatesResponse = z.infer<typeof GeofenceTemplatesResponseSchema>;
+
+export const GeofenceTemplateIdParamsSchema = z.strictObject({ id: z.uuid() });
+export const ActivateGeofenceTemplateRequestSchema = z.strictObject({ templateId: z.uuid() });
+export type ActivateGeofenceTemplateRequest = z.infer<typeof ActivateGeofenceTemplateRequestSchema>;
+
+/** @deprecated Use GeofenceTemplateInputSchema and ActivateGeofenceTemplateRequestSchema. */
 export const SaveGeofenceSettingsRequestSchema = PolygonGeofenceRuleInputSchema;
-export type SaveGeofenceSettingsRequest = z.infer<
-  typeof SaveGeofenceSettingsRequestSchema
->;
+export type SaveGeofenceSettingsRequest = z.infer<typeof SaveGeofenceSettingsRequestSchema>;
 
 export const GeofenceSettingsQuerySchema = ScheduleSettingsQuerySchema;
 export type GeofenceSettingsQuery = ScheduleSettingsQuery;

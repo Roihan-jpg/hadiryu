@@ -70,6 +70,11 @@ class FakeSettingsService implements SettingsService {
   async saveGeofence() {
     return { effectiveOn: '2026-08-25', geofence: null };
   }
+  async listGeofenceTemplates(): Promise<never> { throw new Error('not used'); }
+  async createGeofenceTemplate(): Promise<never> { throw new Error('not used'); }
+  async updateGeofenceTemplate(): Promise<never> { throw new Error('not used'); }
+  async deleteGeofenceTemplate(): Promise<never> { throw new Error('not used'); }
+  async activateGeofenceTemplate(): Promise<never> { throw new Error('not used'); }
   async listCalendarExceptions(): Promise<CalendarExceptionsResponse> {
     return this.calendar;
   }

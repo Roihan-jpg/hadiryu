@@ -1,4 +1,7 @@
 import {
+  ActivateGeofenceTemplateRequestSchema,
+  GeofenceTemplateInputSchema,
+  GeofenceTemplateSchema,
   GeofenceSettingsQuerySchema,
   SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
@@ -153,6 +156,29 @@ describe('schedule-geofence contracts', () => {
         maxAccuracyMeters: 15,
       }).success,
     ).toBe(false);
+  });
+
+  it('validates named templates and activation separately', () => {
+    const input = {
+      name: '  Halaman Utama  ', shape: 'POLYGON' as const,
+      vertices: [
+        { latitude: -8.1327, longitude: 113.2218 },
+        { latitude: -8.1327, longitude: 113.2221 },
+        { latitude: -8.1330, longitude: 113.2221 },
+      ],
+      maxAccuracyMeters: 15,
+    };
+    expect(GeofenceTemplateInputSchema.parse(input).name).toBe('Halaman Utama');
+    expect(ActivateGeofenceTemplateRequestSchema.parse({
+      templateId: '20000000-0000-4000-8000-000000000031',
+    })).toEqual({ templateId: '20000000-0000-4000-8000-000000000031' });
+    expect(GeofenceTemplateInputSchema.safeParse({ ...input, name: ' ' }).success).toBe(false);
+    expect(ActivateGeofenceTemplateRequestSchema.safeParse({ templateId: 'nope' }).success).toBe(false);
+    expect(GeofenceTemplateSchema.safeParse({
+      ...GeofenceTemplateInputSchema.parse(input),
+      id: '20000000-0000-4000-8000-000000000031', isActive: false,
+      createdAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z',
+    }).success).toBe(true);
   });
 
   it('rejects self-intersecting and repeated polygon vertices', () => {
