@@ -10,14 +10,19 @@ import {
   OnChanges,
   OnDestroy,
   Output,
+  SimpleChanges,
   ViewChild,
 } from '@angular/core';
 import * as Leaflet from 'leaflet';
 
 type AdminLeafletApi = Pick<
   typeof Leaflet,
-  'circleMarker' | 'map' | 'polygon' | 'tileLayer'
+  'circle' | 'circleMarker' | 'map' | 'polygon' | 'tileLayer'
 >;
+
+export interface AdminCurrentLocation extends GeofenceCoordinate {
+  accuracyMeters: number;
+}
 
 export const ADMIN_GEOFENCE_LEAFLET = new InjectionToken<AdminLeafletApi>(
   'Admin geofence Leaflet API',
@@ -57,12 +62,15 @@ export class AdminGeofenceMap implements AfterViewInit, OnChanges, OnDestroy {
     latitude: -8.1328,
     longitude: 113.2219,
   };
+  @Input() currentLocation: AdminCurrentLocation | null = null;
   @Output() readonly verticesChange = new EventEmitter<GeofenceCoordinate[]>();
   @ViewChild('mapHost', { static: true }) private mapHost!: ElementRef<HTMLElement>;
 
   private mapInstance: Leaflet.Map | null = null;
   private polygonLayer: Leaflet.Polygon | null = null;
   private markerLayers: Leaflet.CircleMarker[] = [];
+  private currentLocationMarker: Leaflet.CircleMarker | null = null;
+  private currentLocationAccuracy: Leaflet.Circle | null = null;
 
   ngAfterViewInit(): void {
     this.mapInstance = this.leaflet.map(this.mapHost.nativeElement, {
@@ -81,11 +89,13 @@ export class AdminGeofenceMap implements AfterViewInit, OnChanges, OnDestroy {
       19,
     );
     this.mapInstance.on('click', this.addVertex);
-    this.renderVertices();
+    this.renderVertices(true);
   }
 
-  ngOnChanges(): void {
-    if (this.mapInstance) this.renderVertices();
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!this.mapInstance) return;
+    this.renderVertices(false);
+    if (changes['currentLocation']) this.renderCurrentLocation(true);
   }
 
   ngOnDestroy(): void {
@@ -94,6 +104,8 @@ export class AdminGeofenceMap implements AfterViewInit, OnChanges, OnDestroy {
     this.mapInstance = null;
     this.polygonLayer = null;
     this.markerLayers = [];
+    this.currentLocationMarker = null;
+    this.currentLocationAccuracy = null;
   }
 
   private readonly addVertex = (event: Leaflet.LeafletMouseEvent) => {
@@ -104,7 +116,7 @@ export class AdminGeofenceMap implements AfterViewInit, OnChanges, OnDestroy {
     ]);
   };
 
-  private renderVertices(): void {
+  private renderVertices(centerOnLocation = false): void {
     if (!this.mapInstance) return;
     this.polygonLayer?.remove();
     this.polygonLayer = null;
@@ -136,5 +148,28 @@ export class AdminGeofenceMap implements AfterViewInit, OnChanges, OnDestroy {
         padding: [24, 24],
       });
     }
+    this.renderCurrentLocation(centerOnLocation);
+  }
+
+  private renderCurrentLocation(centerMap = false): void {
+    if (!this.mapInstance) return;
+    this.currentLocationMarker?.remove();
+    this.currentLocationAccuracy?.remove();
+    this.currentLocationMarker = null;
+    this.currentLocationAccuracy = null;
+    if (!this.currentLocation) return;
+
+    const position: Leaflet.LatLngTuple = [
+      this.currentLocation.latitude,
+      this.currentLocation.longitude,
+    ];
+    this.currentLocationAccuracy = this.leaflet.circle(position, {
+      color: '#0f766e', fillColor: '#14b8a6', fillOpacity: 0.12,
+      radius: this.currentLocation.accuracyMeters, weight: 1,
+    }).addTo(this.mapInstance);
+    this.currentLocationMarker = this.leaflet.circleMarker(position, {
+      color: '#ffffff', fillColor: '#0f766e', fillOpacity: 1, radius: 7, weight: 3,
+    }).addTo(this.mapInstance);
+    if (centerMap) this.mapInstance.setView(position, 19);
   }
 }

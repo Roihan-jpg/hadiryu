@@ -238,9 +238,23 @@ legend {
   margin-bottom: 1.5rem;
 }
 
+.geofence-template-list { display: grid; gap: .75rem; margin-bottom: 2rem; }
+.geofence-template-list article { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #ccd6e4; border-radius: .65rem; background: #fff; }
+.geofence-template-list article.active { border-left: 4px solid #477f79; }
+.geofence-template-list h3, .geofence-template-list p { margin: 0; }
+.geofence-template-list p { margin-top: .25rem; color: #74817d; font-size: .82rem; }
+.geofence-template-list strong { color: #135d44; }
+.template-actions, .template-editor-heading { display: flex; align-items: center; gap: .4rem; }
+.template-editor-heading { justify-content: space-between; margin-bottom: 1rem; }
+.template-editor-heading h3 { margin: 0; }
+
 .geofence-controls mat-form-field {
   width: 100%;
 }
+
+.location-check { margin: 1rem 0; }
+.location-status { margin: .5rem 0 0; color: #47645f; font-size: .82rem; }
+.location-status.location-error { color: #a12b2b; }
 
 .vertex-list {
   max-height: 13rem;
@@ -323,6 +337,8 @@ legend {
   .geofence-editor {
     grid-template-columns: 1fr;
   }
+  .geofence-template-list article { grid-template-columns: 1fr; }
+  .template-actions { flex-wrap: wrap; }
 
   .calendar-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

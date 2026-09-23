@@ -1,7 +1,6 @@
 <section class="settings-shell" [class]="'settings-shell tab-' + activeTab()" aria-labelledby="settings-title">
   <header class="page-header">
     <div>
-      <a class="back-link" routerLink="/admin">← Kembali ke administrasi</a>
       <p class="eyebrow">Aturan operasional</p>
       <h1 id="settings-title">Pengaturan operasional</h1>
       <p class="intro">
@@ -234,22 +233,56 @@
   <section class="setting-section geofence-tab" aria-labelledby="geofence-form-title">
     <div class="section-heading">
       <div>
-        <p class="section-kicker">Satu lokasi sekolah</p>
-        <h2 id="geofence-form-title">Geofence global</h2>
+        <p class="section-kicker">Katalog zona sekolah</p>
+        <h2 id="geofence-form-title">Template geofence</h2>
       </div>
       <p>Gambar zona aman di halaman terbuka. Guru di dekat batas akan diminta bergerak ke tengah.</p>
     </div>
 
-    <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofence()" novalidate>
+    <div class="geofence-template-list" aria-label="Daftar template geofence">
+      @for (template of geofenceTemplates().templates; track template.id) {
+        <article [class.active]="template.isActive">
+          <div><h3>{{ template.name }}</h3><p>{{ template.vertices.length }} titik · akurasi {{ template.maxAccuracyMeters }} meter</p></div>
+          @if (template.isActive) { <strong>Aktif</strong> }
+          <div class="template-actions">
+            <button mat-button type="button" (click)="editGeofenceTemplate(template)" [disabled]="actionInProgress() !== null">Ubah</button>
+            <button mat-stroked-button type="button" (click)="activateGeofenceTemplate(template)" [disabled]="actionInProgress() !== null || template.isActive">{{ template.isActive ? 'Sedang dipakai' : 'Aktifkan' }}</button>
+            <button mat-button type="button" (click)="deleteGeofenceTemplate(template)" [disabled]="actionInProgress() !== null || template.isActive">Hapus</button>
+          </div>
+        </article>
+      } @empty {
+        <p class="empty-inline">Belum ada template. Buat template pertama dengan editor di bawah.</p>
+      }
+    </div>
+
+    <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofenceTemplate()" novalidate>
+      <div class="template-editor-heading">
+        <h3>{{ editingGeofenceTemplateId() ? 'Ubah template' : 'Buat template baru' }}</h3>
+        @if (editingGeofenceTemplateId()) { <button mat-button type="button" (click)="resetGeofenceTemplateForm()">Batal mengubah</button> }
+      </div>
       <div class="geofence-editor">
         <app-admin-geofence-map
           [vertices]="geofenceVertices()"
           [initialCenter]="geofenceMapCenter()"
+          [currentLocation]="currentGeofenceLocation()"
           (verticesChange)="updateGeofenceVertices($event)"
         />
         <aside class="geofence-controls">
+          <mat-form-field appearance="outline">
+            <mat-label>Nama template</mat-label>
+            <input matInput name="geofenceTemplateName" maxlength="100" autocomplete="off" formControlName="name" />
+            <mat-error>Nama template wajib diisi.</mat-error>
+          </mat-form-field>
           <p><strong>{{ geofenceVertices().length }} titik batas</strong></p>
           <p>Ketuk peta mengikuti urutan tepi halaman. Jangan menyilangkan garis.</p>
+          <div class="location-check">
+            <button mat-stroked-button type="button" (click)="checkCurrentGeofenceLocation()" [disabled]="geofenceLocationState() === 'loading'">
+              {{ geofenceLocationState() === 'loading' ? 'Mencari lokasi…' : 'Cek lokasi saat ini' }}
+            </button>
+            @if (geofenceLocationMessage()) {
+              <p class="location-status" [class.location-error]="geofenceLocationState() === 'error'" role="status">{{ geofenceLocationMessage() }}</p>
+            }
+          </div>
           <div class="button-pair">
             <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="undoGeofenceVertex()">Urungkan titik</button>
             <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="clearGeofenceVertices()">Hapus semua</button>
@@ -271,13 +304,13 @@
         </aside>
       </div>
       <div class="form-actions">
-        <span>Gunakan hasil survei lapangan; versi lama tetap tersimpan sebagai histori.</span>
+        <span>Menyimpan template tidak mengubah geofence aktif. Gunakan aksi Aktifkan setelah template siap.</span>
         <button
           mat-flat-button
           type="submit"
           [disabled]="actionInProgress() !== null"
         >
-          {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : 'Simpan geofence' }}
+          {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : editingGeofenceTemplateId() ? 'Simpan perubahan' : 'Simpan template' }}
         </button>
       </div>
     </form>

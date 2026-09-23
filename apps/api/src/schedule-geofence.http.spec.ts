@@ -6,6 +6,8 @@ import type {
   ScheduleSettingsResponse,
   SaveReportingSettingsRequest,
   ReportingSettingsResponse,
+  GeofenceTemplate,
+  GeofenceTemplateInput,
 } from '@absensi/contracts';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
@@ -84,6 +86,10 @@ const geofence: GeofenceSettingsResponse = {
     effectiveTo: null,
   },
 };
+const template: GeofenceTemplate = {
+  id: '20000000-0000-4000-8000-000000000099', name: 'Halaman Utama', ...geofenceInput,
+  isActive: false, createdAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z',
+};
 
 class FakeAuthService implements AuthService {
   authenticatedUser = admin;
@@ -113,6 +119,8 @@ class FakeSettingsService implements SettingsService {
   scheduleSave?: { actorId: string; input: SaveScheduleSettingsRequest };
   geofenceDate?: string;
   geofenceSave?: { actorId: string; input: SaveGeofenceSettingsRequest };
+  templateCreate?: { actorId: string; input: GeofenceTemplateInput };
+  templateActivation?: { actorId: string; templateId: string };
 
   async getReportingSettings(): Promise<ReportingSettingsResponse> {
     return { operationalStartDate: '2026-10-01', locked: false };
@@ -154,6 +162,11 @@ class FakeSettingsService implements SettingsService {
     this.geofenceSave = { actorId, input };
     return geofence;
   }
+  async listGeofenceTemplates() { return { templates: [template] }; }
+  async createGeofenceTemplate(actorId: string, input: GeofenceTemplateInput) { this.templateCreate = { actorId, input }; return { ...template, ...input }; }
+  async updateGeofenceTemplate(_actorId: string, _id: string, input: GeofenceTemplateInput) { return { ...template, ...input }; }
+  async deleteGeofenceTemplate(): Promise<void> {}
+  async activateGeofenceTemplate(actorId: string, input: { templateId: string }) { this.templateActivation = { actorId, templateId: input.templateId }; return geofence; }
 
   async listCalendarExceptions(): Promise<never> {
     throw new Error('not used');
@@ -255,7 +268,7 @@ describe('schedule-geofence HTTP API', () => {
     });
   });
 
-  it('resolves history and saves the global geofence for the server date', async () => {
+  it('resolves history and rejects the retired direct geofence write endpoint', async () => {
     const { app, settingsService } = testApp();
     const loaded = await request(app)
       .get('/api/admin/settings/geofence?effectiveOn=2026-08-31')
@@ -271,12 +284,9 @@ describe('schedule-geofence HTTP API', () => {
 
     expect(loaded.status).toBe(200);
     expect(settingsService.geofenceDate).toBe('2026-08-31');
-    expect(created.status).toBe(201);
-    expect(clientDated.status).toBe(400);
-    expect(settingsService.geofenceSave).toEqual({
-      actorId: admin.id,
-      input: geofenceInput,
-    });
+    expect(created.status).toBe(404);
+    expect(clientDated.status).toBe(404);
+    expect(settingsService.geofenceSave).toBeUndefined();
   });
 
   it('rejects missing resolution dates and extra geofence locations', async () => {
@@ -290,6 +300,19 @@ describe('schedule-geofence HTTP API', () => {
       .send({ ...geofenceInput, locations: [geofenceInput] });
 
     expect(missingDate.status).toBe(400);
-    expect(multipleLocations.status).toBe(400);
+    expect(multipleLocations.status).toBe(404);
+  });
+
+  it('creates templates separately and activates a selected template', async () => {
+    const { app, settingsService } = testApp();
+    const input = { name: 'Zona Belakang', ...geofenceInput };
+    const created = await request(app).post('/api/admin/settings/geofence-templates')
+      .set('Cookie', 'absensi_session=access-token').send(input);
+    const activated = await request(app).post('/api/admin/settings/geofence/activate')
+      .set('Cookie', 'absensi_session=access-token').send({ templateId: template.id });
+    expect(created.status).toBe(201);
+    expect(settingsService.templateCreate).toEqual({ actorId: admin.id, input });
+    expect(activated.status).toBe(201);
+    expect(settingsService.templateActivation).toEqual({ actorId: admin.id, templateId: template.id });
   });
 });

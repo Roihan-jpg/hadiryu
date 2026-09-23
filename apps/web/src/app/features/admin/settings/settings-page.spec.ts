@@ -5,6 +5,7 @@ import type {
   ScheduleSettingsResponse,
   SecurityScheduleSettingsResponse,
   ReportingSettingsResponse,
+  GeofenceTemplate,
 } from '@absensi/contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -57,6 +58,16 @@ const geofence: GeofenceSettingsResponse = {
     effectiveFrom: '2026-01-01',
     effectiveTo: null,
   },
+};
+const template: GeofenceTemplate = {
+  id: '20000000-0000-4000-8000-000000000099', name: 'Halaman Utama', shape: 'POLYGON',
+  vertices: [
+    { latitude: -8.1330, longitude: 113.2218 },
+    { latitude: -8.1330, longitude: 113.2221 },
+    { latitude: -8.1327, longitude: 113.2221 },
+  ],
+  maxAccuracyMeters: 15, isActive: false,
+  createdAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z',
 };
 const calendar: CalendarExceptionsResponse = { exceptions: [] };
 const reportingSettings: ReportingSettingsResponse = {
@@ -111,6 +122,11 @@ describe('SettingsPage', () => {
       effectiveOn: '2026-09-01',
     }),
   );
+  const getGeofenceTemplates = vi.fn(async () => ({ templates: [template] }));
+  const createGeofenceTemplate = vi.fn(async () => template);
+  const updateGeofenceTemplate = vi.fn(async () => template);
+  const deleteGeofenceTemplate = vi.fn(async () => undefined);
+  const activateGeofenceTemplate = vi.fn(async () => ({ ...geofence, effectiveOn: '2026-09-01' }));
   const getCalendarExceptions = vi.fn(async () => calendar);
   const createCalendarException = vi.fn(
     async (input: CalendarExceptionInput) => ({
@@ -147,6 +163,11 @@ describe('SettingsPage', () => {
             getGeofence,
             saveSchedules,
             saveGeofence,
+            getGeofenceTemplates,
+            createGeofenceTemplate,
+            updateGeofenceTemplate,
+            deleteGeofenceTemplate,
+            activateGeofenceTemplate,
             getCalendarExceptions,
             createCalendarException,
             updateCalendarException,
@@ -169,6 +190,7 @@ describe('SettingsPage', () => {
               fitBounds: vi.fn(), off: vi.fn(), on: vi.fn(), remove: vi.fn(), setView: vi.fn(),
             })),
             tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
+            circle: vi.fn(() => ({ addTo: vi.fn(), remove: vi.fn() })),
             circleMarker: vi.fn(() => ({ addTo: vi.fn(), remove: vi.fn() })),
             polygon: vi.fn(() => ({ addTo: vi.fn(), getBounds: vi.fn(), remove: vi.fn() })),
           },
@@ -181,6 +203,8 @@ describe('SettingsPage', () => {
     await vi.waitFor(() => expect(fixture.componentInstance.loading()).toBe(false));
     fixture.detectChanges();
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it('renders WEEKDAY, SATURDAY, and the single geofence', () => {
     const text = fixture.nativeElement.textContent as string;
@@ -201,6 +225,17 @@ describe('SettingsPage', () => {
 
     expect(getSchedules).toHaveBeenLastCalledWith('2026-01-31');
     expect(getGeofence).toHaveBeenLastCalledWith('2026-01-31');
+  });
+
+  it('keeps the settings page available when geofence templates are not migrated yet', async () => {
+    getGeofenceTemplates.mockRejectedValueOnce(new Error('relation geofence_templates does not exist'));
+    fixture.componentInstance.inspectionDate.setValue('2026-01-31');
+
+    await fixture.componentInstance.inspectDate();
+
+    expect(fixture.componentInstance.loadErrorMessage()).toBe('');
+    expect(fixture.componentInstance.schedules()?.effectiveOn).toBe('2026-08-25');
+    expect(fixture.componentInstance.geofenceTemplates()).toEqual({ templates: [] });
   });
 
   it('renders only the active accessible tab panel', () => {
@@ -279,7 +314,7 @@ describe('SettingsPage', () => {
     );
   });
 
-  it('saves schedule and geofence settings without effective dates', async () => {
+  it('saves schedule and a geofence template without activating it', async () => {
     await fixture.componentInstance.saveSchedules();
     expect(saveSchedules).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -294,10 +329,43 @@ describe('SettingsPage', () => {
       { latitude: -8.1327, longitude: 113.2221 },
       { latitude: -8.1327, longitude: 113.2218 },
     ]);
-    await fixture.componentInstance.saveGeofence();
-    expect(saveGeofence).toHaveBeenCalledWith(
-      expect.objectContaining({ shape: 'POLYGON', maxAccuracyMeters: 15 }),
+    fixture.componentInstance.geofenceForm.controls.name.setValue('Zona Belakang');
+    await fixture.componentInstance.saveGeofenceTemplate();
+    expect(createGeofenceTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Zona Belakang', shape: 'POLYGON', maxAccuracyMeters: 15 }),
     );
+    expect(activateGeofenceTemplate).not.toHaveBeenCalled();
+  });
+
+  it('requests the current location only after the admin clicks the location button', async () => {
+    const getCurrentPosition = vi.fn((success: PositionCallback) => success({
+      coords: { latitude: -7.9826, longitude: 112.6308, accuracy: 9 },
+    } as GeolocationPosition));
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: { getCurrentPosition },
+    });
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+
+    await fixture.componentInstance.checkCurrentGeofenceLocation();
+
+    expect(getCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 },
+    );
+    expect(fixture.componentInstance.currentGeofenceLocation()).toEqual({
+      latitude: -7.9826,
+      longitude: 112.6308,
+      accuracyMeters: 9,
+    });
+    expect(fixture.componentInstance.geofenceVertices()).toEqual([]);
+  });
+
+  it('activates a saved template only after confirmation', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
+    await fixture.componentInstance.activateGeofenceTemplate(template);
+    expect(activateGeofenceTemplate).toHaveBeenCalledWith(template.id);
     expect(fixture.componentInstance.inspectionDate.value).toBe('2026-09-01');
   });
 

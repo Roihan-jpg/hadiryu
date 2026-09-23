@@ -2,12 +2,18 @@ import {
   CalendarExceptionSchema,
   CalendarExceptionsResponseSchema,
   GeofenceRuleSchema,
+  GeofenceTemplateSchema,
+  GeofenceTemplatesResponseSchema,
   ScheduleRuleSchema,
   type CalendarException,
   type CalendarExceptionInput,
   type CalendarExceptionsResponse,
   type GeofenceRule,
   type GeofenceSettingsResponse,
+  type ActivateGeofenceTemplateRequest,
+  type GeofenceTemplate,
+  type GeofenceTemplateInput,
+  type GeofenceTemplatesResponse,
   type SaveGeofenceSettingsRequest,
   type SaveScheduleSettingsRequest,
   type ScheduleRule,
@@ -60,6 +66,7 @@ const GeofenceRowSchema = z.strictObject({
   max_accuracy_meters: z.number().int(),
   effective_from: z.string(),
   effective_to: z.string().nullable(),
+  template_id: z.uuid().nullable().optional(),
 });
 const GeofenceRpcRowSchema = GeofenceRowSchema.extend({
   created_at: z.string(),
@@ -70,7 +77,11 @@ const GeofenceResultRowSchema = z.union([GeofenceRowSchema, GeofenceRpcRowSchema
 const SCHEDULE_FIELDS =
   'id,schedule_type,check_in_open,work_start,check_in_close,checkout_open,work_end,checkout_close,target_minutes,effective_from,effective_to';
 const GEOFENCE_FIELDS =
-  'id,latitude,longitude,radius_meters,polygon_vertices,max_accuracy_meters,effective_from,effective_to';
+  'id,latitude,longitude,radius_meters,polygon_vertices,max_accuracy_meters,effective_from,effective_to,template_id';
+const GeofenceTemplateRowSchema = z.strictObject({
+  id: z.uuid(), name: z.string(), polygon_vertices: z.unknown(), max_accuracy_meters: z.number().int(),
+  created_at: z.string(), updated_at: z.string(),
+});
 const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
 const SecurityScheduleRowSchema = z.strictObject({
   id: z.uuid(), day_shift: z.unknown(), night_shift: z.unknown(),
@@ -143,6 +154,7 @@ function toGeofenceRule(value: unknown): GeofenceRule {
     maxAccuracyMeters: row.max_accuracy_meters,
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
+    templateId: row.template_id ?? null,
   };
   return GeofenceRuleSchema.parse(row.polygon_vertices === null
     ? {
@@ -190,6 +202,23 @@ function mutationError(error: { code?: string; message?: string } | null): AppEr
     invalid ? 'SETTINGS_VALIDATION_FAILED' : 'SETTINGS_UPDATE_FAILED',
     invalid ? 'Nilai pengaturan tidak valid' : 'Pengaturan tidak dapat disimpan',
   );
+}
+
+function templateMutationError(error: { code?: string; message?: string } | null): AppError {
+  const message = error?.message ?? '';
+  const missing = message.includes('GEOFENCE_TEMPLATE_NOT_FOUND');
+  const duplicate = message.includes('GEOFENCE_TEMPLATE_NAME_EXISTS') || error?.code === '23505';
+  const active = message.includes('ACTIVE_GEOFENCE_TEMPLATE');
+  return new AppError(missing ? 404 : duplicate || active ? 409 : 500,
+    missing ? 'GEOFENCE_TEMPLATE_NOT_FOUND' : duplicate ? 'GEOFENCE_TEMPLATE_NAME_EXISTS' : active ? 'ACTIVE_GEOFENCE_TEMPLATE' : 'SETTINGS_UPDATE_FAILED',
+    missing ? 'Template geofence tidak ditemukan' : duplicate ? 'Nama template geofence sudah digunakan' : active ? 'Template aktif tidak dapat dihapus' : 'Template geofence tidak dapat disimpan');
+}
+
+function toGeofenceTemplate(value: unknown, activeTemplateId: string | null): GeofenceTemplate {
+  const row = GeofenceTemplateRowSchema.parse(value);
+  return GeofenceTemplateSchema.parse({ id: row.id, name: row.name, shape: 'POLYGON',
+    vertices: row.polygon_vertices, maxAccuracyMeters: row.max_accuracy_meters,
+    isActive: row.id === activeTemplateId, createdAt: row.created_at, updatedAt: row.updated_at });
 }
 
 function calendarMutationError(error: { code?: string; message?: string } | null): AppError {
@@ -393,6 +422,42 @@ export class SupabaseSettingsService implements SettingsService {
       },
     });
     if (error) throw mutationError(error);
+    const geofence = toGeofenceRule(data);
+    return resolveGeofenceSettings([geofence], geofence.effectiveFrom);
+  }
+
+  async listGeofenceTemplates(): Promise<GeofenceTemplatesResponse> {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const [templatesResult, activeResult] = await Promise.all([
+      this.client.from('geofence_templates').select('id,name,polygon_vertices,max_accuracy_meters,created_at,updated_at').is('deleted_at', null).order('name'),
+      this.client.from('geofence_rules').select('template_id').lte('effective_from', today).or(`effective_to.is.null,effective_to.gte.${today}`).order('effective_from', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (templatesResult.error || activeResult.error) throw new AppError(500, 'SETTINGS_LOOKUP_FAILED', 'Template geofence tidak dapat dimuat');
+    const activeTemplateId = (activeResult.data as { template_id?: string | null } | null)?.template_id ?? null;
+    return GeofenceTemplatesResponseSchema.parse({ templates: (templatesResult.data ?? []).map((row) => toGeofenceTemplate(row, activeTemplateId)) });
+  }
+
+  async createGeofenceTemplate(actorId: string, input: GeofenceTemplateInput): Promise<GeofenceTemplate> {
+    const { data, error } = await this.client.rpc('create_geofence_template', { p_actor_id: actorId, p_template: input });
+    if (error) throw templateMutationError(error);
+    return toGeofenceTemplate(data, null);
+  }
+
+  async updateGeofenceTemplate(actorId: string, id: string, input: GeofenceTemplateInput): Promise<GeofenceTemplate> {
+    const { data, error } = await this.client.rpc('update_geofence_template', { p_actor_id: actorId, p_template_id: id, p_template: input });
+    if (error) throw templateMutationError(error);
+    const list = await this.listGeofenceTemplates();
+    return list.templates.find((template) => template.id === id) ?? toGeofenceTemplate(data, null);
+  }
+
+  async deleteGeofenceTemplate(actorId: string, id: string): Promise<void> {
+    const { error } = await this.client.rpc('delete_geofence_template', { p_actor_id: actorId, p_template_id: id });
+    if (error) throw templateMutationError(error);
+  }
+
+  async activateGeofenceTemplate(actorId: string, input: ActivateGeofenceTemplateRequest): Promise<GeofenceSettingsResponse> {
+    const { data, error } = await this.client.rpc('activate_geofence_template', { p_actor_id: actorId, p_template_id: input.templateId });
+    if (error) throw templateMutationError(error);
     const geofence = toGeofenceRule(data);
     return resolveGeofenceSettings([geofence], geofence.effectiveFrom);
   }

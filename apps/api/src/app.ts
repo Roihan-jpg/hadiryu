@@ -159,9 +159,11 @@ const unavailableSettingsService: SettingsService = {
   async getGeofence() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },
-  async saveGeofence() {
-    throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
-  },
+  async listGeofenceTemplates() { throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Template geofence belum dikonfigurasi'); },
+  async createGeofenceTemplate() { throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Template geofence belum dikonfigurasi'); },
+  async updateGeofenceTemplate() { throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Template geofence belum dikonfigurasi'); },
+  async deleteGeofenceTemplate() { throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Template geofence belum dikonfigurasi'); },
+  async activateGeofenceTemplate() { throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Template geofence belum dikonfigurasi'); },
   async listCalendarExceptions() {
     throw new AppError(500, 'SETTINGS_NOT_CONFIGURED', 'Pengaturan belum dikonfigurasi');
   },

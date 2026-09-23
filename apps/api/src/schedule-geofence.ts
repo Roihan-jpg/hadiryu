@@ -1,8 +1,10 @@
 import {
+  ActivateGeofenceTemplateRequestSchema,
   CalendarExceptionInputSchema,
+  GeofenceTemplateIdParamsSchema,
+  GeofenceTemplateInputSchema,
   GeofenceSettingsResponseSchema,
   GeofenceSettingsQuerySchema,
-  SaveGeofenceSettingsRequestSchema,
   SaveScheduleSettingsRequestSchema,
   SaveSecurityScheduleSettingsRequestSchema,
   SaveReportingSettingsRequestSchema,
@@ -14,7 +16,10 @@ import {
   type CalendarExceptionsResponse,
   type GeofenceRule,
   type GeofenceSettingsResponse,
-  type SaveGeofenceSettingsRequest,
+  type ActivateGeofenceTemplateRequest,
+  type GeofenceTemplate,
+  type GeofenceTemplateInput,
+  type GeofenceTemplatesResponse,
   type SaveScheduleSettingsRequest,
   type ScheduleRule,
   type ScheduleSettingsResponse,
@@ -98,10 +103,11 @@ export interface SettingsService {
     input: SaveSecurityScheduleSettingsRequest,
   ): Promise<SecurityScheduleSettingsResponse>;
   getGeofence(effectiveOn: string): Promise<GeofenceSettingsResponse>;
-  saveGeofence(
-    actorId: string,
-    input: SaveGeofenceSettingsRequest,
-  ): Promise<GeofenceSettingsResponse>;
+  listGeofenceTemplates(): Promise<GeofenceTemplatesResponse>;
+  createGeofenceTemplate(actorId: string, input: GeofenceTemplateInput): Promise<GeofenceTemplate>;
+  updateGeofenceTemplate(actorId: string, id: string, input: GeofenceTemplateInput): Promise<GeofenceTemplate>;
+  deleteGeofenceTemplate(actorId: string, id: string): Promise<void>;
+  activateGeofenceTemplate(actorId: string, input: ActivateGeofenceTemplateRequest): Promise<GeofenceSettingsResponse>;
   listCalendarExceptions(): Promise<CalendarExceptionsResponse>;
   createCalendarException(
     actorId: string,
@@ -198,6 +204,46 @@ export function registerSettingsRoutes(
     },
   );
 
+  app.get('/api/admin/settings/geofence-templates', ...adminGuards, async (_request, response, next) => {
+    try { response.status(200).json(await settingsService.listGeofenceTemplates()); }
+    catch (error) { next(error); }
+  });
+
+  app.post('/api/admin/settings/geofence-templates', ...adminGuards, async (request, response, next) => {
+    try {
+      const parsed = GeofenceTemplateInputSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Template geofence tidak valid', parsed.error.flatten());
+      response.status(201).json(await settingsService.createGeofenceTemplate(actorId(request), parsed.data));
+    } catch (error) { next(error); }
+  });
+
+  app.patch('/api/admin/settings/geofence-templates/:id', ...adminGuards, async (request, response, next) => {
+    try {
+      const params = GeofenceTemplateIdParamsSchema.safeParse(request.params);
+      const body = GeofenceTemplateInputSchema.safeParse(request.body);
+      if (!params.success) throw validationError('Template geofence tidak valid', params.error.flatten());
+      if (!body.success) throw validationError('Template geofence tidak valid', body.error.flatten());
+      response.status(200).json(await settingsService.updateGeofenceTemplate(actorId(request), params.data.id, body.data));
+    } catch (error) { next(error); }
+  });
+
+  app.delete('/api/admin/settings/geofence-templates/:id', ...adminGuards, async (request, response, next) => {
+    try {
+      const params = GeofenceTemplateIdParamsSchema.safeParse(request.params);
+      if (!params.success) throw validationError('ID template geofence tidak valid', params.error.flatten());
+      await settingsService.deleteGeofenceTemplate(actorId(request), params.data.id);
+      response.status(204).end();
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/admin/settings/geofence/activate', ...adminGuards, async (request, response, next) => {
+    try {
+      const parsed = ActivateGeofenceTemplateRequestSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Pilihan template geofence tidak valid', parsed.error.flatten());
+      response.status(201).json(await settingsService.activateGeofenceTemplate(actorId(request), parsed.data));
+    } catch (error) { next(error); }
+  });
+
   app.get('/api/admin/settings/security-schedules', ...adminGuards, async (request, response, next) => {
     try {
       const parsed = ScheduleSettingsQuerySchema.safeParse(request.query);
@@ -228,27 +274,6 @@ export function registerSettingsRoutes(
         }
         response.status(200).json(
           await settingsService.getGeofence(parsed.data.effectiveOn),
-        );
-      } catch (error) {
-        next(error);
-      }
-    },
-  );
-
-  app.post(
-    '/api/admin/settings/geofence',
-    ...adminGuards,
-    async (request, response, next) => {
-      try {
-        const parsed = SaveGeofenceSettingsRequestSchema.safeParse(request.body);
-        if (!parsed.success) {
-          throw validationError('Aturan geofence tidak valid', parsed.error.flatten());
-        }
-        response.status(201).json(
-          await settingsService.saveGeofence(
-            actorId(request),
-            parsed.data,
-          ),
         );
       } catch (error) {
         next(error);

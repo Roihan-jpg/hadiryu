@@ -4,7 +4,9 @@ import {
   type CalendarExceptionsResponse,
   type GeofenceSettingsResponse,
   type GeofenceCoordinate,
-  SaveGeofenceSettingsRequestSchema,
+  type GeofenceTemplate,
+  type GeofenceTemplatesResponse,
+  GeofenceTemplateInputSchema,
   SaveScheduleSettingsRequestSchema,
   type ScheduleRuleInput,
   type ScheduleSettingsResponse,
@@ -34,7 +36,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { SettingsService } from './settings.service';
 import { TeachersService } from '../teachers/teachers.service';
-import { AdminGeofenceMap } from './admin-geofence-map';
+import { AdminGeofenceMap, type AdminCurrentLocation } from './admin-geofence-map';
 import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
 
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -183,12 +185,16 @@ export class SettingsPage implements OnInit {
     }),
   });
   readonly geofenceForm = new FormGroup({
+    name: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(100)] }),
     maxAccuracyMeters: new FormControl(15, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(5), Validators.max(30)],
     }),
   });
   readonly geofenceVertices = signal<GeofenceCoordinate[]>([]);
+  readonly currentGeofenceLocation = signal<AdminCurrentLocation | null>(null);
+  readonly geofenceLocationState = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  readonly geofenceLocationMessage = signal('');
   readonly calendarForm = new FormGroup({
     workDate: new FormControl('', {
       nonNullable: true,
@@ -211,6 +217,8 @@ export class SettingsPage implements OnInit {
   readonly reportingSettings = signal<ReportingSettingsResponse | null>(null);
   readonly securityGuards = signal<ReadonlyArray<{ id: string; fullName: string }>>([]);
   readonly geofence = signal<GeofenceSettingsResponse | null>(null);
+  readonly geofenceTemplates = signal<GeofenceTemplatesResponse>({ templates: [] });
+  readonly editingGeofenceTemplateId = signal<string | null>(null);
   readonly calendar = signal<CalendarExceptionsResponse | null>(null);
   readonly editingCalendarId = signal<string | null>(null);
   readonly loading = signal(true);
@@ -370,14 +378,14 @@ export class SettingsPage implements OnInit {
     }
   }
 
-  async saveGeofence(): Promise<void> {
+  async saveGeofenceTemplate(): Promise<void> {
     if (this.actionInProgress() !== null) return;
     if (this.geofenceForm.invalid) {
       this.geofenceForm.markAllAsTouched();
       focusFirstInvalidControl(this.host.nativeElement);
       return;
     }
-    const parsed = SaveGeofenceSettingsRequestSchema.safeParse({
+    const parsed = GeofenceTemplateInputSchema.safeParse({
       shape: 'POLYGON',
       vertices: this.geofenceVertices(),
       ...this.geofenceForm.getRawValue(),
@@ -392,27 +400,98 @@ export class SettingsPage implements OnInit {
     this.actionInProgress.set('geofence');
     this.clearFeedback();
     try {
-      const saved = await this.service.saveGeofence(input);
-      this.inspectionDate.setValue(saved.effectiveOn);
-      if (await this.loadForDate(saved.effectiveOn)) {
-        this.successMessage.set('Geofence berhasil disimpan.');
-      } else {
-        this.errorMessage.set(
-          'Geofence berhasil disimpan, tetapi tampilan terbaru belum dapat dimuat.',
-        );
-      }
+      const editingId = this.editingGeofenceTemplateId();
+      if (editingId) await this.service.updateGeofenceTemplate(editingId, input);
+      else await this.service.createGeofenceTemplate(input);
+      this.resetGeofenceTemplateForm();
+      await this.loadForDate(this.inspectionDate.value);
+      this.successMessage.set(editingId ? 'Template geofence berhasil diperbarui. Aktifkan ulang untuk menerapkan perubahan.' : 'Template geofence berhasil disimpan.');
     } catch (error) {
       this.errorMessage.set(
-        this.errorText(error, 'Geofence tidak dapat disimpan.'),
+        this.errorText(error, 'Template geofence tidak dapat disimpan.'),
       );
     } finally {
       this.actionInProgress.set(null);
     }
   }
 
+  editGeofenceTemplate(template: GeofenceTemplate): void {
+    this.editingGeofenceTemplateId.set(template.id);
+    this.geofenceForm.setValue({ name: template.name, maxAccuracyMeters: template.maxAccuracyMeters });
+    this.geofenceVertices.set([...template.vertices]);
+    this.clearFeedback();
+  }
+
+  resetGeofenceTemplateForm(): void {
+    this.editingGeofenceTemplateId.set(null);
+    this.geofenceForm.reset({ name: '', maxAccuracyMeters: 15 });
+    this.geofenceVertices.set([]);
+  }
+
+  async activateGeofenceTemplate(template: GeofenceTemplate): Promise<void> {
+    if (this.actionInProgress() !== null || template.isActive) return;
+    if (!window.confirm(`Aktifkan template “${template.name}” mulai hari ini? Histori sebelumnya tidak berubah.`)) return;
+    this.actionInProgress.set('geofence'); this.clearFeedback();
+    try {
+      const saved = await this.service.activateGeofenceTemplate(template.id);
+      this.inspectionDate.setValue(saved.effectiveOn);
+      await this.loadForDate(saved.effectiveOn);
+      this.successMessage.set(`Template “${template.name}” sekarang aktif.`);
+    } catch (error) { this.errorMessage.set(this.errorText(error, 'Template geofence tidak dapat diaktifkan.')); }
+    finally { this.actionInProgress.set(null); }
+  }
+
+  async deleteGeofenceTemplate(template: GeofenceTemplate): Promise<void> {
+    if (this.actionInProgress() !== null || template.isActive) return;
+    if (!window.confirm(`Hapus template “${template.name}”?`)) return;
+    this.actionInProgress.set('geofence'); this.clearFeedback();
+    try {
+      await this.service.deleteGeofenceTemplate(template.id);
+      if (this.editingGeofenceTemplateId() === template.id) this.resetGeofenceTemplateForm();
+      await this.loadForDate(this.inspectionDate.value);
+      this.successMessage.set('Template geofence berhasil dihapus.');
+    } catch (error) { this.errorMessage.set(this.errorText(error, 'Template geofence tidak dapat dihapus.')); }
+    finally { this.actionInProgress.set(null); }
+  }
+
   updateGeofenceVertices(vertices: GeofenceCoordinate[]): void {
     this.geofenceVertices.set(vertices);
     this.clearFeedback();
+  }
+
+  async checkCurrentGeofenceLocation(): Promise<void> {
+    if (this.geofenceLocationState() === 'loading') return;
+    if (!navigator.geolocation) {
+      this.geofenceLocationState.set('error');
+      this.geofenceLocationMessage.set('Browser ini tidak mendukung pemeriksaan lokasi.');
+      return;
+    }
+    this.geofenceLocationState.set('loading');
+    this.geofenceLocationMessage.set('Mencari lokasi saat ini…');
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 30000,
+        });
+      });
+      this.currentGeofenceLocation.set({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyMeters: position.coords.accuracy,
+      });
+      this.geofenceLocationState.set('ready');
+      this.geofenceLocationMessage.set(
+        `Lokasi ditemukan · akurasi ±${Math.round(position.coords.accuracy)} meter.`,
+      );
+    } catch (error) {
+      const code = (error as GeolocationPositionError | undefined)?.code;
+      this.geofenceLocationState.set('error');
+      this.geofenceLocationMessage.set(code === 1
+        ? 'Izin lokasi ditolak. Izinkan akses lokasi pada browser lalu coba lagi.'
+        : 'Lokasi belum dapat ditemukan. Pastikan GPS aktif lalu coba lagi.');
+    }
   }
 
   undoGeofenceVertex(): void {
@@ -513,11 +592,12 @@ export class SettingsPage implements OnInit {
     this.clearFeedback();
     this.loadErrorMessage.set('');
     try {
-      const [reportingSettings, schedules, securitySchedules, geofence, calendar, guards] = await Promise.all([
+      const [reportingSettings, schedules, securitySchedules, geofence, templates, calendar, guards] = await Promise.all([
         this.service.getReportingSettings(),
         this.service.getSchedules(effectiveOn),
         this.service.getSecuritySchedules(effectiveOn),
         this.service.getGeofence(effectiveOn),
+        this.service.getGeofenceTemplates().catch(() => ({ templates: [] })),
         this.service.getCalendarExceptions(),
         this.teachersService.list({ page: 1, pageSize: 100, role: 'SECURITY_GUARD' }),
       ]);
@@ -526,6 +606,7 @@ export class SettingsPage implements OnInit {
       this.securitySchedules.set(securitySchedules);
       this.securityGuards.set(guards.data.map((guard) => ({ id: guard.id, fullName: guard.fullName })));
       this.geofence.set(geofence);
+      this.geofenceTemplates.set(templates);
       this.calendar.set(calendar);
       if (reportingSettings.operationalStartDate) {
         this.reportingForm.patchValue({
@@ -555,7 +636,7 @@ export class SettingsPage implements OnInit {
         this.securityScheduleForm.controls.dayShift.patchValue({ workStart: '06:00', targetMinutes: 720 });
         this.securityScheduleForm.controls.nightShift.patchValue({ workStart: '18:00', targetMinutes: 720 });
       }
-      if (geofence.geofence) {
+      if (geofence.geofence && templates.templates.length === 0 && !this.editingGeofenceTemplateId()) {
         const rule = geofence.geofence;
         this.geofenceVertices.set(rule.shape === 'POLYGON' ? [...rule.vertices] : []);
         this.geofenceForm.patchValue({
