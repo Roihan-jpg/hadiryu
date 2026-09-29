@@ -1,0 +1,18 @@
+<section class="page-shell" aria-labelledby="approval-title">
+  <header class="page-header"><p class="eyebrow">ANTREAN KEPUTUSAN</p><h1 id="approval-title">Approval Izin</h1><p>Periksa pengajuan Guru dari halaman detail sebelum laporan bulanan dibuat.</p></header>
+  <form class="admin-panel filters" (ngSubmit)="applyFilter()" novalidate>
+    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select [formControl]="statusControl"><mat-option value="PENDING">Pending</mat-option><mat-option value="APPROVED">Disetujui</mat-option><mat-option value="REJECTED">Ditolak</mat-option><mat-option value="CANCELLED">Dibatalkan</mat-option><mat-option value="ALL">Semua</mat-option></mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Tanggal</mat-label><input matInput type="date" [formControl]="dateControl" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Cari Guru</mat-label><input matInput [formControl]="searchControl" placeholder="Nama atau NIP" /></mat-form-field>
+    <button mat-flat-button type="submit" [disabled]="loading()">Terapkan</button>
+  </form>
+  @if (successMessage()) { <p class="feedback success" role="status">{{ successMessage() }}</p> }
+  @if (errorMessage()) { <div class="feedback error" role="alert">{{ errorMessage() }} <button mat-button type="button" (click)="load()">Coba lagi</button></div> }
+  @if (loading()) { <div class="state"><mat-spinner diameter="28" /> Memuat pengajuan…</div> }
+  @else if (!errorMessage()) {
+    <div class="admin-panel table-wrap"><table><thead><tr><th>Guru</th><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th><th></th></tr></thead><tbody>
+      @for (request of requests(); track request.id) { <tr><td><strong>{{ request.teacherFullName }}</strong><small>{{ request.teacherNip }}</small></td><td>{{ dateLabel(request.leaveDate) }}</td><td>{{ typeLabel(request.leaveType) }}</td><td class="reason">{{ request.reason }}</td><td><span [class]="'status-pill ' + request.status.toLowerCase()">{{ statusLabel(request.status) }}</span></td><td><a mat-button [routerLink]="['/admin/leave-requests', request.id]">Lihat detail</a></td></tr> }
+    </tbody></table>@if(requests().length===0){<div class="state">Tidak ada pengajuan pada filter ini.</div>}</div>
+    <mat-paginator [length]="pagination().totalItems" [pageIndex]="pagination().page - 1" [pageSize]="pagination().pageSize" [pageSizeOptions]="[10,20,50]" (page)="pageChanged($event)" />
+  }
+</section>

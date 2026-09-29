@@ -1,0 +1,264 @@
+@if (user()?.role === 'SUPER_ADMIN') {
+  <section class="home-shell" aria-labelledby="home-title">
+    <p class="status-label">Akun aktif · {{ roleLabel() }}</p>
+    <h1 id="home-title">Selamat datang, {{ user()?.fullName }}.</h1>
+    <p class="intro">Kelola data Guru dan aturan operasional sekolah.</p>
+  </section>
+} @else {
+  <section class="teacher-page dashboard-page" aria-labelledby="home-title">
+    @if (user()?.role === 'SECURITY_GUARD') {
+      <section class="security-duty-board ledger-panel" aria-labelledby="security-duty-title" [attr.aria-busy]="securityDashboardQuery.isPending()">
+        @if (securityDashboard(); as dashboard) {
+          <div class="board-heading"><div><p class="board-kicker">Tugas kalender hari ini</p><h2 id="security-duty-title">{{ dutyLabel(dashboard.currentDuty) }}</h2></div>
+            @if (dashboard.currentDuty.rotationDay) { <span class="status-chip">Hari {{ dashboard.currentDuty.rotationDay }}</span> }
+          </div>
+          <p class="duty-date">Tanggal kerja {{ dashboard.currentDuty.workDate }}</p>
+          @if (dashboard.currentDuty.boundaries; as times) {
+            <div class="shift-ledger" aria-label="Timeline shift Satpam">
+              <div><span>Absen Masuk</span><strong>{{ jakartaTime(times.checkInOpenAt) }}–{{ jakartaTime(times.checkInCloseAt) }}</strong><small>{{ jakartaDate(times.checkInOpenAt) }}</small></div>
+              <div><span>Mulai</span><strong>{{ jakartaTime(times.workStartAt) }}</strong><small>{{ jakartaDate(times.workStartAt) }}</small></div>
+              <div><span>Selesai</span><strong>{{ jakartaTime(times.workEndAt) }}</strong><small>{{ jakartaDate(times.workEndAt) }} @if (dashboard.currentDuty.status === 'NIGHT') { · Hari berikutnya }</small></div>
+              <div><span>Absen Pulang</span><strong>{{ jakartaTime(times.checkoutOpenAt) }}–{{ jakartaTime(times.checkoutCloseAt) }}</strong><small>{{ jakartaDate(times.checkoutOpenAt) }} @if (dashboard.currentDuty.status === 'NIGHT') { · Hari berikutnya }</small></div>
+            </div>
+          } @else if (dashboard.currentDuty.status === 'OFF' && dashboard.nextWorkingDuty; as nextDuty) {
+            <p class="state-copy">Tugas berikutnya: {{ dutyLabel(nextDuty) }} pada {{ nextDuty.workDate }}.</p>
+          } @else if (dashboard.currentDuty.status === 'UNASSIGNED') {
+            <p class="state-copy">Akun aktif, tetapi belum ditempatkan dalam roster Satpam.</p>
+          } @else if (dashboard.currentDuty.status === 'CONFIGURATION_ERROR') {
+            <p class="state-copy">Jadwal atau roster belum lengkap. Hubungi SuperAdmin.</p>
+          }
+          @if (dashboard.activeDuty && dashboard.activeDuty.workDate !== dashboard.currentDuty.workDate) {
+            <aside class="active-previous-shift"><strong>Shift aktif dari kemarin</strong><span>{{ dutyLabel(dashboard.activeDuty) }} · tanggal kerja {{ dashboard.activeDuty.workDate }}</span></aside>
+          } @else if (!dashboard.activeAttendance && dashboard.latestAttendance?.status === 'COMPLETED' && dashboard.latestAttendance?.workDate !== dashboard.currentDuty.workDate) {
+            <aside class="active-previous-shift"><strong>Shift terakhir selesai</strong><span>Tanggal kerja {{ dashboard.latestAttendance?.workDate }} · Absen Pulang {{ jakartaTime(dashboard.latestAttendance!.checkOutAt) }} WIB</span></aside>
+          }
+        } @else if (securityDashboardQuery.isError()) {
+          <p class="feedback feedback--error" role="alert">Tugas Satpam tidak dapat dimuat. Coba lagi.</p>
+        } @else {
+          <p role="status">Memuat tugas Satpam…</p>
+        }
+      </section>
+    }
+
+    <section class="attendance-card ledger-panel" aria-labelledby="attendance-title" [attr.aria-busy]="loadingToday()">
+      @if (loadingToday()) {
+        <div class="attendance-skeleton" role="status" aria-live="polite">
+          <span class="visually-hidden">Memuat jadwal dari server…</span>
+          <span class="skeleton-line short"></span>
+          <span class="skeleton-line title"></span>
+          <span class="skeleton-block"></span>
+          <span class="skeleton-line"></span>
+        </div>
+      } @else {
+        <div class="board-heading">
+          <div>
+            <p class="board-kicker">Pencatatan absensi hari ini</p>
+            <h2 id="attendance-title">
+              @if (today()?.state === 'CHECKED_IN') {
+                Absen Masuk tercatat
+              } @else if (today()?.state === 'COMPLETED') {
+                Absensi selesai
+              } @else if (today()?.state === 'INCOMPLETE') {
+                Data tidak lengkap
+              } @else if (today()?.state === 'NON_WORKING_DAY') {
+                Hari libur
+              } @else if (today()?.state === 'CONFIGURATION_ERROR') {
+                Jadwal belum siap
+              } @else if (today()?.state === 'LEAVE_BLOCKED') {
+                Aksi absensi ditutup
+              } @else {
+                Belum Absen Masuk
+              }
+            </h2>
+          </div>
+          @if (today()?.state === 'CHECKED_IN') {
+            <span class="status-chip">Menunggu Absen Pulang</span>
+          } @else if (today()?.state === 'COMPLETED') {
+            <span class="status-chip success">Tercatat</span>
+          } @else if (today()?.state === 'INCOMPLETE') {
+            <span class="status-chip warning">Tidak lengkap</span>
+          } @else if (today()?.state === 'READY_TO_CHECK_IN') {
+            <span class="status-chip">Siap absen</span>
+          }
+        </div>
+
+        @if (today()?.schedule; as schedule) {
+          @if (today()?.state === 'CHECKED_IN') {
+            <div class="time-ruler" aria-label="Jadwal Absen Pulang hari ini">
+              <div><span>Absen Pulang dibuka</span><strong>{{ schedule.checkoutOpen }}</strong></div>
+              <div><span>Selesai kerja</span><strong>{{ schedule.workEnd }}</strong></div>
+              <div><span>Absen Pulang ditutup</span><strong>{{ schedule.checkoutClose }}</strong></div>
+            </div>
+          } @else {
+            <div class="time-ruler" aria-label="Jadwal Absen Masuk hari ini">
+              <div><span>Dibuka</span><strong>{{ schedule.checkInOpen }}</strong></div>
+              <div><span>Mulai kerja</span><strong>{{ schedule.workStart }}</strong></div>
+              <div><span>Ditutup</span><strong>{{ schedule.checkInClose }}</strong></div>
+            </div>
+          }
+          <p class="schedule-note">Target {{ schedule.targetMinutes }} menit · selesai {{ schedule.workEnd }}</p>
+        }
+
+        @if (today()?.attendance; as attendance) {
+          <dl class="attendance-result">
+            <div><dt>Absen Masuk</dt><dd>{{ jakartaTime(attendance.checkInAt) }} WIB</dd></div>
+            @if (attendance.status === 'CHECKED_IN') {
+              <div><dt>Keterlambatan</dt><dd>{{ attendance.arrivalLateMinutes }} menit</dd></div>
+              <div>
+                @if (attendance.boundaryClearanceMeters !== null && attendance.boundaryClearanceMeters !== undefined) {
+                  <dt>Jarak aman dari batas</dt><dd>{{ attendance.boundaryClearanceMeters }} meter</dd>
+                } @else {
+                  <dt>Jarak dari pusat</dt><dd>{{ attendance.distanceMeters }} meter</dd>
+                }
+              </div>
+            } @else {
+              <div><dt>Absen Pulang</dt><dd>@if (attendance.status === 'COMPLETED') { {{ jakartaTime(attendance.checkOutAt) }} WIB } @else { Tidak tercatat }</dd></div>
+              <div><dt>Menit kerja</dt><dd>{{ attendance.workedMinutes }} menit</dd></div>
+              <div><dt>Keterlambatan</dt><dd>{{ attendance.arrivalLateMinutes }} menit</dd></div>
+              <div><dt>Kekurangan</dt><dd>{{ attendance.workDeficitMinutes }} menit</dd></div>
+            }
+          </dl>
+        } @else if (today()?.state === 'NON_WORKING_DAY') {
+          <p class="state-copy">Tidak ada jadwal kerja yang perlu dicatat hari ini.</p>
+        } @else if (today()?.state === 'CONFIGURATION_ERROR') {
+          <p class="state-copy">Konfigurasi hari ini belum lengkap. Hubungi SuperAdmin.</p>
+        } @else if (today()?.state === 'LEAVE_BLOCKED') {
+          <p class="form-blocked" role="status">{{ operationalBlockMessage() }}</p>
+        }
+
+        @if (errorMessage()) {
+          <p class="feedback feedback--error" role="alert">{{ errorMessage() }}</p>
+        }
+        @if (todayErrorMessage()) {
+          <p class="feedback feedback--error" role="alert">{{ todayErrorMessage() }}</p>
+        }
+        @if (actionInProgress() && locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
+          <div class="gps-progress" aria-live="polite">
+            <span class="gps-pulse" aria-hidden="true"></span>
+            <div><strong>Meningkatkan akurasi lokasi…</strong><small>Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</small></div>
+          </div>
+        } @else if (actionInProgress() && locationPreviewInProgress()) {
+          <div class="gps-progress" role="status" aria-live="polite">
+            <span class="gps-pulse" aria-hidden="true"></span>
+            <div><strong>Mencari lokasi…</strong><small>Tindakan akan dikirim otomatis setelah lokasi siap.</small></div>
+          </div>
+        }
+        @if (successMessage()) {
+          <p class="feedback feedback--success" role="status" aria-live="polite">{{ successMessage() }}</p>
+        }
+
+        @if (!today() && todayErrorMessage()) {
+          <button mat-stroked-button type="button" (click)="loadToday()">Coba lagi</button>
+        } @else if (today()?.state === 'READY_TO_CHECK_IN') {
+          <button mat-flat-button class="primary-action" data-action="check-in" type="button" [disabled]="actionInProgress()" (click)="checkIn()">
+            {{ actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan Absen Masuk…') : 'Absen Masuk sekarang' }}
+          </button>
+        } @else if (today()?.state === 'CHECKED_IN') {
+          <button mat-flat-button class="primary-action" data-action="checkout" type="button" [disabled]="actionInProgress() || maternityEarlyCheckoutBlocked()" (click)="checkout()">
+            {{ maternityEarlyCheckoutBlocked() ? 'Hak pulang pukul 14.00 aktif' : actionInProgress() ? (locationPreviewInProgress() ? 'Menunggu lokasi siap…' : 'Menyimpan Absen Pulang…') : 'Absen Pulang sekarang' }}
+          </button>
+          @if (maternityEarlyCheckoutBlocked()) { <p class="form-blocked" role="status">{{ operationalBlockMessage() }}</p> }
+        }
+        @if (today()?.state === 'READY_TO_CHECK_IN') {
+          <button mat-stroked-button class="late-arrival-trigger" type="button" data-action="late-arrival" [disabled]="actionInProgress()" (click)="toggleLateArrival()">
+            {{ lateArrivalOpen() ? 'Tutup izin terlambat' : 'Ajukan izin terlambat' }}
+          </button>
+          @if (lateQuotaQuery.isPending() || lateQuotaQuery.isError()) {
+            <div class="quota-spotlight quota-spotlight--state" data-testid="late-arrival-quota" [class.quota-spotlight--error]="lateQuotaQuery.isError()" role="status">
+              <span class="quota-kicker">Kuota bulanan</span>
+              <p>{{ lateQuotaMessage() }}</p>
+              @if (lateQuotaQuery.isError()) { <button mat-button type="button" (click)="retryLateQuota()">Coba lagi</button> }
+            </div>
+          } @else if (lateQuotaQuery.data()?.lateArrival; as quota) {
+            <div class="quota-spotlight" data-testid="late-arrival-quota" role="status">
+              <div class="quota-spotlight-heading"><span class="quota-kicker">Izin terlambat</span><span class="quota-limit">Maks. {{ quota.limit }} kali / bulan</span></div>
+              <p>Sisa izin terlambat bulan ini: <strong><span class="quota-number">{{ quota.remaining }}</span><span class="quota-total"> dari {{ quota.limit }}.</span></strong></p>
+            </div>
+          }
+          @if (lateArrivalOpen()) {
+            <form class="late-arrival-form" [formGroup]="lateArrivalForm" (ngSubmit)="submitLateArrival()" novalidate>
+              <p class="permission-note">Pengajuan ini untuk tanggal kerja {{ today()?.workDate }}. Anda tetap wajib melakukan Absen Masuk.</p>
+              <mat-form-field appearance="outline">
+                <mat-label>Alasan terlambat</mat-label>
+                <textarea matInput rows="3" maxlength="1000" formControlName="reason"></textarea>
+                <mat-hint align="end">{{ lateArrivalForm.controls.reason.value.length }}/1.000</mat-hint>
+                @if (lateArrivalForm.controls.reason.invalid && lateArrivalForm.controls.reason.touched) { <mat-error>Alasan wajib diisi, maksimal 1.000 karakter.</mat-error> }
+              </mat-form-field>
+              <label class="attachment-field">
+                <span><strong>Lampiran opsional</strong><small>PDF, JPEG, atau PNG · maksimal 5 MB</small></span>
+                <input type="file" accept="application/pdf,image/jpeg,image/png" (change)="lateArrivalAttachmentChanged($event)" />
+              </label>
+              @if (lateArrivalError()) { <p class="feedback feedback--error" role="alert">{{ lateArrivalError() }}</p> }
+              <button mat-flat-button type="submit" [disabled]="lateArrivalSubmitDisabled()">
+                {{ lateArrivalSubmitting() ? 'Mengirim…' : 'Kirim izin terlambat' }}
+              </button>
+            </form>
+          }
+          @if (lateArrivalSuccess()) { <p class="feedback feedback--success" role="status">{{ lateArrivalSuccess() }}</p> }
+        }
+        @if (today()?.state === 'READY_TO_CHECK_IN' || today()?.state === 'CHECKED_IN') {
+          <p class="permission-note">Gunakan lokasi yang siap atau tekan tombol absensi untuk mencari lokasi secara otomatis.</p>
+        }
+      }
+    </section>
+
+    <section class="location-panel ledger-panel" aria-labelledby="location-title">
+      <header>
+        <div><p class="board-kicker">Pratinjau perangkat</p><h2 id="location-title">Lokasi saya</h2></div>
+        @if (locationAcquisitionState() === 'READY') {
+          <span class="status-chip success">Siap digunakan</span>
+        } @else if (locationAcquisitionState() === 'STALE') {
+          <span class="status-chip warning">Perlu diperbarui</span>
+        } @else if (locationAcquisitionState() === 'IMPROVING') {
+          <span class="status-chip">Meningkatkan akurasi</span>
+        } @else if (locationAcquisitionState() === 'SEARCHING') {
+          <span class="status-chip">Mencari lokasi</span>
+        } @else if (locationPreview()) {
+          <span class="status-chip warning">Belum siap</span>
+        }
+      </header>
+
+      @if (locationPreview(); as location) {
+        <app-teacher-location-map [location]="location" />
+        <dl class="location-details" aria-label="Koordinat lokasi saat ini">
+          <div><dt>Latitude</dt><dd>{{ coordinateText(location.latitude) }}</dd></div>
+          <div><dt>Longitude</dt><dd>{{ coordinateText(location.longitude) }}</dd></div>
+          <div><dt>Akurasi</dt><dd>{{ accuracyText(location.accuracyMeters) }}</dd></div>
+        </dl>
+        @if (locationAcquisitionState() === 'READY') {
+          <p class="map-note">Lokasi ini siap dipakai untuk Absen Masuk atau Absen Pulang selama 60 detik. Backend tetap memvalidasi geofence.</p>
+        } @else if (locationAcquisitionState() === 'STALE') {
+          <p class="map-note">Lokasi tetap ditampilkan, tetapi sudah kedaluwarsa dan akan diperbarui sebelum absensi.</p>
+        } @else {
+          <p class="map-note">Peta menampilkan sampel terbaik. Absensi hanya dikirim setelah akurasi memenuhi syarat.</p>
+        }
+      } @else {
+        <div class="location-empty">
+          <span aria-hidden="true">⌖</span>
+          <div><strong>Lokasi belum dibaca</strong><p>Peta akan tampil setelah Anda meminta akses lokasi.</p></div>
+        </div>
+      }
+
+      @if (locationPreviewError()) {
+        <p class="feedback feedback--error" role="alert">{{ locationPreviewError() }}</p>
+      }
+      @if (!actionInProgress() && locationPreviewInProgress() && locationAccuracyProgress(); as progress) {
+        <p class="permission-note" aria-live="polite">Akurasi terbaik {{ accuracyText(progress.bestAccuracyMeters) }} · syarat maksimal {{ progress.maxAccuracyMeters }} meter</p>
+      } @else if (!actionInProgress() && locationPreviewInProgress()) {
+        <p class="permission-note" role="status" aria-live="polite">Mencari lokasi perangkat…</p>
+      }
+
+      <button mat-stroked-button data-action="location-preview" type="button" [disabled]="locationRequestInProgress() || attendanceActionsBlocked()" (click)="showLocationPreview()">
+        @if (locationPreviewInProgress()) { Meningkatkan akurasi… } @else if (locationPreview()) { Perbarui lokasi } @else { Tampilkan lokasi saya }
+      </button>
+    </section>
+
+    <nav class="quick-actions" [attr.aria-label]="user()?.role === 'SECURITY_GUARD' ? 'Layanan mandiri Satpam' : 'Layanan mandiri Guru'">
+      <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/riwayat' : '/guru/riwayat'"><span aria-hidden="true">↺</span><strong>Lihat riwayat</strong><small>Catatan kehadiran</small></a>
+      <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/izin' : '/guru/izin'"><span aria-hidden="true">▣</span><strong>Ajukan izin</strong><small>Sakit atau bertugas</small></a>
+      <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/pulang-awal' : '/guru/pulang-awal'"><span aria-hidden="true">◷</span><strong>Pulang awal</strong><small>Dengan persetujuan</small></a>
+    </nav>
+
+    <footer class="teacher-footer"><span>Data resmi mengikuti waktu server</span></footer>
+  </section>
+}

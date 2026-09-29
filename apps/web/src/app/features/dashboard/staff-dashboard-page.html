@@ -1,0 +1,212 @@
+<main class="teacher-page staff-dashboard" aria-labelledby="home-title">
+  <header class="identity-card ledger-panel">
+    <div class="identity-avatar">
+      @if (user()?.photo; as photo) {
+        <img [src]="profilePhotoUrl(photo.updatedAt)" alt="Foto profil {{ user()?.fullName }}" />
+      } @else {
+        <span aria-hidden="true">{{ initials(user()?.fullName ?? '') }}</span>
+      }
+    </div>
+    <div class="identity-copy">
+      <p class="eyebrow">{{ user()?.role === 'SECURITY_GUARD' ? 'Pos Jaga · Dashboard Satpam' : 'Dashboard Guru' }}</p>
+      <h1 id="home-title">{{ user()?.fullName }}</h1>
+      <span>NIP {{ user()?.nip }}</span>
+    </div>
+  </header>
+  <form class="dashboard-filters" (ngSubmit)="applyFilters()">
+    <mat-form-field class="dashboard-filter-field" appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Bulan</mat-label>
+      <input id="dashboard-month" matInput type="month" [formControl]="monthControl" />
+    </mat-form-field>
+    <mat-form-field class="dashboard-filter-field" appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Jenis aktivitas</mat-label>
+      <select id="dashboard-type" matNativeControl [formControl]="typeControl">
+        <option value="ALL">Semua</option><option value="ATTENDANCE">Absensi</option>
+        <option value="LEAVE">Izin</option><option value="EARLY_DEPARTURE">Pulang Awal</option>
+      </select>
+    </mat-form-field>
+    <button mat-stroked-button type="submit">Terapkan</button>
+  </form>
+  @if (dashboardQuery.isPending()) {
+    <section class="dashboard-loading" aria-busy="true" role="status">
+      <span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block wide"></span>
+      <span class="visually-hidden">Memuat dashboard…</span>
+    </section>
+  } @else if (dashboardQuery.isError()) {
+    <section class="dashboard-error ledger-panel" role="alert">
+      <h2>Dashboard belum dapat dimuat</h2>
+      <p>Data dari server tidak berhasil dibaca. Periksa koneksi lalu coba lagi.</p>
+      <button mat-stroked-button type="button" (click)="dashboardQuery.refetch()">Coba lagi</button>
+    </section>
+  } @else if (dashboard(); as data) {
+    <div class="dashboard-grid">
+      <section class="today-ledger ledger-panel" aria-labelledby="today-title">
+        <div class="today-stat today-stat--desktop-balanced" aria-hidden="true">{{ statusValue() }}</div>
+        <div class="today-copy">
+          <span>{{ dateLabel(data.todayAttendance.workDate) }}</span>
+          <h2 id="today-title">{{ statusHeadline() }}</h2>
+          @if (data.todayAttendance.attendance; as attendance) {
+            <p>Absen Masuk {{ jakartaTime(attendance.checkInAt) }} WIB
+              @if (attendance.status === 'COMPLETED') { · Absen Pulang {{ jakartaTime(attendance.checkOutAt) }} WIB }
+            </p>
+          } @else { <p>Status resmi mengikuti waktu server.</p> }
+          <a mat-stroked-button [routerLink]="absenPath()">{{ statusCta() }}</a>
+        </div>
+      </section>
+
+      @if (data.role === 'USER') {
+        <section class="streak-ledger ledger-panel" [class]="'streak-ledger ledger-panel tier-' + (data.streak?.status === 'AVAILABLE' ? data.streak?.tier.toLowerCase() : 'none')" aria-labelledby="streak-title">
+          <div class="fire-slot" aria-hidden="true">
+            @if (streakAnimationUrl(data.streak); as animationUrl) {
+              @if (streakAnimationFailed(data.streak)) {
+                <svg viewBox="0 0 48 64"><path d="M27 2c3 15-8 16-4 29 2-8 9-10 10-18 9 9 14 20 11 31-3 12-13 19-24 18C8 61 0 52 1 40 2 27 13 22 16 10c6 5 8 10 7 16C28 19 29 11 27 2z"/><path class="fire-core" d="M24 31c5 7 10 12 8 20-1 6-6 10-12 9-6 0-10-5-9-11 1-7 7-10 9-17 3 3 4 6 4 9 2-3 2-6 0-10z"/></svg>
+              } @else {
+                <video [src]="animationUrl" autoplay loop [muted]="true" playsinline preload="metadata" (error)="markStreakAnimationFailed(data.streak)"></video>
+              }
+            } @else {
+              <svg viewBox="0 0 48 64"><path d="M27 2c3 15-8 16-4 29 2-8 9-10 10-18 9 9 14 20 11 31-3 12-13 19-24 18C8 61 0 52 1 40 2 27 13 22 16 10c6 5 8 10 7 16C28 19 29 11 27 2z"/><path class="fire-core" d="M24 31c5 7 10 12 8 20-1 6-6 10-12 9-6 0-10-5-9-11 1-7 7-10 9-17 3 3 4 6 4 9 2-3 2-6 0-10z"/></svg>
+            }
+          </div>
+          <div>
+            <span>Streak datang tepat waktu</span>
+            @if (data.streak?.status === 'AVAILABLE') {
+              <h2 id="streak-title">{{ data.streak?.currentDays }} hari</h2>
+              @if (data.streak?.provisional) { <p class="provisional">Sementara menunggu keputusan izin.</p> }
+              @if (data.streak?.nextMilestone) { <p>{{ data.streak?.daysRemaining }} hari lagi menuju api berikutnya.</p> }
+              @else { <p>Tier api ungu sudah tercapai.</p> }
+            } @else {
+              <h2 id="streak-title">Belum dapat dihitung</h2><p>Konfigurasi historis belum cukup untuk hasil yang akurat.</p>
+            }
+          </div>
+        </section>
+      } @else if (data.securityDuty; as duty) {
+        <section class="shift-ledger ledger-panel" aria-labelledby="shift-title">
+          <span>Tugas Satpam</span><h2 id="shift-title">{{ duty.currentDuty.status === 'DAY' ? 'Shift Pagi' : duty.currentDuty.status === 'NIGHT' ? 'Shift Malam' : duty.currentDuty.status === 'OFF' ? 'Libur Rotasi' : 'Belum terjadwal' }}</h2>
+          <dl><div><dt>Hari rotasi</dt><dd>{{ duty.currentDuty.rotationDay ?? '—' }}</dd></div><div><dt>Tanggal kerja</dt><dd>{{ duty.currentDuty.workDate }}</dd></div></dl>
+          @if (duty.nextWorkingDuty; as next) { <p>Tugas berikutnya: {{ next.status === 'DAY' ? 'Shift Pagi' : 'Shift Malam' }} · {{ dateLabel(next.workDate) }}</p> }
+        </section>
+      }
+
+      <section class="quota-ledger ledger-panel" aria-labelledby="quota-title">
+        <header><div><h2 id="quota-title">Kuota permohonan</h2><p>{{ monthLabel(data.month) }}</p></div><span>Pool terpisah</span></header>
+        <div class="quota-row"><div><strong>Izin Terlambat</strong><small>Sisa {{ data.requestQuotas.lateArrival.remaining }}</small></div><b>{{ data.requestQuotas.lateArrival.used }} / 2</b><progress max="2" [value]="data.requestQuotas.lateArrival.used">{{ data.requestQuotas.lateArrival.used }} dari 2</progress></div>
+        <div class="quota-row"><div><strong>Pulang Awal</strong><small>Sisa {{ data.requestQuotas.earlyDeparture.remaining }}</small></div><b>{{ data.requestQuotas.earlyDeparture.used }} / 2</b><progress max="2" [value]="data.requestQuotas.earlyDeparture.used">{{ data.requestQuotas.earlyDeparture.used }} dari 2</progress></div>
+      </section>
+
+      <section class="metrics-ledger" aria-label="Metrik bulan terpilih">
+        <div><span>Hadir</span><strong>{{ data.metrics.attendanceDays }}</strong><small>hari</small></div>
+        <div><span>Tidak terlambat</span><strong>{{ data.metrics.onTimeDays }}</strong><small>hari efektif</small></div>
+        <div><span>Terlambat aktual</span><strong>{{ data.metrics.actualLateDays }}</strong><small>hari</small></div>
+        <div><span>Terlambat efektif</span><strong>{{ data.metrics.effectiveLateDays }}</strong><small>hari</small></div>
+        <div><span>Menit kerja</span><strong>{{ minutesLabel(data.metrics.totalWorkedMinutes) }}</strong><small>terakumulasi</small></div>
+        <div><span>Kekurangan</span><strong>{{ minutesLabel(data.metrics.totalWorkDeficitMinutes) }}</strong><small>efektif</small></div>
+      </section>
+
+      <section class="trend-ledger ledger-panel" aria-label="Grafik kehadiran">
+        @if (data.role === 'USER') {
+          <header><div><h2 id="attendance-trend-title">Ringkasan kehadiran</h2><p>Waktu, durasi, kekurangan, dan status setiap tanggal.</p></div><span>Aktual dan efektif</span></header>
+          @if (attendanceTrend().length) {
+          <div class="attendance-trend-legend" aria-label="Legenda grafik">
+            <span><i class="legend-mark legend-mark--actual"></i>Aktual</span><span><i class="legend-mark legend-mark--effective"></i>Efektif setelah kredit</span>
+            <span><i class="legend-mark legend-mark--deficit"></i>Kekurangan</span><span><i class="legend-mark legend-mark--status"></i>Status harian</span>
+          </div>
+          <div class="attendance-trend" aria-describedby="attendance-trend-description">
+            <p id="attendance-trend-description" class="visually-hidden">Grafik berlapis per tanggal. Setiap kolom dapat difokuskan untuk membaca waktu Absen Masuk dan Pulang, durasi, kekurangan, kredit izin, serta status resmi dari server.</p>
+            <div class="attendance-trend-layer attendance-trend-layer--arrival">
+              <div class="trend-layer-label"><strong>Datang</strong><span>lebih awal ↑ · terlambat ↓</span></div>
+              <div class="attendance-trend-days">
+                @for (day of attendanceTrend(); track day.workDate) {
+                  <button [class]="'attendance-trend-day status-' + day.status.toLowerCase()" type="button" [attr.aria-label]="trendAriaLabel(day)">
+                    <span class="arrival-track" aria-hidden="true">
+                      <i class="arrival-baseline"></i>
+                      @if (day.actual; as actual) {
+                        <i class="arrival-bar arrival-bar--actual" [class.is-early]="actual.arrivalOffsetMinutes > 0" [class.is-late]="actual.arrivalOffsetMinutes < 0" [style.height.%]="arrivalBarSize(actual.arrivalOffsetMinutes)"></i>
+                        <i class="arrival-bar arrival-bar--effective" [class.is-early]="day.effective!.arrivalOffsetMinutes > 0" [class.is-late]="day.effective!.arrivalOffsetMinutes < 0" [style.height.%]="arrivalBarSize(day.effective!.arrivalOffsetMinutes)"></i>
+                      }
+                    </span>
+                    <span class="trend-tooltip" role="tooltip">{{ trendAriaLabel(day) }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+            <div class="attendance-trend-layer attendance-trend-layer--work">
+              <div class="trend-layer-label"><strong>Kerja</strong><span>durasi terhadap target</span></div>
+              <div class="attendance-trend-days" aria-hidden="true">
+                @for (day of attendanceTrend(); track day.workDate) {
+                  <span [class]="'attendance-trend-day status-' + day.status.toLowerCase()">
+                    @if (day.actual) {
+                      <span class="worked-track"><i class="worked-bar worked-bar--actual" [style.height.%]="workedHeight(day, 'actual')"></i><i class="worked-bar worked-bar--effective" [style.height.%]="workedHeight(day, 'effective')"></i><i class="deficit-tick deficit-tick--actual" [style.height.%]="deficitHeight(day, 'actual')"></i><i class="deficit-tick deficit-tick--effective" [style.height.%]="deficitHeight(day, 'effective')"></i></span>
+                    }
+                  </span>
+                }
+              </div>
+            </div>
+            <div class="attendance-trend-status" aria-hidden="true">
+              @for (day of attendanceTrend(); track day.workDate) {
+                <span [class]="'attendance-trend-day status-' + day.status.toLowerCase()"><i></i><small>{{ day.workDate.slice(8) }}</small></span>
+              }
+            </div>
+          </div>
+          } @else { <div class="empty-copy"><strong>Belum ada data kehadiran</strong><p>Grafik akan menampilkan status setiap tanggal setelah data bulan ini tersedia.</p></div> }
+        } @else {
+          <header><div><h2 id="trend-title">Pola kedatangan</h2><p>Di atas garis = lebih awal · di bawah garis = terlambat.</p></div><span>{{ data.metrics.lateArrivalPermissionDays }} hari memakai izin terlambat</span></header>
+          @if (chartBars().length) {
+            <div class="trend-chart" role="img" aria-describedby="trend-description">
+              <p id="trend-description" class="visually-hidden">Grafik batang waktu kedatangan aktual per hari. Setiap batang dapat difokuskan untuk membaca nilainya.</p>
+              @for (bar of chartBars(); track bar.item.workDate) {
+                <button class="trend-day" type="button" [attr.aria-label]="dateLabel(bar.item.workDate) + ': ' + timingLabel(bar.item, bar.item.effectiveLateMinutes)">
+                  <span class="chart-half chart-half--early"><i class="bar bar--early" [style.height.%]="bar.item.arrivalOffsetMinutes > 0 ? bar.size : 0"></i></span>
+                  <span class="chart-baseline"></span>
+                  <span class="chart-half chart-half--late"><i class="bar bar--late" [class.credited]="bar.item.actualLateMinutes > 0 && bar.item.effectiveLateMinutes === 0" [style.height.%]="bar.item.arrivalOffsetMinutes < 0 ? bar.size : 0"></i></span>
+                  <small>{{ bar.item.workDate.slice(8) }}</small><span class="chart-tooltip" role="tooltip">{{ timingLabel(bar.item, bar.item.effectiveLateMinutes) }}</span>
+                </button>
+              }
+            </div>
+          } @else { <div class="empty-copy"><strong>Belum ada pola kedatangan</strong><p>Grafik akan terisi setelah Absen Masuk pertama pada bulan ini.</p></div> }
+        }
+      </section>
+
+      <section class="activity-ledger ledger-panel" aria-labelledby="activity-title">
+        <header><div><h2 id="activity-title">Jejak aktivitas</h2><p>{{ data.activity.pagination.totalItems }} catatan pada filter ini.</p></div></header>
+        @if (activities().length) {
+          <div class="activity-list">
+            @for (activity of activities(); track activity.type + activity.id) {
+              <article class="activity-row">
+                <button class="activity-summary" type="button" [attr.aria-expanded]="expandedActivityId() === activity.id" (click)="toggleActivity(activity)">
+                  <time>{{ dateLabel(activity.workDate) }}</time><strong>{{ activityTitle(activity) }}</strong>
+                  <span class="status-chip">{{ statusLabel(activity.status) }}</span><span aria-hidden="true">{{ expandedActivityId() === activity.id ? '−' : '+' }}</span>
+                </button>
+                @if (expandedActivityId() === activity.id) {
+                  <div class="activity-detail">
+                    @if (activity.type === 'ATTENDANCE') {
+                      <dl><div><dt>Absen Masuk</dt><dd>{{ jakartaTime(activity.checkInAt) }} WIB</dd></div><div><dt>Absen Pulang</dt><dd>{{ activity.checkOutAt ? jakartaTime(activity.checkOutAt) + ' WIB' : 'Belum tercatat' }}</dd></div><div><dt>Kedatangan</dt><dd>{{ timingLabel(activity) }}</dd></div><div><dt>Kekurangan</dt><dd>{{ activity.workDeficitMinutes ?? 0 }} menit</dd></div></dl>
+                    } @else {
+                      <p>{{ activity.reason }}</p>@if (activity.decisionNote) { <p><strong>Catatan keputusan:</strong> {{ activity.decisionNote }}</p> }
+                      @if (activity.attachment) {
+                        <div class="attachment-actions"><button mat-stroked-button type="button" (click)="showAttachment(activity)">{{ previewLoadingId() === activity.id ? 'Memuat…' : 'Pratinjau lampiran' }}</button><a mat-button [href]="attachmentUrl(activity)" download>Unduh</a></div>
+                        @if (previewErrorId() === activity.id) { <p role="alert">Pratinjau gagal dimuat. Gunakan tombol Unduh.</p> }
+                        @if (preview()?.id === activity.id) { @if (preview()?.mimeType === 'application/pdf') { <iframe [src]="preview()!.safeUrl" [title]="'Pratinjau ' + preview()!.name"></iframe> } @else { <img [src]="preview()!.url" [alt]="'Pratinjau ' + preview()!.name" /> } }
+                      }
+                    }
+                  </div>
+                }
+              </article>
+            }
+          </div>
+          <mat-paginator [length]="data.activity.pagination.totalItems" [pageIndex]="data.activity.pagination.page - 1" [pageSize]="data.activity.pagination.pageSize" [pageSizeOptions]="[8, 16, 24]" (page)="pageChanged($event)" />
+        } @else { <div class="empty-copy"><strong>Tidak ada aktivitas</strong><p>Ubah bulan atau jenis aktivitas untuk melihat catatan lain.</p></div> }
+      </section>
+
+      <section class="latest-letter ledger-panel" aria-labelledby="letter-title">
+        <header><div><h2 id="letter-title">Pulang Awal terakhir</h2><p>Tidak mengikuti filter bulan.</p></div></header>
+        @if (data.latestEarlyDeparture; as latest) {
+          <time>{{ dateLabel(latest.workDate) }}</time><span class="status-chip">{{ statusLabel(latest.status) }}</span><p>{{ latest.reason }}</p>
+          @if (latest.attachment) { <div class="attachment-actions"><button mat-stroked-button type="button" (click)="showAttachment(latest)">{{ previewLoadingId() === latest.id ? 'Memuat…' : 'Pratinjau surat' }}</button><a mat-button [href]="attachmentUrl(latest)" download>Unduh</a></div>
+            @if (previewErrorId() === latest.id) { <p role="alert">Pratinjau gagal dimuat. Gunakan tombol Unduh.</p> }
+            @if (preview()?.id === latest.id) { @if (preview()?.mimeType === 'application/pdf') { <iframe [src]="preview()!.safeUrl" [title]="'Pratinjau ' + preview()!.name"></iframe> } @else { <img [src]="preview()!.url" [alt]="'Pratinjau ' + preview()!.name" /> } }
+          }
+        } @else { <div class="empty-copy"><strong>Belum pernah mengajukan Pulang Awal</strong><p>Permohonan terbaru akan tampil di sini beserta lampirannya.</p></div> }
+      </section>
+    </div>
+  }
+</main>

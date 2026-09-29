@@ -1,0 +1,9 @@
+:host { display: block; }
+.dialog-copy { margin: 0 0 18px; color: var(--ag-muted); font-size: 13px; line-height: 1.5; }
+.crop-stage { position: relative; width: min(288px, calc(100vw - 112px)); aspect-ratio: 1; margin: 0 auto; overflow: hidden; background: var(--ag-surface-soft); border: 1px solid var(--ag-border); border-radius: 50%; touch-action: none; user-select: none; }
+.crop-stage--ready { cursor: grab; }
+.crop-stage--ready:active { cursor: grabbing; }
+.crop-stage img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
+.zoom-control { display: grid; gap: 7px; margin: 20px auto 0; color: var(--ag-text); font-size: 12px; font-weight: 750; }
+.zoom-control input { width: 100%; accent-color: var(--ag-primary); }
+@media (max-width: 480px) { .crop-stage { width: min(248px, calc(100vw - 96px)); } }

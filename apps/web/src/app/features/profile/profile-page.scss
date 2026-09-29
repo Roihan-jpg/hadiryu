@@ -1,0 +1,36 @@
+:host { display: block; }
+.profile-page { width: min(100% - 40px, 960px); margin: 0 auto; padding: 44px 0 72px; }
+@media (min-width: 1024px) { .profile-page { width: calc(100% - 128px); } }
+.eyebrow { margin: 0; color: var(--ag-primary); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+.profile-ledger { display: grid; grid-template-columns: 280px minmax(0, 1fr); overflow: hidden; background: var(--ag-surface); border: 1px solid var(--ag-border); border-radius: 8px; }
+.identity-column { display: flex; align-items: center; flex-direction: column; padding: 34px 26px; text-align: center; background: var(--ag-surface-soft); border-right: 1px solid var(--ag-border); }
+.profile-avatar { display: grid; width: 112px; height: 112px; margin: 22px 0 17px; place-items: center; overflow: hidden; color: #fff; background: var(--ag-primary); border: 5px solid var(--ag-surface); border-radius: 50%; box-shadow: 0 0 0 1px var(--ag-border); font-size: 28px; font-weight: 750; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.photo-actions h2 { margin: 0; color: var(--ag-text); font-size: 17px; }
+.photo-actions p { margin: 6px 0 14px; color: var(--ag-muted); font-size: 11px; line-height: 1.5; }
+.photo-actions > div { display: flex; align-items: center; justify-content: center; gap: 5px; }
+.upload-button { display: inline-flex; min-height: 36px; align-items: center; padding: 0 14px; color: #fff; background: var(--ag-primary); border-radius: 4px; font-size: 12px; font-weight: 750; cursor: pointer; }
+.upload-button--disabled { opacity: .55; cursor: wait; }
+.upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+form { display: grid; gap: 20px; padding: 32px; }
+.form-heading { padding-bottom: 16px; border-bottom: 1px solid var(--ag-border); }
+.form-heading h2 { margin: 4px 0 0; color: var(--ag-text); font-size: 20px; }
+mat-form-field { width: 100%; }
+.account-metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; background: var(--ag-bg); border: 1px solid var(--ag-border); border-radius: 5px; }
+.account-metadata > div { min-width: 0; padding: 13px; border-right: 1px solid var(--ag-border); }
+.account-metadata > div:last-child { border-right: 0; }
+.account-metadata dt { margin-bottom: 5px; color: var(--ag-muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.account-metadata dd { margin: 0; overflow-wrap: anywhere; color: var(--ag-text); font-size: 12px; font-weight: 700; }
+.security-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px; background: var(--ag-surface-soft); border-radius: 5px; }
+.security-row > div { display: grid; gap: 3px; }
+.security-row strong { color: var(--ag-text); font-size: 12px; }
+.security-row span { color: var(--ag-muted); font-size: 10px; }
+.form-actions { display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
+.logout-button { display: inline-flex; align-items: center; gap: 7px; color: #8c332e; border-color: #d9aaa4; }
+.logout-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.logout-button:not(:disabled):hover { background: #fff1ef; border-color: #b9645b; }
+.feedback { margin: 0 0 16px; padding: 12px 14px; border-radius: 4px; font-size: 13px; }
+.feedback--error { color: #8c332e; background: #fff1ef; border: 1px solid #efcbc7; }
+.feedback--success { color: #2f655c; background: #eff8f5; border: 1px solid #c5ded8; }
+@media (max-width: 720px) { .profile-page { width: min(100% - 32px, 600px); padding: 28px 0 56px; } .profile-ledger { grid-template-columns: 1fr; } .identity-column { border-right: 0; border-bottom: 1px solid var(--ag-border); } form { padding: 24px; } }
+@media (max-width: 480px) { .account-metadata { grid-template-columns: 1fr; } .account-metadata > div { border-right: 0; border-bottom: 1px solid var(--ag-border); } .account-metadata > div:last-child { border-bottom: 0; } .security-row { align-items: flex-start; flex-direction: column; } .form-actions button { width: 100%; } }

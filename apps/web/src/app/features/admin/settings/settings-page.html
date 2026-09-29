@@ -1,0 +1,402 @@
+<section class="settings-shell" [class]="'settings-shell tab-' + activeTab()" aria-labelledby="settings-title">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Aturan operasional</p>
+      <h1 id="settings-title">Pengaturan operasional</h1>
+      <p class="intro">
+        Perubahan jadwal dan geofence berlaku hari ini menurut waktu server.
+        Riwayat sebelum hari ini tetap tersimpan untuk laporan historis.
+      </p>
+    </div>
+  </header>
+  <nav mat-tab-nav-bar class="settings-tabs" aria-label="Bagian pengaturan" [tabPanel]="settingsTabPanel">
+    @for (tab of tabs; track tab.id) {
+      <button mat-tab-link type="button" [active]="activeTab() === tab.id" (click)="selectTab(tab.id)">{{ tab.label }}</button>
+    }
+  </nav>
+  <mat-tab-nav-panel #settingsTabPanel>
+
+  <form class="inspection-bar" (ngSubmit)="inspectDate()" novalidate>
+    <div>
+      <strong>Lihat aturan pada tanggal</strong>
+      <span>Gunakan tanggal lampau atau tanggal efektif untuk memeriksa resolver.</span>
+    </div>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Tanggal</mat-label>
+      <input matInput type="date" name="inspectionDate" autocomplete="off" [formControl]="inspectionDate" />
+    </mat-form-field>
+    <button mat-stroked-button type="submit" [disabled]="loading()">
+      Tampilkan
+    </button>
+  </form>
+
+  @if (successMessage()) {
+    <p class="feedback success" role="status" aria-live="polite">{{ successMessage() }}</p>
+  }
+
+  @if (loading()) {
+    <div class="loading-state" role="status" aria-live="polite">
+      <mat-spinner diameter="32" aria-hidden="true" />
+      <span>Memuat aturan operasional…</span>
+    </div>
+  } @else {
+    @if (loadErrorMessage()) {
+    <div class="feedback error" role="alert">
+      <span>{{ loadErrorMessage() }}</span>
+      <button mat-button type="button" (click)="inspectDate()">Coba lagi</button>
+    </div>
+    }
+    @if (errorMessage()) {
+      <p class="feedback error" role="alert">{{ errorMessage() }}</p>
+    }
+    @if (activeTab() === 'summary') {
+    <section class="resolved-section" aria-labelledby="resolved-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Hasil resolver</p>
+          <h2 id="resolved-title">Berlaku pada {{ dateLabel(schedules()?.effectiveOn) }}</h2>
+        </div>
+      </div>
+
+      <div class="resolved-grid">
+        @for (
+          item of [
+            { label: 'Senin–Jumat', rule: schedules()?.weekday },
+            { label: 'Sabtu', rule: schedules()?.saturday }
+          ];
+          track item.label
+        ) {
+          <article class="schedule-summary">
+            <div class="summary-title">
+              <h3>{{ item.label }}</h3>
+              @if (item.rule) {
+                <strong>{{ item.rule.targetMinutes }} menit</strong>
+              }
+            </div>
+            @if (item.rule) {
+              <div class="time-band" aria-label="Urutan waktu jadwal">
+                @for (field of timeFields; track field.key; let last = $last) {
+                  <div class="time-step" [class.last]="last">
+                    <span>{{ field.label }}</span>
+                    <strong>{{ item.rule[field.key] }}</strong>
+                  </div>
+                }
+              </div>
+              <p class="version-range">
+                Mulai {{ dateLabel(item.rule.effectiveFrom) }} ·
+                {{ item.rule.effectiveTo ? 'Sampai ' + dateLabel(item.rule.effectiveTo) : 'Versi terbuka' }}
+              </p>
+            } @else {
+              <p class="empty-inline">Belum ada aturan untuk tanggal ini.</p>
+            }
+          </article>
+        }
+
+        <article class="geofence-summary">
+          <div class="summary-title">
+            <h3>Lokasi sekolah</h3>
+            @if (geofence()?.geofence; as rule) {
+              <strong>{{ rule.shape === 'POLYGON' ? 'Zona poligon' : 'Lingkaran lama' }}</strong>
+            }
+          </div>
+          @if (geofence()?.geofence; as rule) {
+            <dl>
+              @if (rule.shape === 'POLYGON') {
+                <div><dt>Titik batas</dt><dd>{{ rule.vertices.length }} titik</dd></div>
+              } @else {
+                <div><dt>Koordinat pusat</dt><dd>{{ rule.latitude }}, {{ rule.longitude }}</dd></div>
+                <div><dt>Radius lama</dt><dd>{{ rule.radiusMeters }} meter</dd></div>
+              }
+              <div><dt>Akurasi maksimum</dt><dd>{{ rule.maxAccuracyMeters }} meter</dd></div>
+              <div><dt>Mulai berlaku</dt><dd>{{ dateLabel(rule.effectiveFrom) }}</dd></div>
+            </dl>
+          } @else {
+            <p class="empty-inline">Belum ada geofence untuk tanggal ini.</p>
+          }
+        </article>
+
+        <article class="geofence-summary reporting-summary">
+          <div class="summary-title">
+            <h3>Mulai operasional laporan</h3>
+            <strong>{{ reportingSettings()?.locked ? 'Terkunci' : 'Dapat diatur' }}</strong>
+          </div>
+          <p class="empty-inline">
+            Tanggal sebelum batas ini tidak dianggap sebagai data kosong. Cocok untuk memisahkan data development/UAT dari penggunaan production.
+          </p>
+          <form [formGroup]="reportingForm" (ngSubmit)="saveReportingSettings()" novalidate>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Tanggal mulai</mat-label>
+              <input matInput type="date" name="operationalStartDate" formControlName="operationalStartDate" autocomplete="off" />
+              <mat-error>Tanggal wajib diisi.</mat-error>
+            </mat-form-field>
+            <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null || reportingSettings()?.locked">
+              {{ actionInProgress() === 'reporting' ? 'Menyimpan…' : 'Simpan tanggal mulai' }}
+            </button>
+          </form>
+          <p class="version-range">
+            @if (reportingSettings()?.locked) {
+              Absensi production sudah tercatat, sehingga batas awal tidak dapat diubah.
+            } @else {
+              Setelah absensi production tercatat, tanggal ini dikunci agar laporan historis konsisten.
+            }
+          </p>
+        </article>
+
+      </div>
+    </section>
+    }
+  @if (activeTab() === 'schedule') {
+  <section class="setting-section schedule-tab" aria-labelledby="schedule-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Berlaku hari ini</p>
+        <h2 id="schedule-form-title">Jadwal Guru</h2>
+      </div>
+      <p>Senin–Jumat dan Sabtu selalu disimpan bersama memakai tanggal server.</p>
+    </div>
+
+    <form [formGroup]="scheduleForm" (ngSubmit)="saveSchedules()" novalidate>
+      @for (
+        schedule of [
+          { key: 'weekday', label: 'Senin–Jumat' },
+          { key: 'saturday', label: 'Sabtu' }
+        ];
+        track schedule.key
+      ) {
+        <fieldset [id]="'schedule-' + schedule.key" [formGroupName]="schedule.key">
+          <legend>{{ schedule.label }}</legend>
+          <div class="time-form-grid">
+            @for (field of timeFields; track field.key) {
+              <mat-form-field appearance="outline">
+                <mat-label>{{ field.label }}</mat-label>
+                <input matInput type="time" autocomplete="off" [id]="schedule.key + '-' + field.key" [attr.name]="schedule.key + '-' + field.key" [formControlName]="field.key" />
+                <mat-error>Waktu wajib diisi.</mat-error>
+              </mat-form-field>
+            }
+            <mat-form-field appearance="outline">
+              <mat-label>Target menit</mat-label>
+              <input matInput type="number" min="1" inputmode="numeric" autocomplete="off" [attr.name]="schedule.key + '-targetMinutes'" formControlName="targetMinutes" />
+              <mat-error>Target wajib lebih dari nol.</mat-error>
+            </mat-form-field>
+          </div>
+          @if (scheduleForm.get(schedule.key)?.hasError('timeOrder')) {
+            <p class="field-error" role="alert">Urutan waktu jadwal tidak valid.</p>
+          }
+        </fieldset>
+      }
+
+      <div class="form-actions">
+        <span>Riwayat sebelum hari ini tidak akan berubah.</span>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="actionInProgress() !== null"
+        >
+          {{ actionInProgress() === 'schedule' ? 'Menyimpan…' : 'Simpan jadwal' }}
+        </button>
+      </div>
+    </form>
+  </section>
+  }
+
+  @if (activeTab() === 'security') {
+  <section class="setting-section security-tab" aria-labelledby="security-schedule-title">
+    <div class="section-heading"><div><p class="section-kicker">Tanggal server saat disimpan · menjadi Hari 1</p><h2 id="security-schedule-title">Jadwal dan rotasi Satpam</h2></div><p>Rotasi berjalan setiap hari, termasuk Minggu dan hari libur sekolah. Menyimpan pada hari yang berbeda memulai ulang urutan dari Hari 1.</p></div>
+    <form [formGroup]="securityScheduleForm" (ngSubmit)="saveSecuritySchedules()" novalidate>
+      @for (shift of [{ key: 'dayShift', label: 'Shift Pagi · mulai 06.00', overnight: false }, { key: 'nightShift', label: 'Shift Malam · mulai 18.00, selesai hari berikutnya', overnight: true }]; track shift.key) {
+        <fieldset [formGroupName]="shift.key"><legend>{{ shift.label }}</legend><div class="time-form-grid">
+          @for (field of timeFields; track field.key) { <mat-form-field appearance="outline"><mat-label>{{ field.label }}</mat-label><input matInput type="time" inputmode="numeric" [id]="shift.key + '-' + field.key" [attr.name]="shift.key + '-' + field.key" [formControlName]="field.key" autocomplete="off" />@if (shift.overnight && (field.key === 'checkoutOpen' || field.key === 'workEnd' || field.key === 'checkoutClose')) { <mat-hint>Hari berikutnya</mat-hint> }<mat-error>Waktu wajib diisi.</mat-error></mat-form-field> }
+          <mat-form-field appearance="outline"><mat-label>Target menit</mat-label><input matInput type="number" min="1" inputmode="numeric" [attr.name]="shift.key + '-targetMinutes'" formControlName="targetMinutes" /><mat-error>Target wajib lebih dari nol.</mat-error></mat-form-field>
+        </div>
+        @if (securityScheduleForm.get(shift.key)?.hasError('timeOrder')) { <p class="field-error" role="alert">Urutan waktu pada segmen shift ini tidak valid.</p> }
+        </fieldset>
+      }
+      @if (securityGuards().length < 3) { <p class="feedback error" role="alert">Minimal tiga akun Satpam aktif diperlukan. Saat ini tersedia {{ securityGuards().length }}.</p> }
+      <fieldset><legend>Hari pertama rotasi</legend><p class="empty-inline">Sistem mengulang tiga hari: Pagi/Malam/Libur → Libur/Pagi/Malam → Malam/Libur/Pagi.</p><div class="time-form-grid">
+        <mat-form-field appearance="outline"><mat-label>Shift Pagi</mat-label><select matNativeControl name="dayOneMorningGuardId" formControlName="dayOneMorningGuardId"><option value="" disabled>Pilih Satpam</option>@for (guard of securityGuards(); track guard.id) { <option [value]="guard.id">{{ guard.fullName }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Shift Malam</mat-label><select matNativeControl name="dayOneNightGuardId" formControlName="dayOneNightGuardId"><option value="" disabled>Pilih Satpam</option>@for (guard of securityGuards(); track guard.id) { <option [value]="guard.id">{{ guard.fullName }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Libur rotasi</mat-label><select matNativeControl name="dayOneOffGuardId" formControlName="dayOneOffGuardId"><option value="" disabled>Pilih Satpam</option>@for (guard of securityGuards(); track guard.id) { <option [value]="guard.id">{{ guard.fullName }}</option> }</select></mat-form-field>
+      </div></fieldset>
+      @if (securityScheduleForm.hasError('duplicateRoster')) { <p class="field-error" role="alert">Pilih tiga Satpam yang berbeda.</p> }
+      @if (securitySchedules()?.preview?.length) {
+        <div class="rotation-preview" aria-labelledby="rotation-preview-title"><h3 id="rotation-preview-title">Preview rotasi tiga hari</h3>
+          @for (day of securitySchedules()!.preview; track day.workDate) { <article>{{ dateLabel(day.workDate) }}<span>Pagi · {{ guardName(day.morningGuardId) }}</span><span>Malam · {{ guardName(day.nightGuardId) }}</span><span>Libur · {{ guardName(day.offGuardId) }}</span></article> }
+        </div>
+      }
+      @if (isHistoricalInspection()) { <div class="history-actions"><p>Versi historis hanya dapat dibaca.</p><button mat-stroked-button type="button" (click)="copyHistoricalToToday()">Salin ke konfigurasi hari ini</button></div> }
+      <div class="form-actions"><span>Konfirmasi akan tampil sebelum rotasi direset ke Hari 1. Riwayat sebelum hari ini tidak berubah.</span><button mat-flat-button type="submit" [disabled]="actionInProgress() !== null || securityGuards().length < 3 || isHistoricalInspection()">{{ actionInProgress() === 'security' ? 'Menyimpan…' : 'Simpan jadwal Satpam' }}</button></div>
+    </form>
+  </section>
+  }
+
+  @if (activeTab() === 'geofence') {
+  <section class="setting-section geofence-tab" aria-labelledby="geofence-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Katalog zona sekolah</p>
+        <h2 id="geofence-form-title">Template geofence</h2>
+      </div>
+      <p>Gambar zona aman di halaman terbuka. Guru di dekat batas akan diminta bergerak ke tengah.</p>
+    </div>
+
+    <div class="geofence-template-list" aria-label="Daftar template geofence">
+      @for (template of geofenceTemplates().templates; track template.id) {
+        <article [class.active]="template.isActive">
+          <div><h3>{{ template.name }}</h3><p>{{ template.vertices.length }} titik · akurasi {{ template.maxAccuracyMeters }} meter</p></div>
+          @if (template.isActive) { <strong>Aktif</strong> }
+          <div class="template-actions">
+            <button mat-button type="button" (click)="editGeofenceTemplate(template)" [disabled]="actionInProgress() !== null">Ubah</button>
+            <button mat-stroked-button type="button" (click)="activateGeofenceTemplate(template)" [disabled]="actionInProgress() !== null || template.isActive">{{ template.isActive ? 'Sedang dipakai' : 'Aktifkan' }}</button>
+            <button mat-button type="button" (click)="deleteGeofenceTemplate(template)" [disabled]="actionInProgress() !== null || template.isActive">Hapus</button>
+          </div>
+        </article>
+      } @empty {
+        <p class="empty-inline">Belum ada template. Buat template pertama dengan editor di bawah.</p>
+      }
+    </div>
+
+    <form [formGroup]="geofenceForm" (ngSubmit)="saveGeofenceTemplate()" novalidate>
+      <div class="template-editor-heading">
+        <h3>{{ editingGeofenceTemplateId() ? 'Ubah template' : 'Buat template baru' }}</h3>
+        @if (editingGeofenceTemplateId()) { <button mat-button type="button" (click)="resetGeofenceTemplateForm()">Batal mengubah</button> }
+      </div>
+      <div class="geofence-editor">
+        <app-admin-geofence-map
+          [vertices]="geofenceVertices()"
+          [initialCenter]="geofenceMapCenter()"
+          [currentLocation]="currentGeofenceLocation()"
+          (verticesChange)="updateGeofenceVertices($event)"
+        />
+        <aside class="geofence-controls">
+          <mat-form-field appearance="outline">
+            <mat-label>Nama template</mat-label>
+            <input matInput name="geofenceTemplateName" maxlength="100" autocomplete="off" formControlName="name" />
+            <mat-error>Nama template wajib diisi.</mat-error>
+          </mat-form-field>
+          <p><strong>{{ geofenceVertices().length }} titik batas</strong></p>
+          <p>Ketuk peta mengikuti urutan tepi halaman. Jangan menyilangkan garis.</p>
+          <div class="location-check">
+            <button mat-stroked-button type="button" (click)="checkCurrentGeofenceLocation()" [disabled]="geofenceLocationState() === 'loading'">
+              {{ geofenceLocationState() === 'loading' ? 'Mencari lokasi…' : 'Cek lokasi saat ini' }}
+            </button>
+            @if (geofenceLocationMessage()) {
+              <p class="location-status" [class.location-error]="geofenceLocationState() === 'error'" role="status">{{ geofenceLocationMessage() }}</p>
+            }
+          </div>
+          <div class="button-pair">
+            <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="undoGeofenceVertex()">Urungkan titik</button>
+            <button mat-stroked-button type="button" [disabled]="geofenceVertices().length === 0" (click)="clearGeofenceVertices()">Hapus semua</button>
+          </div>
+          <br>
+          <mat-form-field appearance="outline">
+            <mat-label>Akurasi maksimum (meter)</mat-label>
+            <input matInput type="number" min="5" max="30" name="maxAccuracyMeters" inputmode="numeric" autocomplete="off" formControlName="maxAccuracyMeters" />
+            <mat-error>Akurasi harus 5–30 meter.</mat-error>
+          </mat-form-field>
+          <ol class="vertex-list" aria-label="Daftar titik batas">
+            @for (vertex of geofenceVertices(); track $index) {
+              <li>
+                <span>{{ vertex.latitude.toFixed(6) }}, {{ vertex.longitude.toFixed(6) }}</span>
+                <button mat-button type="button" (click)="removeGeofenceVertex($index)">Hapus</button>
+              </li>
+            }
+          </ol>
+        </aside>
+      </div>
+      <div class="form-actions">
+        <span>Menyimpan template tidak mengubah geofence aktif. Gunakan aksi Aktifkan setelah template siap.</span>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="actionInProgress() !== null"
+        >
+          {{ actionInProgress() === 'geofence' ? 'Menyimpan…' : editingGeofenceTemplateId() ? 'Simpan perubahan' : 'Simpan template' }}
+        </button>
+      </div>
+    </form>
+  </section>
+  }
+
+  @if (activeTab() === 'calendar') {
+  <section class="setting-section calendar-tab" aria-labelledby="calendar-form-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-kicker">Tanggal khusus</p>
+        <h2 id="calendar-form-title">Kalender sekolah</h2>
+      </div>
+      <p>Hari libur dan hari kerja pengganti hanya dapat diubah sebelum tanggalnya berlalu.</p>
+    </div>
+
+    <form [formGroup]="calendarForm" (ngSubmit)="saveCalendarException()" novalidate>
+      <div class="calendar-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Tanggal</mat-label>
+          <input matInput type="date" name="calendarWorkDate" autocomplete="off" [min]="minimumEffectiveDate" formControlName="workDate" />
+          <mat-error>Tanggal wajib diisi.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Jenis aturan</mat-label>
+          <select matNativeControl name="exceptionType" autocomplete="off" formControlName="exceptionType">
+            <option value="HOLIDAY">Hari libur</option>
+            <option value="WORKING_DAY">Hari kerja khusus</option>
+          </select>
+        </mat-form-field>
+        @if (calendarForm.controls.exceptionType.value === 'WORKING_DAY') {
+          <mat-form-field appearance="outline">
+            <mat-label>Pakai jadwal</mat-label>
+            <select matNativeControl name="scheduleType" autocomplete="off" formControlName="scheduleType">
+              <option [ngValue]="null" disabled>Pilih jadwal</option>
+              <option value="WEEKDAY">Senin–Jumat</option>
+              <option value="SATURDAY">Sabtu</option>
+            </select>
+            <mat-error>Pilih jadwal untuk hari kerja khusus.</mat-error>
+          </mat-form-field>
+        }
+        <mat-form-field appearance="outline" class="calendar-name">
+          <mat-label>Nama / keterangan</mat-label>
+          <input matInput maxlength="200" name="calendarName" autocomplete="off" formControlName="name" />
+          <mat-error>Keterangan wajib diisi (maks. 200 karakter).</mat-error>
+        </mat-form-field>
+      </div>
+      <div class="form-actions">
+        <span>{{ editingCalendarId() ? 'Simpan perubahan untuk tanggal yang belum berlalu.' : 'Setiap tanggal hanya dapat memiliki satu aturan.' }}</span>
+        <div class="button-pair">
+          @if (editingCalendarId()) {
+            <button mat-stroked-button type="button" (click)="cancelCalendarEdit()">Batal</button>
+          }
+          <button mat-flat-button type="submit" [disabled]="actionInProgress() !== null">
+            {{ actionInProgress() === 'calendar' ? 'Menyimpan…' : editingCalendarId() ? 'Simpan perubahan' : 'Tambah aturan kalender' }}
+          </button>
+        </div>
+      </div>
+    </form>
+
+    @if (calendar()?.exceptions?.length) {
+      <div class="calendar-table-wrap" tabindex="0" role="region" aria-label="Tabel kalender sekolah, dapat digeser secara horizontal pada layar sempit">
+        <table class="calendar-table">
+          <caption class="visually-hidden">Daftar hari libur dan hari kerja khusus</caption>
+          <thead><tr><th scope="col">Tanggal</th><th scope="col">Aturan</th><th scope="col">Keterangan</th><th scope="col"><span class="visually-hidden">Tindakan</span></th></tr></thead>
+          <tbody>
+            @for (exception of calendar()!.exceptions; track exception.id) {
+              <tr>
+                <td>{{ dateLabel(exception.workDate) }}</td>
+                <td>{{ exception.exceptionType === 'HOLIDAY' ? 'Libur' : 'Kerja · ' + (exception.scheduleType === 'SATURDAY' ? 'Jadwal Sabtu' : 'Jadwal Senin–Jumat') }}</td>
+                <td>{{ exception.name }}</td>
+                <td class="table-actions">
+                  <button mat-button type="button" (click)="editCalendarException(exception)" [disabled]="actionInProgress() !== null">Ubah</button>
+                  <button mat-button type="button" (click)="deleteCalendarException(exception)" [disabled]="actionInProgress() !== null">Hapus</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="empty-inline">Belum ada hari libur atau hari kerja khusus.</p>
+    }
+  </section>
+  }
+
+  }
+  </mat-tab-nav-panel>
+</section>

@@ -1,0 +1,16 @@
+<section
+  class="opening-screen"
+  [class.is-leaving]="phase() === 'leaving'"
+  role="status"
+  aria-live="polite"
+  aria-label="Menyiapkan halaman"
+>
+  <div class="opening-screen__content">
+    <div class="opening-screen__stage" aria-hidden="true">
+      <div #animationHost class="opening-screen__animation" [class.is-ready]="animationReady()"></div>
+      @if (!animationReady()) {
+        <span class="opening-screen__fallback" data-fallback-loader></span>
+      }
+    </div>
+  </div>
+</section>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#faf7f2" />
+    <title>Perbandingan Kombinasi Font — HadirYu</title>
+    <style>
+      @font-face {
+        font-family: 'Poppins';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/assets/fonts/Poppins-Regular.ttf') format('truetype');
+      }
+
+      @font-face {
+        font-family: 'Poppins';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/assets/fonts/Poppins-SemiBold.ttf') format('truetype');
+      }
+
+      @font-face {
+        font-family: 'Poppins';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/assets/fonts/Poppins-Bold.ttf') format('truetype');
+      }
+
+      @font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 400 900;
+        font-display: swap;
+        src: url('/assets/fonts/PlayfairDisplay-VariableFont_wght.ttf') format('truetype');
+      }
+
+      :root {
+        --ag-bg: #faf7f2;
+        --ag-surface: #fffdf9;
+        --ag-surface-soft: #f4eee6;
+        --ag-primary: #477f79;
+        --ag-primary-soft: #ddebea;
+        --ag-text: #34413e;
+        --ag-muted: #74817d;
+        --ag-border: #e8e0d6;
+        --ag-focus: #b9dcd7;
+      }
+
+      * { box-sizing: border-box; }
+      html { background: var(--ag-bg); }
+      body {
+        margin: 0;
+        color: var(--ag-text);
+        background: var(--ag-bg);
+        font-family: Poppins, sans-serif;
+        line-height: 1.55;
+      }
+
+      main { width: min(100% - 32px, 1180px); margin: 0 auto; padding: clamp(32px, 7vw, 72px) 0; }
+      .page-header { max-width: 760px; margin-bottom: clamp(28px, 5vw, 48px); }
+      .eyebrow { margin: 0 0 8px; color: var(--ag-primary); font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+      .page-header h1 { margin: 0; font-size: clamp(30px, 5vw, 52px); line-height: 1.08; letter-spacing: -.04em; }
+      .page-header p { max-width: 65ch; margin: 14px 0 0; color: var(--ag-muted); font-family: Poppins, sans-serif; font-size: 14px; }
+
+      .comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+      .specimen {
+        display: flex;
+        min-height: 360px;
+        flex-direction: column;
+        padding: clamp(22px, 3vw, 32px);
+        background: var(--ag-surface);
+        border: 1px solid var(--ag-border);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgb(71 127 121 / 4%);
+      }
+      .specimen:hover { border-color: var(--ag-focus); }
+      .pairing { margin: 0 0 28px; color: var(--ag-primary); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      .specimen h1, .specimen h2, .specimen h3 { margin: 0; color: var(--ag-text); }
+      .specimen h1 { font-family: Poppins, sans-serif; font-size: 31px; font-weight: 700; line-height: 1.1; letter-spacing: -.04em; }
+      .specimen h2 { margin-top: 20px; font-family: Poppins, sans-serif; font-size: 20px; font-weight: 600; line-height: 1.25; letter-spacing: -.025em; }
+      .specimen h3 { margin-top: 16px; font-family: Poppins, sans-serif; font-size: 14px; font-weight: 600; line-height: 1.35; }
+      .specimen p { margin: 10px 0 0; color: var(--ag-muted); font-size: 15px; line-height: 1.65; }
+      .use-case { margin-top: auto !important; padding-top: 22px; color: var(--ag-primary) !important; font-family: Poppins, sans-serif !important; font-size: 11px !important; font-weight: 600; line-height: 1.45 !important; }
+
+      .inter p { font-family: Inter, sans-serif; }
+      .source-sans p { font-family: 'Source Sans 3', sans-serif; font-size: 16px; }
+      .lora p { font-family: Lora, serif; font-size: 14px; }
+      .playfair p { font-family: 'Playfair Display', serif; font-size: 15px; }
+      .merriweather p { font-family: Merriweather, serif; font-size: 13px; line-height: 1.75; }
+      .roboto p { font-family: Roboto, sans-serif; }
+
+      @media (max-width: 520px) {
+        main { width: min(100% - 24px, 1180px); }
+        .comparison-grid { grid-template-columns: 1fr; }
+        .specimen { min-height: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="page-header">
+        <p class="eyebrow">HadirYu</p>
+        <h1>Perbandingan pasangan font</h1>
+        <p>Semua contoh memakai Poppins untuk hierarki judul. Teks isi berganti pada setiap kartu agar karakter dan keterbacaan tiap kombinasi dapat dibandingkan dalam palet aplikasi yang sama.</p>
+      </header>
+
+      <div class="comparison-grid">
+        <section class="specimen inter" aria-labelledby="pairing-inter">
+          <p class="pairing">Poppins + Inter</p>
+          <h1 id="pairing-inter">Absensi hari ini</h1>
+          <h2>Catat kehadiran dengan tepat</h2>
+          <h3>Status kehadiran</h3>
+          <p>Lokasi dan waktu akan diperiksa saat Anda memilih Absen Masuk atau Absen Pulang. Ringkas, modern, dan sangat mudah dipindai pada tabel maupun formulir.</p>
+          <p class="use-case">Paling kuat untuk dashboard, tabel, dan formulir aplikasi.</p>
+        </section>
+
+        <section class="specimen source-sans" aria-labelledby="pairing-source-sans">
+          <p class="pairing">Poppins + Source Sans 3</p>
+          <h1 id="pairing-source-sans">Absensi hari ini</h1>
+          <h2>Catat kehadiran dengan tepat</h2>
+          <h3>Status kehadiran</h3>
+          <p>Lokasi dan waktu akan diperiksa saat Anda memilih Absen Masuk atau Absen Pulang. Ritmenya lebih lapang dan ramah untuk instruksi atau penjelasan yang lebih panjang.</p>
+          <p class="use-case">Cocok bila aplikasi banyak memuat panduan dan pesan bantuan.</p>
+        </section>
+
+        <section class="specimen lora" aria-labelledby="pairing-lora">
+          <p class="pairing">Poppins + Lora</p>
+          <h1 id="pairing-lora">Absensi hari ini</h1>
+          <h2>Catat kehadiran dengan tepat</h2>
+          <h3>Status kehadiran</h3>
+          <p>Lokasi dan waktu akan diperiksa saat Anda memilih Absen Masuk atau Absen Pulang. Serif yang hangat memberi kesan lebih manusiawi pada teks bacaan.</p>
+          <p class="use-case">Cocok untuk panduan operasional atau halaman informasi.</p>
+        </section>
+
+        <section class="specimen playfair" aria-labelledby="pairing-playfair">
+          <p class="pairing">Poppins + Playfair Display</p>
+          <h1 id="pairing-playfair">Absensi hari ini</h1>
+          <h2>Catat kehadiran dengan tepat</h2>
+          <h3>Status kehadiran</h3>
+          <p>Lokasi dan waktu akan diperiksa saat Anda memilih Absen Masuk atau Absen Pulang. Kontrasnya terasa editorial dan lebih berkarakter daripada kebutuhan UI sehari-hari.</p>
+          <p class="use-case">Lebih cocok untuk halaman sambutan atau materi publik sekolah.</p>
+        </section>
+
+        <section class="specimen merriweather" aria-labelledby="pairing-merriweather">
+          <p class="pairing">Poppins + Merriweather</p>
+          <h1 id="pairing-merriweather">Absensi hari ini</h1>
+          <h2>Catat kehadiran dengan tepat</h2>
+          <h3>Status kehadiran</h3>
+          <p>Lokasi dan waktu akan diperiksa saat Anda memilih Absen Masuk atau Absen Pulang. Berat dan formal, dengan kenyamanan yang baik untuk dokumen atau uraian kebijakan.</p>
+          <p class="use-case">Cocok untuk dokumen, panduan, dan konten administratif formal.</p>
+        </section>
+
+        <section class="specimen roboto" aria-labelledby="pairing-roboto">
+          <p class="pairing">Poppins + Roboto</p>
+          <h1 id="pairing-roboto">Absensi hari ini</h1>
+          <h2>Catat kehadiran dengan tepat</h2>
+          <h3>Status kehadiran</h3>
+          <p>Lokasi dan waktu akan diperiksa saat Anda memilih Absen Masuk atau Absen Pulang. Familiar dan fungsional, terutama bila antarmuka tetap memakai komponen Material.</p>
+          <p class="use-case">Pilihan praktis untuk konsistensi dengan Angular Material.</p>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

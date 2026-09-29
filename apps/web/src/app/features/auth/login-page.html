@@ -1,0 +1,68 @@
+<section class="login-layout" aria-labelledby="login-title">
+  <aside class="login-context" aria-label="Identitas HadirYu">
+    <img class="brand-logo" src="/assets/brand/hadiryu-on-dark.png" width="720" height="316" alt="" />
+    <div>
+      <p class="eyebrow">Sistem kepegawaian sekolah</p>
+      <h1>Presensi dan administrasi Guru</h1>
+    </div>
+    <small>Waktu absensi mengikuti waktu resmi server.</small>
+  </aside>
+
+  <main class="form-region">
+    <a class="mobile-brand" href="/login" aria-label="HadirYu">
+      <img class="brand-logo" src="/assets/brand/hadiryu-on-light.png" width="720" height="299" alt="" />
+      <small>Masuk ke akun sekolah</small>
+    </a>
+    <form (ngSubmit)="submit()" [formGroup]="form" novalidate>
+      <p class="eyebrow">Akses Guru dan Super Admin</p>
+      <h2 id="login-title">Masuk ke akun</h2>
+      <p class="form-intro">Gunakan Username dan password yang diberikan sekolah.</p>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Username</mat-label>
+        <input
+          matInput
+          autocomplete="username"
+          formControlName="nip"
+          inputmode="text"
+          name="nip"
+          spellcheck="false"
+        />
+        @if (form.controls.nip.hasError('required')) {
+          <mat-error>Username wajib diisi.</mat-error>
+        } @else if (form.controls.nip.hasError('maxlength')) {
+          <mat-error>Username maksimal 64 karakter.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input
+          matInput
+          autocomplete="current-password"
+          formControlName="password"
+          name="password"
+          [type]="passwordVisible() ? 'text' : 'password'"
+        />
+        <button class="visibility-toggle" data-action="toggle-password" matSuffix type="button" [attr.aria-label]="passwordVisible() ? 'Sembunyikan password' : 'Tampilkan password'" [attr.aria-pressed]="passwordVisible()" (click)="togglePasswordVisibility()">{{ passwordVisible() ? 'Sembunyikan' : 'Tampilkan' }}</button>
+        @if (form.controls.password.hasError('required')) {
+          <mat-error>Password wajib diisi.</mat-error>
+        }
+      </mat-form-field>
+
+      @if (errorMessage()) {
+        <p class="form-error" role="alert">{{ errorMessage() }}</p>
+      }
+
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="isSubmitting()"
+      >
+        {{ isSubmitting() ? 'Memeriksa akun…' : 'Masuk' }}
+      </button>
+      <p class="security-note">Akun ini hanya digunakan untuk keperluan internal sekolah.</p>
+    </form>
+  </main>
+</section>

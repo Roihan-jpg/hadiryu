@@ -1,0 +1,30 @@
+<a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
+@if (openingPhase() !== 'idle') {
+  <app-opening-screen [phase]="openingPhase()" />
+}
+
+@if (user(); as currentUser) {
+  @if (currentUser.role === 'SUPER_ADMIN' && !currentUser.mustChangePassword) {
+    <div class="admin-shell" [class.drawer-open]="adminMenuOpen()" [class.sidebar-collapsed]="sidebarCollapsed()">
+      <button class="drawer-backdrop" type="button" aria-label="Tutup menu" (click)="closeAdminMenu()"></button>
+      <app-sidebar [user]="currentUser" [navigation]="adminNavigation" [isOpen]="adminMenuOpen()" [isCollapsed]="sidebarCollapsed()" (closeMenu)="closeAdminMenu()" (toggleCompact)="toggleSidebar()" (logout)="logout()" />
+      <div class="admin-workspace">
+        <app-mobile-header menuLabel="Buka menu Super Admin" brandHomePath="/admin" [user]="currentUser" [isOpen]="adminMenuOpen()" (openMenu)="toggleAdminMenu()" />
+        <main id="main-content" class="admin-main" tabindex="-1"><router-outlet /></main>
+      </div>
+    </div>
+  } @else if ((currentUser.role === 'USER' || currentUser.role === 'SECURITY_GUARD') && !currentUser.mustChangePassword) {
+    <div class="teacher-app-shell" [class.drawer-open]="teacherMenuOpen()" [class.sidebar-collapsed]="sidebarCollapsed()">
+      <button class="teacher-drawer-backdrop" type="button" aria-label="Tutup menu Guru" (click)="closeTeacherMenu()"></button>
+      <app-sidebar [user]="currentUser" [navigation]="teacherNavigation()" [isOpen]="teacherMenuOpen()" [isCollapsed]="sidebarCollapsed()" (closeMenu)="closeTeacherMenu()" (toggleCompact)="toggleSidebar()" (logout)="logout()" />
+
+      <app-mobile-header [menuLabel]="currentUser.role === 'SECURITY_GUARD' ? 'Buka menu Satpam' : 'Buka menu Guru'" [brandHomePath]="currentUser.role === 'SECURITY_GUARD' ? '/satpam' : '/guru'" [user]="currentUser" [isOpen]="teacherMenuOpen()" (openMenu)="toggleTeacherMenu()" />
+      <main id="main-content" class="teacher-main" tabindex="-1"><router-outlet /></main>
+    </div>
+  } @else {
+    <main id="main-content" class="guest-main" tabindex="-1"><router-outlet /></main>
+  }
+} @else {
+  <main id="main-content" class="guest-main" tabindex="-1"><router-outlet /></main>
+}

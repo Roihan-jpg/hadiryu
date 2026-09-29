@@ -1,0 +1,9 @@
+{
+  "date": "2026-09-11",
+  "framework": "Angular 22 standalone with Angular Material",
+  "font": "Manrope variable",
+  "palette": "Milky Tosca Institutional Ledger tokens in apps/web/src/styles.scss",
+  "motion": "lottie-web is reserved for the opening screen; dashboard motion is reduced",
+  "spacing": "existing compact 4/8px-derived scale",
+  "preserved": ["application shell", "Manrope", "cream and tosca palette", "Material controls"]
+}

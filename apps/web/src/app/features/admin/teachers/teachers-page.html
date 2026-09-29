@@ -1,0 +1,37 @@
+<section class="page-shell" aria-labelledby="teachers-title">
+  <header class="page-header"><div><p>ADMINISTRASI AKUN</p><h1 id="teachers-title">Master Guru &amp; Satpam</h1><span>Kelola identitas login dan akses tanpa menghapus histori.</span></div><button mat-flat-button type="button" [disabled]="actionInProgress() !== null" (click)="openCreateDialog()">+ Tambah akun</button></header>
+  <form class="admin-panel filters" (ngSubmit)="applySearch()"><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Cari nama atau NIP</mat-label><input matInput [formControl]="searchControl" autocomplete="off" /></mat-form-field><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Status akun</mat-label><mat-select [formControl]="statusControl"><mat-option value="ALL">Semua</mat-option><mat-option value="ACTIVE">Aktif</mat-option><mat-option value="INACTIVE">Nonaktif</mat-option></mat-select></mat-form-field><button mat-flat-button type="submit">Terapkan</button></form>
+  @if(successMessage()){<p class="feedback success" role="status">{{successMessage()}}</p>}@if(errorMessage()){<div class="feedback error" role="alert">{{errorMessage()}}<button mat-button type="button" (click)="loadTeachers()">Coba lagi</button></div>}
+  @if(loading()){<div class="loading-state"><mat-spinner diameter="30"/>Memuat daftar akun…</div>}@else if(teachers().length===0&&!errorMessage()){<div class="admin-panel empty-state"><h2>Akun tidak ditemukan</h2><p>Ubah filter atau tambahkan akun baru.</p></div>}@else if(teachers().length>0){<div class="admin-panel table-frame" tabindex="0" role="region" aria-label="Daftar Guru dan Satpam">
+    <ul class="mobile-account-list">
+      @for (teacher of teachers(); track teacher.id) {
+        <li class="mobile-account-card">
+          <div class="mobile-account-heading">
+            <div>
+              <strong>{{teacher.fullName}}</strong>
+              <small>{{ teacher.role === 'SECURITY_GUARD' ? 'Satpam' : 'Guru' }}</small>
+            </div>
+            <span [class]="'status-pill '+(teacher.isActive?'active':'inactive')">{{teacher.isActive?'Aktif':'Nonaktif'}}</span>
+          </div>
+          <dl class="mobile-account-details">
+            <div><dt>NIP</dt><dd class="nip">{{teacher.nip}}</dd></div>
+            <div><dt>Jenis kelamin</dt><dd>{{teacher.gender === 'FEMALE' ? 'Perempuan' : teacher.gender === 'MALE' ? 'Laki-laki' : 'Belum diisi'}}</dd></div>
+            <div><dt>WhatsApp</dt><dd>@if(teacher.whatsappNumber){<a [href]="'https://wa.me/'+teacher.whatsappNumber.slice(1)" target="_blank" rel="noopener">{{teacher.whatsappNumber}}</a>}@else{<span class="muted">Belum diisi</span>}</dd></div>
+          </dl>
+          <div class="mobile-account-actions" aria-label="Tindakan untuk {{teacher.fullName}}">
+            <button mat-button type="button" (click)="openEditDialog(teacher)" [disabled]="actionInProgress()!==null">Ubah</button>
+            <button mat-button type="button" (click)="openResetPasswordDialog(teacher)" [disabled]="actionInProgress()!==null">Reset password</button>
+            <button mat-button type="button" (click)="confirmActiveStatus(teacher)" [disabled]="actionInProgress()!==null">{{teacher.isActive?'Nonaktifkan':'Aktifkan'}}</button>
+          </div>
+        </li>
+      }
+    </ul>
+    <table mat-table [dataSource]="teachers()">
+    <ng-container matColumnDef="teacher"><th mat-header-cell *matHeaderCellDef>Nama</th><td mat-cell *matCellDef="let teacher"><strong>{{teacher.fullName}}</strong><small>{{ teacher.role === 'SECURITY_GUARD' ? 'Satpam' : 'Guru' }}</small></td></ng-container>
+    <ng-container matColumnDef="nip"><th mat-header-cell *matHeaderCellDef>NIP</th><td mat-cell *matCellDef="let teacher"><span class="nip">{{teacher.nip}}</span></td></ng-container>
+    <ng-container matColumnDef="gender"><th mat-header-cell *matHeaderCellDef>Jenis kelamin</th><td mat-cell *matCellDef="let teacher">{{teacher.gender === 'FEMALE' ? 'Perempuan' : teacher.gender === 'MALE' ? 'Laki-laki' : 'Belum diisi'}}</td></ng-container>
+    <ng-container matColumnDef="whatsapp"><th mat-header-cell *matHeaderCellDef>WhatsApp</th><td mat-cell *matCellDef="let teacher">@if(teacher.whatsappNumber){<a [href]="'https://wa.me/'+teacher.whatsappNumber.slice(1)" target="_blank" rel="noopener">{{teacher.whatsappNumber}}</a>}@else{<span class="muted">Belum diisi</span>}</td></ng-container>
+    <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Status</th><td mat-cell *matCellDef="let teacher"><span [class]="'status-pill '+(teacher.isActive?'active':'inactive')">{{teacher.isActive?'Aktif':'Nonaktif'}}</span></td></ng-container>
+    <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef><span class="visually-hidden">Tindakan</span></th><td mat-cell *matCellDef="let teacher"><div class="row-actions"><button mat-button type="button" (click)="openEditDialog(teacher)" [disabled]="actionInProgress()!==null">Ubah</button><button mat-button type="button" (click)="openResetPasswordDialog(teacher)" [disabled]="actionInProgress()!==null">Reset password</button><button mat-button type="button" (click)="confirmActiveStatus(teacher)" [disabled]="actionInProgress()!==null">{{teacher.isActive?'Nonaktifkan':'Aktifkan'}}</button></div></td></ng-container>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr><tr mat-row *matRowDef="let row;columns:displayedColumns"></tr></table><mat-paginator [length]="pagination().totalItems" [pageIndex]="pagination().page-1" [pageSize]="pagination().pageSize" [pageSizeOptions]="[10,20,50,100]" (page)="pageChanged($event)"/></div>}
+</section>

@@ -1,0 +1,43 @@
+{
+  "name": "@absensi/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "npm run build --workspace @absensi/contracts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "bootstrap:super-admin": "tsx --env-file-if-exists=../../.env src/bootstrap-super-admin.ts",
+    "prepare:app-accounts": "tsx --env-file-if-exists=../../.env src/prepare-app-accounts.ts",
+    "start": "node dist/server.js",
+    "prebuild": "npm run build --workspace @absensi/contracts",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build --workspace @absensi/contracts",
+    "test": "vitest run --maxWorkers=1"
+  },
+  "dependencies": {
+    "@absensi/contracts": "*",
+    "@supabase/supabase-js": "2.112.4",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.6",
+    "exceljs": "4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "8.6.2",
+    "helmet": "8.3.0",
+    "multer": "^2.3.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "1.4.10",
+    "@types/cors": "2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.2.0",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.12",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

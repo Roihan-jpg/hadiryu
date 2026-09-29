@@ -1,0 +1,58 @@
+{
+  "name": "hadiryu",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "setup:validate": "node scripts/setup.mjs --validate",
+    "predev": "npm run build --workspace @absensi/contracts",
+    "dev": "concurrently --kill-others-on-fail --names api,web \"npm run dev --workspace @absensi/api\" \"npm run dev --workspace @absensi/web\"",
+    "bootstrap:super-admin": "npm run bootstrap:super-admin --workspace @absensi/api",
+    "prepare:app-accounts": "npm run prepare:app-accounts --workspace @absensi/api",
+    "db:link:hosted": "node scripts/supabase-hosted.mjs link",
+    "db:deploy:hosted": "node scripts/supabase-hosted.mjs deploy",
+    "db:advisors:hosted": "node scripts/supabase-hosted.mjs advisors",
+    "db:start": "supabase db start",
+    "db:reset": "supabase db start && supabase db reset --local",
+    "db:advisors": "supabase db advisors --local --type all --level warn --fail-on warn",
+    "seed:guru8-ui": "node scripts/run-guru8-ui-seed.mjs",
+    "seed:guru8-ui:hosted": "node --env-file-if-exists=.env scripts/run-guru8-ui-seed-hosted.mjs",
+    "e2e:install": "playwright install chromium",
+    "lint": "eslint playwright.config.ts e2e scripts && npm run lint --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.e2e.json --noEmit && tsc -p worker/tsconfig.json --noEmit && npm run typecheck --workspaces --if-present",
+    "test": "npm run test:setup && npm run test:release-config && npm run test:worker && npm run test:workspaces",
+    "test:setup": "node --test scripts/setup/*.test.mjs",
+    "test:setup:local": "node scripts/setup/local-integration.mjs",
+    "test:release-config": "node --test scripts/release-config.test.mjs scripts/dev-config.test.mjs",
+    "test:worker": "vitest run worker/index.spec.ts",
+    "test:workspaces": "npm run test --workspaces --if-present",
+    "test:e2e": "node scripts/run-e2e.mjs local",
+    "setup:hosted": "node --env-file-if-exists=.env scripts/run-e2e.mjs hosted-setup",
+    "test:e2e:hosted": "node --env-file-if-exists=.env scripts/run-e2e.mjs hosted",
+    "test:web": "npm run test --workspace @absensi/web",
+    "test:api": "npm run test --workspace @absensi/api",
+    "build:worker": "npm run build --workspace @absensi/contracts && npm run build --workspace @absensi/web",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0",
+    "npm": ">=11.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "concurrently": "^10.0.0",
+    "eslint": "^10.0.3",
+    "supabase": "2.115.0",
+    "typescript-eslint": "^8.68.0",
+    "wrangler": "4.136.1"
+  },
+  "dependencies": {
+    "pg": "8.23.0"
+  }
+}

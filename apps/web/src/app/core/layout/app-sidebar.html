@@ -1,0 +1,34 @@
+<aside class="app-sidebar" [class.app-sidebar--admin]="isAdmin" [class.teacher-drawer]="!isAdmin" [class.app-sidebar--collapsed]="isCollapsed" [attr.aria-label]="isAdmin ? 'Navigasi Super Admin' : 'Navigasi Guru'" [cdkTrapFocus]="isOpen" [cdkTrapFocusAutoCapture]="isOpen">
+  <header class="app-sidebar__header">
+    @if (isAdmin) {
+      <a class="app-sidebar__brand" routerLink="/admin" (click)="closeMenu.emit()">
+        <img class="app-sidebar__brand-logo" src="/assets/brand/hadiryu-on-light.png" width="720" height="299" alt="HadirYu" />
+      </a>
+      <button class="app-sidebar__compact" type="button" [attr.aria-label]="isCollapsed ? 'Perluas sidebar' : 'Ringkas sidebar'" [attr.aria-expanded]="!isCollapsed" (click)="toggleCompact.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
+    } @else {
+      <a class="app-sidebar__brand" routerLink="/guru" (click)="closeMenu.emit()">
+        <img class="app-sidebar__brand-logo" src="/assets/brand/hadiryu-on-light.png" width="720" height="299" alt="HadirYu" />
+      </a>
+      <button class="app-sidebar__compact" type="button" [attr.aria-label]="isCollapsed ? 'Perluas sidebar' : 'Ringkas sidebar'" [attr.aria-expanded]="!isCollapsed" (click)="toggleCompact.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
+    }
+    <button class="app-sidebar__close" type="button" aria-label="Tutup menu" (click)="closeMenu.emit()">×</button>
+  </header>
+
+  <section class="app-sidebar__account-card" aria-label="Akun aktif">
+    <a class="app-sidebar__avatar" routerLink="/profile" [attr.aria-label]="'Buka profil ' + user.fullName" (click)="closeMenu.emit()">
+      @if (user.photo) { <img [src]="photoUrl(user.photo.updatedAt)" alt="" /> } @else { {{ initials(user.fullName) }} }
+    </a>
+    <span class="app-sidebar__collapse-content"><strong>{{ user.fullName }}</strong><small>{{ isAdmin ? 'Super Admin' : 'NIP ' + user.nip }}</small></span>
+  </section>
+
+  <nav class="app-sidebar__nav" [attr.aria-label]="isAdmin ? 'Navigasi Super Admin' : 'Navigasi Guru'">
+    @for (item of navigation; track item.path) {
+      <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }" ariaCurrentWhenActive="page" [attr.aria-label]="item.label" [attr.title]="isCollapsed ? item.label : null" (click)="closeMenu.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="item.icon" /></svg><span class="app-sidebar__collapse-content">{{ item.label }}</span></a>
+    }
+  </nav>
+
+  <footer class="app-sidebar__footer">
+    <a routerLink="/change-password" (click)="closeMenu.emit()"><span class="app-sidebar__collapse-content">Ganti password</span><span class="app-sidebar__footer-icon" aria-hidden="true">⌁</span></a>
+    <button type="button" (click)="logout.emit()"><span class="app-sidebar__collapse-content">Keluar dari akun</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3m12-9h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" /></svg></button>
+  </footer>
+</aside>
