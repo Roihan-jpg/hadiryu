@@ -58,6 +58,11 @@ test('hosted targets require HTTPS and a migration-safe SSL database URL', () =>
     () => validateDatabaseUrl('postgresql://postgres:secret@db.example.com:5432/postgres'),
     /sslmode=require/,
   );
+  const hostedDatabaseUrl = new URL(validateDatabaseUrl(
+    'postgresql://postgres:secret@db.example.com:5432/postgres?sslmode=require',
+  ));
+  assert.equal(hostedDatabaseUrl.searchParams.get('sslmode'), 'require');
+  assert.equal(hostedDatabaseUrl.searchParams.get('uselibpqcompat'), 'true');
   assert.deepEqual(
     publicTargetSummary(
       'https://example.supabase.co',
