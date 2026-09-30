@@ -1,13 +1,27 @@
-import { validateKey, validateSupabaseUrl } from './core.mjs';
+import { sanitizeLogValue, validateKey, validateSupabaseUrl } from './core.mjs';
 import { validateDatabaseSchema } from './database.mjs';
 
-async function assertRestKey(url, key, label) {
-  const response = await fetch(`${url}/rest/v1/`, {
+async function safeResponseReason(response) {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) return '';
+  try {
+    const body = await response.json();
+    const reason = [body?.message, body?.hint].filter((value) => typeof value === 'string').join(' ');
+    return sanitizeLogValue(reason).replace(/[\r\n]+/g, ' ').slice(0, 300);
+  } catch {
+    return '';
+  }
+}
+
+async function assertApiKey(url, path, key, label, fetchImpl) {
+  const response = await fetchImpl(`${url}${path}`, {
     headers: { apikey: key },
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
-    throw new Error(`${label} ditolak oleh Supabase REST API (HTTP ${response.status}).`);
+    const reason = await safeResponseReason(response);
+    const detail = reason ? ` Alasan Supabase: ${reason}` : '';
+    throw new Error(`${label} ditolak oleh Supabase API (HTTP ${response.status}).${detail}`);
   }
 }
 
@@ -25,13 +39,14 @@ export function assertMatchingProject(supabaseUrl, databaseUrl) {
   }
 }
 
-export async function validateCredentials(input) {
+export async function validateCredentials(input, options = {}) {
+  const fetchImpl = options.fetchImpl ?? fetch;
   const url = validateSupabaseUrl(input.supabaseUrl);
   const publishableKey = validateKey(input.publishableKey, 'Publishable key');
   const secretKey = validateKey(input.secretKey, 'Secret key');
   assertMatchingProject(url, input.databaseUrl);
-  await assertRestKey(url, publishableKey, 'Publishable key');
-  await assertRestKey(url, secretKey, 'Secret key');
+  await assertApiKey(url, '/auth/v1/settings', publishableKey, 'Publishable key', fetchImpl);
+  await assertApiKey(url, '/rest/v1/', secretKey, 'Secret key', fetchImpl);
 }
 
 export async function validateInstallation(client, input) {
@@ -52,4 +67,3 @@ export async function validateInstallation(client, input) {
     throw new Error('Akun Guru demo tidak valid.');
   }
 }
-

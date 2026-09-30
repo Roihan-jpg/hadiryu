@@ -141,6 +141,9 @@ export function validateDatabaseUrl(value) {
   if (!local && !['require', 'verify-ca', 'verify-full'].includes(url.searchParams.get('sslmode'))) {
     throw new Error('Database hosted wajib memakai SSL; tambahkan sslmode=require pada connection string.');
   }
+  if (!local && url.searchParams.get('sslmode') === 'require') {
+    url.searchParams.set('uselibpqcompat', 'true');
+  }
   return url.toString();
 }
 
