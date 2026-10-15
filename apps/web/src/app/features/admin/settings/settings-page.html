@@ -169,8 +169,8 @@
             @for (field of timeFields; track field.key) {
               <mat-form-field appearance="outline">
                 <mat-label>{{ field.label }}</mat-label>
-                <input matInput type="time" autocomplete="off" [id]="schedule.key + '-' + field.key" [attr.name]="schedule.key + '-' + field.key" [formControlName]="field.key" />
-                <mat-error>Waktu wajib diisi.</mat-error>
+                <input matInput type="text" inputmode="numeric" placeholder="HH:mm" maxlength="5" autocomplete="off" [id]="schedule.key + '-' + field.key" [attr.name]="schedule.key + '-' + field.key" [formControlName]="field.key" (blur)="normalizeTimeInput($event)" />
+                <mat-error>Isi waktu dengan format HH:mm (00:00–23:59).</mat-error>
               </mat-form-field>
             }
             <mat-form-field appearance="outline">
@@ -205,7 +205,7 @@
     <form [formGroup]="securityScheduleForm" (ngSubmit)="saveSecuritySchedules()" novalidate>
       @for (shift of [{ key: 'dayShift', label: 'Shift Pagi · mulai 06.00', overnight: false }, { key: 'nightShift', label: 'Shift Malam · mulai 18.00, selesai hari berikutnya', overnight: true }]; track shift.key) {
         <fieldset [formGroupName]="shift.key"><legend>{{ shift.label }}</legend><div class="time-form-grid">
-          @for (field of timeFields; track field.key) { <mat-form-field appearance="outline"><mat-label>{{ field.label }}</mat-label><input matInput type="time" inputmode="numeric" [id]="shift.key + '-' + field.key" [attr.name]="shift.key + '-' + field.key" [formControlName]="field.key" autocomplete="off" />@if (shift.overnight && (field.key === 'checkoutOpen' || field.key === 'workEnd' || field.key === 'checkoutClose')) { <mat-hint>Hari berikutnya</mat-hint> }<mat-error>Waktu wajib diisi.</mat-error></mat-form-field> }
+          @for (field of timeFields; track field.key) { <mat-form-field appearance="outline"><mat-label>{{ field.label }}</mat-label><input matInput type="text" inputmode="numeric" placeholder="HH:mm" maxlength="5" [id]="shift.key + '-' + field.key" [attr.name]="shift.key + '-' + field.key" [formControlName]="field.key" autocomplete="off" (blur)="normalizeTimeInput($event)" />@if (shift.overnight && (field.key === 'checkoutOpen' || field.key === 'workEnd' || field.key === 'checkoutClose')) { <mat-hint>Hari berikutnya</mat-hint> }<mat-error>Isi waktu dengan format HH:mm (00:00–23:59).</mat-error></mat-form-field> }
           <mat-form-field appearance="outline"><mat-label>Target menit</mat-label><input matInput type="number" min="1" inputmode="numeric" [attr.name]="shift.key + '-targetMinutes'" formControlName="targetMinutes" /><mat-error>Target wajib lebih dari nol.</mat-error></mat-form-field>
         </div>
         @if (securityScheduleForm.get(shift.key)?.hasError('timeOrder')) { <p class="field-error" role="alert">Urutan waktu pada segmen shift ini tidak valid.</p> }

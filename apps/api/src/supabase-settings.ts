@@ -80,7 +80,7 @@ const GEOFENCE_FIELDS =
   'id,latitude,longitude,radius_meters,polygon_vertices,max_accuracy_meters,effective_from,effective_to,template_id';
 const GeofenceTemplateRowSchema = z.strictObject({
   id: z.uuid(), name: z.string(), polygon_vertices: z.unknown(), max_accuracy_meters: z.number().int(),
-  created_at: z.string(), updated_at: z.string(),
+  created_at: z.string(), updated_at: z.string(), deleted_at: z.string().nullable().optional(),
 });
 const CALENDAR_FIELDS = 'id,work_date,exception_type,name,schedule_type';
 const SecurityScheduleRowSchema = z.strictObject({
@@ -214,7 +214,7 @@ function templateMutationError(error: { code?: string; message?: string } | null
     missing ? 'Template geofence tidak ditemukan' : duplicate ? 'Nama template geofence sudah digunakan' : active ? 'Template aktif tidak dapat dihapus' : 'Template geofence tidak dapat disimpan');
 }
 
-function toGeofenceTemplate(value: unknown, activeTemplateId: string | null): GeofenceTemplate {
+export function toGeofenceTemplate(value: unknown, activeTemplateId: string | null): GeofenceTemplate {
   const row = GeofenceTemplateRowSchema.parse(value);
   return GeofenceTemplateSchema.parse({ id: row.id, name: row.name, shape: 'POLYGON',
     vertices: row.polygon_vertices, maxAccuracyMeters: row.max_accuracy_meters,

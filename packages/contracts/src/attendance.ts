@@ -88,6 +88,7 @@ export const TodayScheduleSchema = z.strictObject({
 export type TodaySchedule = z.infer<typeof TodayScheduleSchema>;
 
 const TodayResponseBaseSchema = z.strictObject({
+  faceVerificationMode: z.literal('SIMPLE_LOCAL').optional(),
   serverNow: z.iso.datetime({ offset: true }),
   workDate: LocalDateSchema,
   locationRequirement: z.strictObject({

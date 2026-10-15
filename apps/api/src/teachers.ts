@@ -18,6 +18,7 @@ import { z } from 'zod';
 
 import {
   AppError,
+  ACCESS_COOKIE_NAME,
   createSessionGuard,
   requireRole,
   type AuthService,
@@ -37,6 +38,7 @@ export interface TeacherService {
     actorId: string,
     teacherId: string,
     isActive: boolean,
+    accessToken?: string,
   ): Promise<Teacher>;
   resetPassword(
     actorId: string,
@@ -128,6 +130,7 @@ export function registerTeacherRoutes(
             actorId(request),
             parseTeacherId(request.params['id'] ?? ''),
             isActive,
+            (request.cookies as Record<string,string>)[ACCESS_COOKIE_NAME],
           );
           response.status(200).json({ teacher } satisfies TeacherResponse);
         } catch (error) {

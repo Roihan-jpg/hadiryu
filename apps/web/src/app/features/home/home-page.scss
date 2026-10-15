@@ -67,6 +67,10 @@ h2 { margin: 0; color: var(--ag-text); font-size: clamp(21px, 4vw, 27px); line-h
 .location-empty p { margin: 3px 0 0; font-size: 10px; }
 .location-panel > button { justify-self: start; }
 .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px; }
+.face-preview-link { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; }
+.face-preview-link strong { color: var(--ag-text); font-size: 13px; }
+.face-preview-link p { margin: 4px 0 0; color: var(--ag-muted); font-size: 11px; }
+@media (max-width: 520px) { .face-preview-link { align-items: stretch; flex-direction: column; } }
 .quick-actions a { display: grid; min-height: 104px; align-content: start; gap: 3px; padding: 14px; color: var(--ag-text); text-decoration: none; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
 .quick-actions a:hover { background: var(--ag-surface-hover); border-color: var(--ag-focus); transform: translateY(-1px); }
 .quick-actions a > span { color: var(--ag-primary); font-size: 20px; line-height: 1; }

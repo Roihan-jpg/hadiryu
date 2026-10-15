@@ -1,5 +1,6 @@
 import type { Teacher, TeacherListResponse } from '@absensi/contracts';
 import { signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
@@ -42,6 +43,7 @@ describe('TeachersPage', () => {
     teacher,
     newPassword: 'Baru1234',
   }));
+  const grantFaceReenrollment=vi.fn(async()=>{});
   const open = vi.fn(() => ({
     afterClosed: (): Observable<unknown> => of(undefined),
   }));
@@ -52,6 +54,7 @@ describe('TeachersPage', () => {
     update.mockClear();
     setActive.mockClear();
     resetPassword.mockClear();
+    grantFaceReenrollment.mockClear();
     open.mockClear();
     await TestBed.configureTestingModule({
       imports: [TeachersPage],
@@ -59,7 +62,7 @@ describe('TeachersPage', () => {
         provideRouter([]),
         {
           provide: TeachersService,
-          useValue: { list, create, update, setActive, resetPassword },
+          useValue: { list, create, update, setActive, resetPassword, grantFaceReenrollment },
         },
         {
           provide: AuthService,
@@ -90,6 +93,27 @@ describe('TeachersPage', () => {
     expect(fixture.nativeElement.textContent).toContain('19870001');
     expect(fixture.nativeElement.querySelector('mat-paginator')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.table-frame')?.tabIndex).toBe(0);
+  });
+  it('requires identity review before granting Guru recovery and excludes Satpam',async()=>{
+    const guru={...teacher,role:'USER' as const};
+    fixture.componentInstance.confirmFaceReenrollment(guru);
+    expect(grantFaceReenrollment).not.toHaveBeenCalled();
+    open.mockReturnValueOnce({afterClosed:()=>of(true)});
+    fixture.componentInstance.confirmFaceReenrollment(guru);
+    await Promise.resolve();
+    expect(grantFaceReenrollment).toHaveBeenCalledOnce();
+    fixture.componentInstance.confirmFaceReenrollment({...guru,role:'SECURITY_GUARD'});
+    expect(grantFaceReenrollment).toHaveBeenCalledOnce();
+  });
+  it('explains that a Guru without a template can enroll directly instead of requesting recovery',async()=>{
+    grantFaceReenrollment.mockRejectedValueOnce(new HttpErrorResponse({status:409,error:{error:{
+      code:'REENROLLMENT_NOT_NEEDED',message:'Enrollment tidak dapat dilanjutkan. Periksa sesi atau hubungi admin.',
+    }}}));
+    open.mockReturnValueOnce({afterClosed:()=>of(true)});
+    fixture.componentInstance.confirmFaceReenrollment({...teacher,role:'USER'});
+    await fixture.whenStable();
+    expect(fixture.componentInstance.errorMessage()).toBe('Guru belum memiliki template wajah. Pendaftaran pertama dapat dilakukan langsung dari Profil Saya tanpa izin daftar ulang.');
+    expect(fixture.componentInstance.successMessage()).toBe('');
   });
 
   it('renders a complete mobile account card without relying on horizontal scrolling', () => {

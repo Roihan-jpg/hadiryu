@@ -1,0 +1,31 @@
+<section class="face-page" aria-labelledby="face-title">
+  <a routerLink="/guru/absen" class="back-link">← Kembali ke absensi</a>
+  <p class="eyebrow">Uji kamera · belum mencatat absensi</p>
+  <h1 id="face-title">Latihan verifikasi wajah</h1>
+  <p>Ikuti challenge dari server. Hasil di halaman ini hanya pratinjau; Absen Masuk/Pulang tetap menggunakan proses yang ada.</p>
+  <p>Pratinjau mengikuti sisi tubuh Anda: kiri Anda tampil di kiri layar.</p>
+
+  <div class="camera-box">
+    <video #preview autoplay muted playsinline aria-label="Pratinjau kamera depan"></video>
+    @if (state() !== 'ACTIVE') { <div class="camera-placeholder">{{ state() === 'STARTING' ? 'Menyiapkan kamera…' : 'Kamera belum aktif' }}</div> }
+  </div>
+
+  @if (challenge(); as current) {
+    <ol class="challenge-list" aria-label="Urutan challenge dari server">
+      @for (step of current.steps; track $index) {
+        <li [class.current]="$index === progress().stepIndex" [class.complete]="$index < progress().stepIndex">{{ stepLabel(step) }}</li>
+      }
+    </ol>
+  }
+
+  <p class="feedback" role="status" aria-live="polite">{{ feedback() }}</p>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  <div class="actions">
+    @if (state() === 'ACTIVE' || state() === 'STARTING') {
+      <button mat-stroked-button type="button" (click)="stop()">Hentikan kamera</button>
+    } @else {
+      <button mat-flat-button type="button" (click)="start()">{{ state() === 'IDLE' ? 'Mulai latihan' : 'Coba lagi' }}</button>
+    }
+  </div>
+  <p class="privacy-note">Frame tetap di perangkat selama latihan; halaman ini tidak mengirim foto atau hasil deteksi ke server. Model landmark dimuat setelah Anda menekan Mulai.</p>
+</section>

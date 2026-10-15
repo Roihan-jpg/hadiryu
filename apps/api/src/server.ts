@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 import { createApp } from './app.js';
 import {
@@ -30,6 +31,10 @@ import { createRequestQuotaService } from './request-quotas.js';
 import { SupabaseRequestQuotaRepository } from './supabase-request-quotas.js';
 import { createStaffDashboardService } from './staff-dashboard.js';
 import { SupabaseStaffDashboardRepository } from './supabase-staff-dashboard.js';
+import { FaceTemplateCipher } from './face-template.js';
+import { PrivateFaceInferenceClient } from './face-inference-client.js';
+import { SupabaseFaceEnrollmentService } from './supabase-face-enrollment.js';
+import { SupabaseSimpleFaceService } from './simple-face.js';
 
 function commaSeparated(value: string | undefined): string[] {
   return (value ?? '')
@@ -50,7 +55,18 @@ function trustProxy(value: string | undefined): number | undefined {
 const port = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
 const supabaseConfig = loadSupabaseAuthConfig(process.env);
 const authService = new SupabaseAuthService(supabaseConfig);
-const teacherService = new SupabaseTeacherService(supabaseConfig);
+const simpleFaceEnabled=process.env['FACE_VERIFICATION_MODE']==='SIMPLE_LOCAL';
+const faceEnabled=process.env['FACE_ENROLLMENT_LOCAL']==='true'||simpleFaceEnabled;
+if(faceEnabled && (process.env['NODE_ENV']==='production' || !['localhost','127.0.0.1'].includes(new URL(supabaseConfig.url).hostname)))
+  throw new Error('Face enrollment is local evaluation only');
+const teacherService = new SupabaseTeacherService(supabaseConfig,faceEnabled);
+const templateKey=faceEnabled?await readFile(process.env['FACE_TEMPLATE_KEY_FILE']!):undefined;
+const faceInference = faceEnabled ? new PrivateFaceInferenceClient(process.env['FACE_INFERENCE_ORIGIN']!,{
+    ca:await readFile(process.env['FACE_TLS_CA']!),cert:await readFile(process.env['FACE_TLS_CERT']!),key:await readFile(process.env['FACE_TLS_KEY']!),
+  },process.env['FACE_MODEL_VERSION']!) : undefined;
+const faceCipher=faceEnabled?new FaceTemplateCipher('local-'+createHash('sha256').update(templateKey!).digest('hex').slice(0,24),templateKey!):undefined;
+const faceEnrollmentService=faceEnabled&&!simpleFaceEnabled?new SupabaseFaceEnrollmentService(supabaseConfig,process.env['FACE_MODEL_VERSION']!,faceInference!,faceCipher!):undefined;
+const simpleFaceService=simpleFaceEnabled?new SupabaseSimpleFaceService(supabaseConfig,process.env['FACE_MODEL_VERSION']!,faceInference!,faceCipher!):undefined;
 const settingsService = new SupabaseSettingsService(supabaseConfig);
 const attendanceRepository = new SupabaseAttendanceRepository(supabaseConfig);
 const attendanceService = createAttendanceService(attendanceRepository);
@@ -100,6 +116,8 @@ const logger = createStructuredLogger();
 const configuredTrustProxy = trustProxy(process.env['TRUST_PROXY_HOPS']);
 
 createApp({
+  ...(faceEnrollmentService ? {faceEnrollmentService}:{}),
+  ...(simpleFaceService ? {simpleFaceService}:{}),
   adminAttendanceService,
   attendanceService,
   authService,
@@ -124,6 +142,6 @@ createApp({
       ? {}
       : { trustProxy: configuredTrustProxy }),
   },
-}).listen(port, () => {
+}).listen(port, faceEnabled?'127.0.0.1':'0.0.0.0', () => {
   logger.info({ event: 'api.started', port });
 });

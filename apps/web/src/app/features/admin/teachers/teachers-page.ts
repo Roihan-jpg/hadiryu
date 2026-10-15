@@ -5,7 +5,7 @@ import type {
   UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, inject, OnInit, signal } from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -30,6 +30,7 @@ import { MatTableModule } from '@angular/material/table';
 import { TeachersService } from './teachers.service';
 import { focusFirstInvalidControl } from '../../../core/ui/form-focus';
 import { createIndonesianPaginatorIntl } from '../../../core/ui/paginator-intl';
+import { isLocalEvaluationHost } from '../../../core/local-evaluation';
 
 interface TeacherFormValue {
   nip: string;
@@ -58,6 +59,16 @@ interface ConfirmDialogData {
     <h2 mat-dialog-title>{{ teacher ? 'Ubah profil akun' : 'Tambah akun' }}</h2>
     <mat-dialog-content>
       <form class="dialog-form" [formGroup]="form" (ngSubmit)="submit()">
+        @if (showEnrollmentPhoto) {
+          <section class="enrollment-photo" aria-label="Foto pendaftaran wajah">
+            <strong>Foto pendaftaran wajah</strong>
+            @if (photoUrl()) {
+              <img [src]="photoUrl()" [alt]="'Foto pendaftaran wajah ' + teacher?.fullName" />
+            } @else {
+              <p role="status">{{ photoMessage() }}</p>
+            }
+          </section>
+        }
         <mat-form-field appearance="outline">
           <mat-label>Username</mat-label>
           <input matInput formControlName="nip" name="nip" autocomplete="off" spellcheck="false" />
@@ -117,11 +128,19 @@ interface ConfirmDialogData {
   styles: `
     .dialog-form { display: grid; gap: 0.25rem; padding-top: 0.5rem; min-width: min(28rem, 72vw); }
     mat-form-field { width: 100%; }
+    .enrollment-photo { display: grid; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .enrollment-photo img { width: 10rem; max-width: 100%; height: 7.5rem; object-fit: contain; border-radius: 8px; background: #f4f5f6; }
+    .enrollment-photo p { margin: 0; color: #58677d; }
     @media (max-width: 520px) { .dialog-form { min-width: 0; } }
   `,
 })
-export class TeacherFormDialog {
+export class TeacherFormDialog implements OnInit {
   readonly teacher = inject<Teacher | null>(MAT_DIALOG_DATA);
+  private readonly teachers = inject(TeachersService);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly showEnrollmentPhoto = !!this.teacher && (this.teacher.role ?? 'USER') === 'USER' && isLocalEvaluationHost();
+  readonly photoUrl = signal<string | null>(null);
+  readonly photoMessage = signal('Memuat foto pendaftaran…');
   private readonly dialogRef = inject(MatDialogRef<TeacherFormDialog>);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly form = new FormGroup({
@@ -146,6 +165,26 @@ export class TeacherFormDialog {
     role: new FormControl<'USER' | 'SECURITY_GUARD'>(this.teacher?.role ?? 'USER', { nonNullable: true }),
     gender: new FormControl<'FEMALE' | 'MALE' | ''>(this.teacher?.gender ?? '', { nonNullable: true, validators: [Validators.required] }),
   });
+
+  ngOnInit(): void {
+    this.destroyRef.onDestroy(() => {
+      const url = this.photoUrl();
+      if (url) URL.revokeObjectURL(url);
+    });
+    if (this.showEnrollmentPhoto) void this.loadPhoto();
+  }
+
+  private async loadPhoto(): Promise<void> {
+    try {
+      const photo = await this.teachers.enrollmentPhoto(this.teacher!.id);
+      if (!this.destroyRef.destroyed) this.photoUrl.set(URL.createObjectURL(photo));
+    } catch (error) {
+      if (this.destroyRef.destroyed) return;
+      this.photoMessage.set(error instanceof HttpErrorResponse && error.status === 404
+        ? 'Foto belum tersedia. Pendaftaran lama hanya menyimpan template wajah.'
+        : 'Foto pendaftaran belum dapat dimuat. Buka kembali dialog untuk mencoba lagi.');
+    }
+  }
 
   submit(): void {
     if (this.form.invalid) {
@@ -243,6 +282,23 @@ export class ConfirmTeacherDialog {
   templateUrl: './teachers-page.html',
 })
 export class TeachersPage implements OnInit {
+  readonly localEvaluation=isLocalEvaluationHost();
+  confirmFaceReenrollment(teacher:Teacher):void {
+    if(this.actionInProgress() || teacher.role!=='USER' || !teacher.isActive)return;
+    const reference=this.dialog.open(ConfirmTeacherDialog,{width:'28rem',data:{
+      title:'Izinkan pendaftaran wajah ulang?',
+      message:`Izin ini hanya untuk mengganti template yang sudah tersimpan. Guru yang belum terdaftar dapat mendaftar langsung dari Profil Saya. Pastikan Anda sudah memeriksa identitas ${teacher.fullName}. Izin berlaku 24 jam dan hanya menghasilkan satu template baru. Guru tetap wajib mengonfirmasi password dan menggunakan kamera sendiri.`,
+      actionLabel:'Identitas sudah diperiksa',
+    } satisfies ConfirmDialogData});
+    reference.afterClosed().subscribe((confirmed:boolean|undefined)=>{if(confirmed)void this.grantFaceReenrollment(teacher);});
+  }
+  private async grantFaceReenrollment(teacher:Teacher):Promise<void>{
+    if(this.actionInProgress())return;
+    this.actionInProgress.set(teacher.id);this.clearFeedback();
+    try{await this.service.grantFaceReenrollment(teacher.id);this.successMessage.set('Izin pendaftaran wajah ulang berlaku 24 jam.');}
+    catch(error){this.errorMessage.set(this.errorText(error,'Izin pendaftaran wajah tidak dapat dibuat.'));}
+    finally{this.actionInProgress.set(null);}
+  }
   private readonly service = inject(TeachersService);
   private readonly dialog = inject(MatDialog);
 
@@ -424,6 +480,9 @@ export class TeachersPage implements OnInit {
 
   private errorText(error: unknown, fallback: string): string {
     if (error instanceof HttpErrorResponse) {
+      if ((error.error as { error?: { code?: unknown } } | null)?.error?.code === 'REENROLLMENT_NOT_NEEDED') {
+        return 'Guru belum memiliki template wajah. Pendaftaran pertama dapat dilakukan langsung dari Profil Saya tanpa izin daftar ulang.';
+      }
       const message = (error.error as { error?: { message?: unknown } } | null)
         ?.error?.message;
       if (typeof message === 'string') return message;

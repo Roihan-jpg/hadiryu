@@ -1,0 +1,17 @@
+:host { display: block; padding: 1rem; }
+main { max-width: 40rem; margin: auto; }
+mat-form-field { display: block; margin-top: 1rem; }
+.camera-box { position: relative; overflow: hidden; width: 100%; aspect-ratio: 4 / 3; max-height: min(24rem, 45dvh); background: #222; border-radius: 8px; }
+video { display: block; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+.capture-stage { font-weight: 650; }
+progress { display: block; width: 100%; height: .5rem; margin: .5rem 0; accent-color: var(--ag-primary); }
+.actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+[role=alert] { color: #a32121; }
+.camera-box { margin-inline: auto; }
+.face-oval { position: absolute; width: 54%; height: 80%; left: 23%; top: 10%; border: 2px solid #fff; border-radius: 50%; pointer-events: none; box-sizing: border-box; }
+.capture-flash { position: absolute; inset: 0; background: #fff; animation: camera-flash 220ms ease-out both; pointer-events: none; }
+.enrollment-success { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; color: #247046; }
+.success-mark { width: 3rem; height: 3rem; fill: none; stroke: currentColor; stroke-width: 3; animation: saved-pop 250ms cubic-bezier(.2,0,0,1) both; }
+@keyframes camera-flash { from { opacity: .65; } to { opacity: 0; } }
+@keyframes saved-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .capture-flash { display: none; animation: none; } .success-mark { animation: none; } }

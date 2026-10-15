@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   GeofenceSettingsResponseSchema,
+  GeofenceTemplateSchema,
   ScheduleSettingsResponseSchema,
   TeacherListResponseSchema,
 } from '@absensi/contracts';
@@ -104,8 +105,9 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
     ),
   );
   if (!geofence.geofence) {
-    geofence = GeofenceSettingsResponseSchema.parse(
-      await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence', {
+    const template = GeofenceTemplateSchema.parse(
+      await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence-templates', {
+        name: 'Zona Smoke Hosted',
         shape: 'POLYGON',
         vertices: [
           { latitude: latitude - 0.0003, longitude: longitude - 0.0003 },
@@ -114,6 +116,11 @@ test('siapkan konfigurasi dan akun smoke hosted tanpa menimpa data', async ({
           { latitude: latitude + 0.0003, longitude: longitude - 0.0003 },
         ],
         maxAccuracyMeters: 15,
+      }),
+    );
+    geofence = GeofenceSettingsResponseSchema.parse(
+      await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence/activate', {
+        templateId: template.id,
       }),
     );
   }

@@ -8,6 +8,11 @@ import {
 
 export const routes: Routes = [
   {
+    path: 'guru/face-enrollment',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
+    loadComponent: () => import('./features/face-enrollment/face-enrollment-page').then(module => module.FaceEnrollmentPage),
+  },
+  {
     path: 'profile',
     canActivate: [authGuard],
     loadComponent: () => import('./features/profile/profile-page').then((module) => module.ProfilePage),
@@ -84,6 +89,11 @@ export const routes: Routes = [
     path: 'guru/absen',
     canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
     loadComponent: () => import('./features/home/home-page').then((module) => module.HomePage),
+  },
+  {
+    path: 'guru/face-challenge',
+    canActivate: [authGuard, passwordChangedGuard, roleGuard('USER')],
+    loadComponent: () => import('./features/face-challenge/face-challenge-page').then((module) => module.FaceChallengePage),
   },
   {
     path: 'guru',

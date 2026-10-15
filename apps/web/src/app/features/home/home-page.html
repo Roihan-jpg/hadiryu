@@ -253,6 +253,12 @@
       </button>
     </section>
 
+    @if (today()?.faceVerificationMode !== 'SIMPLE_LOCAL' && user()?.role === 'USER' && (today()?.state === 'READY_TO_CHECK_IN' || today()?.state === 'CHECKED_IN')) {
+      <section class="face-preview-link ledger-panel" aria-label="Latihan verifikasi wajah">
+        <div><strong>Latihan kamera dan challenge</strong><p>Opsional · tidak mencatat atau mengubah absensi.</p></div>
+        <a mat-stroked-button [routerLink]="['/guru/face-challenge']" [queryParams]="{ action: today()?.state === 'CHECKED_IN' ? 'CHECKOUT' : 'CHECK_IN' }">Buka latihan</a>
+      </section>
+    }
     <nav class="quick-actions" [attr.aria-label]="user()?.role === 'SECURITY_GUARD' ? 'Layanan mandiri Satpam' : 'Layanan mandiri Guru'">
       <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/riwayat' : '/guru/riwayat'"><span aria-hidden="true">↺</span><strong>Lihat riwayat</strong><small>Catatan kehadiran</small></a>
       <a class="ledger-panel" [routerLink]="user()?.role === 'SECURITY_GUARD' ? '/satpam/izin' : '/guru/izin'"><span aria-hidden="true">▣</span><strong>Ajukan izin</strong><small>Sakit atau bertugas</small></a>
@@ -262,3 +268,4 @@
     <footer class="teacher-footer"><span>Data resmi mengikuti waktu server</span></footer>
   </section>
 }
+<app-simple-face-camera [locationReady]="faceLocationReady()" (cancelled)="cancelFaceAttendance()" />

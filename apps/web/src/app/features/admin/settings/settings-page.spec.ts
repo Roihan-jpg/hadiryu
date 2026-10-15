@@ -219,6 +219,30 @@ describe('SettingsPage', () => {
     expect(fixture.nativeElement.querySelector('[name="geofenceEffectiveFrom"]')).toBeNull();
   });
 
+  it('allows typing Guru and Satpam schedule times with a mobile numeric keyboard', () => {
+    for (const [tab, id] of [['schedule', 'weekday-checkInOpen'], ['security', 'dayShift-checkInOpen']] as const) {
+      fixture.componentInstance.selectTab(tab);
+      fixture.detectChanges();
+      const input = fixture.nativeElement.querySelector(`#${id}`) as HTMLInputElement;
+      expect(input.type).toBe('text');
+      expect(input.inputMode).toBe('numeric');
+      expect(input.placeholder).toBe('HH:mm');
+      input.value = '0915';
+      input.dispatchEvent(new Event('input'));
+      input.dispatchEvent(new FocusEvent('blur'));
+      fixture.detectChanges();
+      const group = tab === 'schedule'
+        ? fixture.componentInstance.scheduleForm.controls.weekday
+        : fixture.componentInstance.securityScheduleForm.controls.dayShift;
+      expect(group.controls.checkInOpen.value).toBe('09:15');
+      expect(input.value).toBe('09:15');
+      input.value = '29:99';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(group.controls.checkInOpen.invalid).toBe(true);
+    }
+  });
+
   it('resolves both settings for a selected historical date', async () => {
     fixture.componentInstance.inspectionDate.setValue('2026-01-31');
     await fixture.componentInstance.inspectDate();

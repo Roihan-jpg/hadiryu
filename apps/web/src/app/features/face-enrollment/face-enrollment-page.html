@@ -1,0 +1,33 @@
+<main>
+  <a mat-button routerLink="/profile">Kembali ke profil</a>
+  <h1>Pendaftaran wajah</h1>
+  <p>{{ simpleMode() ? 'Daftarkan wajah sekali untuk Absen Masuk dan Absen Pulang lokal.' : 'Evaluasi lokal. Pendaftaran ini belum diwajibkan untuk absensi.' }}</p>
+  @if (enrollmentStatus()) { <p>Status: {{ statusLabel() }}</p> }
+  @if (enrollmentStatus() === 'NOT_ENROLLED') { <p>Pendaftaran pertama dapat dilakukan langsung di sini tanpa izin daftar ulang dari SuperAdmin.</p> }
+  <p>{{ simpleMode() ? 'Template dan satu foto pendaftaran disimpan terenkripsi. Foto hanya dapat dilihat SuperAdmin saat mengedit akun; frame lainnya tidak disimpan.' : 'Server menyimpan template wajah terenkripsi. Frame kamera diproses sementara dan tidak disimpan.' }} Pendaftaran ulang memerlukan pemeriksaan identitas oleh SuperAdmin.</p>
+  <mat-checkbox [(ngModel)]="consent" [disabled]="state() === 'CAPTURING' || state() === 'SUBMITTING' || state() === 'STARTING'">Saya memahami dan menyetujui penggunaan wajah saya untuk evaluasi lokal ini.</mat-checkbox>
+  <mat-form-field appearance="outline"><mat-label>Konfirmasi password</mat-label>
+    <input matInput type="password" autocomplete="current-password" maxlength="128" [(ngModel)]="password" [disabled]="state() === 'CAPTURING' || state() === 'SUBMITTING' || state() === 'STARTING'">
+  </mat-form-field>
+  <p>{{ simpleMode() ? 'Hadapkan wajah ke kamera di tengah oval. Tidak perlu berkedip atau menoleh.' : 'Pratinjau mengikuti sisi tubuh Anda: kiri Anda tampil di kiri layar. Toleh sedikit sambil menjaga wajah tetap di tengah; jangan memutar sampai profil samping penuh.' }}</p>
+  <p>{{ simpleMode() ? 'Tekan Daftarkan wajah ketika posisi sudah pas. Tahan sebentar sampai tiga gambar selesai diambil.' : 'Gambar diambil otomatis saat posisi sudah pas. Setelah langkah terakhir, pemeriksaan otomatis dimulai; tunggu sampai hasil pendaftaran muncul.' }}</p>
+  @if (captureStage()) { <p class="capture-stage">{{ captureStage() }}</p> }
+  <p role="status" aria-live="polite">{{ feedback() }}</p>
+  @if (state() === 'CAPTURING' && captureStage().includes('pose')) {
+    <progress aria-label="Kestabilan pose" [value]="poseProgress()" max="100"></progress>
+  }
+  <div class="camera-box" [style.aspect-ratio]="simpleMode() ? previewRatio() : null" [style.width]="simpleMode() ? 'min(100%, calc(45dvh * ' + previewRatio() + '))' : null">
+    <video #preview autoplay playsinline muted aria-label="Pratinjau kamera pendaftaran wajah"></video>
+    @if (simpleMode() && (state() === 'CAPTURING' || state() === 'SUBMITTING')) { <div class="face-oval" aria-hidden="true"></div> }
+    @if (simpleMode() && frameCaptured() && state() === 'SUBMITTING') { <div class="capture-flash" aria-hidden="true"></div> }
+  </div>
+  @if (state() === 'DONE' && simpleMode()) {
+    <div class="enrollment-success" role="status"><svg class="success-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/><path d="M13 24l7 7 15-16"/></svg><span>Pendaftaran wajah berhasil disimpan</span></div>
+  }
+  @if (error()) { <p role="alert">{{ error() }}</p> }
+  <div class="actions">
+    @if (simpleMode()) { <button mat-flat-button type="button" (click)="submitSimple()" [disabled]="state() !== 'CAPTURING'">Daftarkan wajah</button> }
+    <button mat-flat-button (click)="start()" [disabled]="!consent || password.length < 8 || state() === 'LOADING' || state() === 'STARTING' || state() === 'CAPTURING' || state() === 'SUBMITTING'">Mulai pendaftaran</button>
+    <button mat-button (click)="cancel()" [disabled]="state() === 'SUBMITTING'">Hentikan kamera</button>
+  </div>
+</main>

@@ -10,7 +10,7 @@ import {
   type UpdateTeacherRequest,
 } from '@absensi/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { AppError } from './auth.js';
@@ -96,7 +96,7 @@ export function generatePassword(): string {
 export class SupabaseTeacherService implements TeacherService {
   private readonly client: SupabaseClient;
 
-  constructor(config: SupabaseAuthConfig) {
+  constructor(config: SupabaseAuthConfig, private readonly faceEnrollmentEnabled = false) {
     this.client = createClient(config.url, config.secretKey, clientOptions());
   }
 
@@ -276,9 +276,18 @@ export class SupabaseTeacherService implements TeacherService {
     actorId: string,
     teacherId: string,
     isActive: boolean,
+    accessToken?: string,
   ): Promise<Teacher> {
     const before = await this.loadTeacher(teacherId);
     if (before.isActive === isActive) return before;
+    if (this.faceEnrollmentEnabled && before.role === 'USER') {
+      if (!accessToken) throw new AppError(401,'AUTH_REQUIRED','Sesi admin diperlukan');
+      const {error}=await this.client.rpc('face_teacher_set_active',{
+        p_hash:createHash('sha256').update(accessToken).digest('hex'),p_user:teacherId,p_active:isActive,
+      });
+      if(error) throw new AppError(500,'TEACHER_UPDATE_FAILED','Status akun tidak dapat diperbarui');
+      return this.loadTeacher(teacherId);
+    }
     if (!isActive && before.role === 'SECURITY_GUARD') {
       const today = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',

@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
 import {
   AdminDashboardResponseSchema,
+  GeofenceSettingsResponseSchema,
+  GeofenceTemplateSchema,
   MonthlyReportPreviewSchema,
   PasswordResetResponseSchema,
   TeacherResponseSchema,
+  TodayAttendanceResponseSchema,
 } from '@absensi/contracts';
 
 import {
@@ -65,7 +68,8 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
     weekday: schedule,
     saturday: schedule,
   });
-  await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence', {
+  const geofenceTemplate = GeofenceTemplateSchema.parse(await expectSuccessfulJsonMutation(page, '/api/admin/settings/geofence-templates', {
+    name: 'Zona Smoke E2E',
     shape: 'POLYGON',
     vertices: [
       { latitude: latitude - 0.0003, longitude: longitude - 0.0003 },
@@ -74,7 +78,13 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
       { latitude: latitude + 0.0003, longitude: longitude - 0.0003 },
     ],
     maxAccuracyMeters: 15,
-  });
+  }));
+  const activeGeofence = GeofenceSettingsResponseSchema.parse(await expectSuccessfulJsonMutation(
+    page,
+    '/api/admin/settings/geofence/activate',
+    { templateId: geofenceTemplate.id },
+  ));
+  expect(activeGeofence.geofence).toMatchObject({ templateId: geofenceTemplate.id, shape: 'POLYGON' });
   await expectSuccessfulJsonMutation(page, '/api/admin/settings/calendar', {
     workDate: attendanceWindow.workDate,
     exceptionType: 'WORKING_DAY',
@@ -84,7 +94,8 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
   await page.goto(`${APP_BASE_URL}/admin/settings`);
   await page.getByRole('tab', { name: 'Geofence', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Geofence global' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Template geofence' })).toBeVisible();
+  await page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Zona Smoke E2E' }) }).getByRole('button', { name: 'Ubah' }).click();
   await expect(page.locator('app-admin-geofence-map')).toBeVisible();
   await expect(page.getByText('4 titik batas', { exact: true })).toBeVisible();
   await page.locator('app-admin-geofence-map .map-host').click({
@@ -157,6 +168,23 @@ test('setup sampai ekspor laporan berjalan pada stack lokal', async ({
   ]);
   await page.getByRole('button', { name: 'Absen Pulang sekarang' }).click();
   await expect(page.getByRole('heading', { name: 'Absensi selesai' })).toBeVisible();
+  await test.step('enrollment nonaktif tidak mengubah absensi',async()=>{
+    const before=await page.context().request.get(`${APP_BASE_URL}/api/attendance/today`);
+    const beforeBody=TodayAttendanceResponseSchema.parse(await before.json());
+    const status=await page.context().request.get(`${APP_BASE_URL}/api/face/enrollment/status`);
+    expect(status.status()).toBe(409);
+    expect((await status.json()).error.code).toBe('ENROLLMENT_UNAVAILABLE');
+    await page.goto(`${APP_BASE_URL}/guru/face-enrollment`);
+    await expect(page.getByRole('heading',{name:'Pendaftaran wajah',exact:true})).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('Enrollment hanya tersedia');
+    const after=await page.context().request.get(`${APP_BASE_URL}/api/attendance/today`);
+    const afterBody=TodayAttendanceResponseSchema.parse(await after.json());
+    expect(afterBody.attendance).toEqual(beforeBody.attendance);
+    expect(afterBody.state).toBe(beforeBody.state);
+    expect(afterBody.workDate).toBe(beforeBody.workDate);
+    await page.goto(`${APP_BASE_URL}/guru/absen`);
+    await expect(page.getByRole('heading',{name:'Absensi selesai'})).toBeVisible();
+  });
 
   await earlyPage.getByRole('link', { name: 'Pulang awal', exact: true }).click();
   await earlyPage.getByLabel('Alasan pulang awal').fill('Keperluan keluarga untuk smoke E2E');

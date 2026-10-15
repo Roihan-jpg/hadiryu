@@ -138,6 +138,13 @@ const distinctRosterValidator: ValidatorFn = (control) => {
   templateUrl: './settings-page.html',
 })
 export class SettingsPage implements OnInit {
+  normalizeTimeInput(event: FocusEvent): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !/^\d{4}$/.test(input.value)) return;
+    input.value = `${input.value.slice(0, 2)}:${input.value.slice(2)}`;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   private readonly service = inject(SettingsService);
   private readonly teachersService = inject(TeachersService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

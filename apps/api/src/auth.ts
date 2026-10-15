@@ -251,6 +251,10 @@ function handleAuthError(
   _next: NextFunction,
 ): void {
   void _next;
+  if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large') {
+    sendAppError(response,new AppError(413,'REQUEST_TOO_LARGE','Ukuran request melebihi batas'));
+    return;
+  }
   if (
     error instanceof SyntaxError &&
     'status' in error &&

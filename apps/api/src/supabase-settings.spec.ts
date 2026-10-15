@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
-import { toSecurityScheduleSettings } from './supabase-settings.js';
+import { toGeofenceTemplate, toSecurityScheduleSettings } from './supabase-settings.js';
+
+describe('Supabase geofence template mapping', () => {
+  it('accepts the deleted_at field returned by the create RPC', () => {
+    const template = toGeofenceTemplate({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      name: 'Zona sekolah',
+      polygon_vertices: [
+        { latitude: -6.2003, longitude: 106.8163 },
+        { latitude: -6.2003, longitude: 106.8170 },
+        { latitude: -6.1997, longitude: 106.8170 },
+      ],
+      max_accuracy_meters: 15,
+      created_at: '2026-10-02T00:00:00.000Z',
+      updated_at: '2026-10-02T00:00:00.000Z',
+      deleted_at: null,
+    }, null);
+
+    expect(template.name).toBe('Zona sekolah');
+    expect(template.vertices).toHaveLength(3);
+  });
+});
 
 describe('Supabase security settings mapping', () => {
   it('accepts the audit timestamps returned by the composite save RPC', () => {

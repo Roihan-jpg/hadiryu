@@ -1,0 +1,5 @@
+opencv-contrib-python==4.13.0.92
+onnxruntime==1.30.0
+mediapipe==1.0.1
+numpy==2.5.3
+Pillow==12.3.0

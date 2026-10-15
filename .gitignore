@@ -3,6 +3,7 @@ MEMORY.md
 PRD.md
 TASKS.md
 TechDesign.md
+FACE_VERIFICATION_PLAN.md
 
 node_modules/
 dist/
@@ -58,3 +59,6 @@ Desktop.ini
 
 # Codex local attachments
 .codex-remote-attachments/
+apps/web/public/assets/face-enrollment/*
+!apps/web/public/assets/face-enrollment/face-frame.png
+__pycache__/
