@@ -11,6 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { queryKeys } from '../../core/query/query-keys';
 import { ProfileService } from './profile.service';
 import { ProfilePhotoCropDialog } from './profile-photo-crop-dialog';
+import { isLocalEvaluationHost } from '../../core/local-evaluation';
 
 @Component({
   selector: 'app-profile-page',
@@ -19,6 +20,7 @@ import { ProfilePhotoCropDialog } from './profile-photo-crop-dialog';
   styleUrl: './profile-page.scss',
 })
 export class ProfilePage {
+  protected readonly localEvaluation=isLocalEvaluationHost();
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly service = inject(ProfileService);

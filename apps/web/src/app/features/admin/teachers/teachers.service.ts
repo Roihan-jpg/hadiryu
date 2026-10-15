@@ -14,6 +14,20 @@ import { queryKeys } from '../../../core/query/query-keys';
 
 @Injectable({ providedIn: 'root' })
 export class TeachersService {
+  async enrollmentPhoto(teacherId: string): Promise<Blob> {
+    const photo = await firstValueFrom(this.http.get(`/api/admin/teachers/${teacherId}/face-photo`, {
+      responseType: 'blob', withCredentials: true,
+    }));
+    const { FacePortraitMimeSchema } = await import('@absensi/contracts');
+    FacePortraitMimeSchema.parse(photo.type);
+    if (photo.size === 0 || photo.size > 262144) throw new Error('Foto pendaftaran tidak valid.');
+    return photo;
+  }
+  async grantFaceReenrollment(teacherId:string):Promise<void> {
+    const {FaceReenrollmentGrantSchema}=await import('@absensi/contracts');
+    FaceReenrollmentGrantSchema.parse(await firstValueFrom(this.http.post<unknown>(
+      `/api/admin/teachers/${teacherId}/face-reenrollment`,{identityReviewed:true},{withCredentials:true})));
+  }
   private readonly http = inject(HttpClient);
   private readonly queries = inject(QueryGateway);
 

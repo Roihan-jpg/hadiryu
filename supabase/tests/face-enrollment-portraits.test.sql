@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select ok((select relrowsecurity from pg_class where oid='public.face_enrollment_portraits'::regclass),'photo RLS enabled');
+select ok(not has_table_privilege('anon','public.face_enrollment_portraits','SELECT'),'anonymous cannot read photos');
+select ok(not has_table_privilege('authenticated','public.face_enrollment_portraits','SELECT'),'browser cannot read photos');
+select ok(not has_table_privilege('authenticated','public.face_enrollment_portraits','INSERT'),'browser cannot insert photos');
+select ok(not has_table_privilege('authenticated','public.face_enrollment_portraits','DELETE'),'browser cannot remove photos');
+select ok(has_table_privilege('service_role','public.face_enrollment_portraits','SELECT'),'backend can read encrypted photos');
+select ok(has_table_privilege('service_role','public.face_enrollment_portraits','INSERT'),'backend can insert encrypted photos');
+select ok(not has_table_privilege('service_role','public.face_enrollment_portraits','UPDATE'),'reference photo immutable');
+select ok(not exists(select 1 from pg_policies where tablename='face_enrollment_portraits'),'no direct browser photo policy');
+select ok(not (select prosecdef from pg_proc where oid='public.face_enrollment_finish(text,uuid,uuid,uuid,jsonb)'::regprocedure),'enrollment commit remains security invoker');
+select * from finish();
+rollback;

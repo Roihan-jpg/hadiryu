@@ -8,6 +8,9 @@
   @if (message()) { <p class="feedback feedback--success" role="status">{{ message() }}</p> }
 
   @if (user(); as currentUser) {
+    @if (localEvaluation && currentUser.role === 'USER') {
+      <a mat-button routerLink="/guru/face-enrollment">Pendaftaran wajah (evaluasi)</a>
+    }
     <section class="profile-ledger" aria-labelledby="identity-title">
       <div class="identity-column">
         <p class="eyebrow">IDENTITAS</p>

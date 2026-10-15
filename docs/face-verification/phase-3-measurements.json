@@ -1,0 +1,52 @@
+{
+  "evaluatedAt": "2026-10-06",
+  "scope": "local-evaluation-only",
+  "benchmark": {
+    "workload": "synthetic-component-cycle-not-enrollment",
+    "iterations": 100,
+    "modelVersion": "local-sface2021dec-mn3-2022.1-pipeline1-bc5ac4a3d8e54e8b",
+    "coldStartMs": 8529.173374000038,
+    "actualRuntimes": {
+      "python": "3.12.15",
+      "opencv-contrib-python": "4.13.0.92",
+      "onnxruntime": "1.30.0",
+      "mediapipe": "1.0.1",
+      "numpy": "2.5.3",
+      "Pillow": "12.3.0"
+    },
+    "containerLimits": {
+      "cpus": 2,
+      "memoryMiB": 2048
+    },
+    "p50Ms": 171.46100850004586,
+    "p95Ms": 276.72979889991893,
+    "p99Ms": 345.48990817994104,
+    "cpuSeconds": 36.09808125399999,
+    "peakRssMiB": 329.40234375,
+    "realEnrollmentMeasured": false
+  },
+  "transport": {
+    "workload": "corrupt-input-burst",
+    "samples": [
+      {
+        "concurrency": 1,
+        "elapsedMs": 44.3886,
+        "rejectedBusy": 0
+      },
+      {
+        "concurrency": 5,
+        "elapsedMs": 200.577,
+        "rejectedBusy": 0
+      },
+      {
+        "concurrency": 10,
+        "elapsedMs": 320.6101,
+        "rejectedBusy": 0
+      }
+    ]
+  },
+  "realEnrollment": {
+    "measured": false,
+    "reason": "Physical Android/laptop camera evidence and real warm enrollment benchmark are pending."
+  }
+}

@@ -66,8 +66,13 @@ import {
   type RequestQuotaService,
 } from './request-quotas.js';
 import { registerStaffDashboardRoutes, type StaffDashboardService } from './staff-dashboard.js';
+import { registerFaceChallengeRoutes } from './face-challenge.js';
+import { registerFaceEnrollmentRoutes, type FaceEnrollmentService } from './face-enrollment.js';
+import { registerSimpleFaceRoutes, type SimpleFaceService } from './simple-face.js';
 
 export interface CreateAppOptions {
+  simpleFaceService?: SimpleFaceService;
+  faceEnrollmentService?: FaceEnrollmentService;
   authService?: AuthService;
   attendanceService?: AttendanceService;
   settingsService?: SettingsService;
@@ -285,7 +290,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
   }
   app.use(createCsrfProtectionMiddleware(security.production));
 
-  app.use(express.json({ limit: '32kb' }));
+  const ordinaryJson = express.json({ limit: '32kb' });
+  app.use((request,response,next) => ['/api/face/enrollment/submit','/api/attendance/face/submit'].includes(request.path)
+    ? next() : ordinaryJson(request,response,next));
   app.use(cookieParser());
 
   app.use(
@@ -296,6 +303,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
     [
       '/api/attendance/check-in',
       '/api/attendance/checkout',
+      '/api/attendance/face/challenge',
       '/api/early-departure-requests',
     ],
     createRateLimiter(security.attendanceRateLimit),
@@ -329,11 +337,15 @@ export function createApp(options: CreateAppOptions = {}): Express {
     options.authService ?? unavailableAuthService,
     options.settingsService ?? unavailableSettingsService,
   );
+  if(options.simpleFaceService)registerSimpleFaceRoutes(app, options.authService ?? unavailableAuthService, options.simpleFaceService);
   registerAttendanceRoutes(
     app,
     options.authService ?? unavailableAuthService,
     options.attendanceService ?? unavailableAttendanceService,
+    Boolean(options.simpleFaceService),
   );
+  registerFaceChallengeRoutes(app, options.authService ?? unavailableAuthService);
+  if(!options.simpleFaceService)registerFaceEnrollmentRoutes(app, options.authService ?? unavailableAuthService, options.faceEnrollmentService);
   registerSecurityDashboardRoutes(
     app,
     options.authService ?? unavailableAuthService,

@@ -64,6 +64,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "prebundle": { "exclude": ["@absensi/contracts"] }
+          },
           "configurations": {
             "production": {
               "buildTarget": "web:build:production"

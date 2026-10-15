@@ -863,6 +863,7 @@ export function registerAttendanceRoutes(
   app: Express,
   authService: AuthService,
   attendanceService: AttendanceService,
+  simpleFaceRequired = false,
 ): void {
   const teacherGuards = [createSessionGuard(authService), requireRole('USER', 'SECURITY_GUARD')];
 
@@ -873,7 +874,7 @@ export function registerAttendanceRoutes(
       try {
         response
           .status(200)
-          .json(await attendanceService.getToday(staffUser(request)));
+          .json({...await attendanceService.getToday(staffUser(request)), ...(simpleFaceRequired && staffUser(request).role==='USER' ? {faceVerificationMode:'SIMPLE_LOCAL'} : {})});
       } catch (error) {
         next(error);
       }
@@ -885,6 +886,7 @@ export function registerAttendanceRoutes(
     ...teacherGuards,
     async (request, response, next) => {
       try {
+        if(simpleFaceRequired && staffUser(request).role==='USER')throw new AppError(409,'FACE_VERIFICATION_REQUIRED','Gunakan kamera untuk Absen Masuk.');
         const parsed = LocationInputSchema.safeParse(request.body);
         if (!parsed.success) {
           throw new AppError(
@@ -908,6 +910,7 @@ export function registerAttendanceRoutes(
     ...teacherGuards,
     async (request, response, next) => {
       try {
+        if(simpleFaceRequired && staffUser(request).role==='USER')throw new AppError(409,'FACE_VERIFICATION_REQUIRED','Gunakan kamera untuk Absen Pulang.');
         const parsed = LocationInputSchema.safeParse(request.body);
         if (!parsed.success) {
           throw new AppError(

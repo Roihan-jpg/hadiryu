@@ -5,7 +5,7 @@ import type {
   TodayAttendanceResponse,
 } from '@absensi/contracts';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal, ViewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -28,6 +28,7 @@ import { RequestQuotasService } from '../request-quotas.service';
 import { LeaveRequestsService } from '../leave-requests/leave-requests.service';
 import { TeacherLocationMap } from './teacher-location-map';
 import { SecurityDashboardService } from './security-dashboard.service';
+import { SimpleFaceCamera, FaceCameraError } from '../face-enrollment/simple-face-camera';
 
 type LocationAcquisitionState =
   | 'IDLE'
@@ -72,12 +73,17 @@ class LocationRequestError extends Error {
     ReactiveFormsModule,
     RouterLink,
     TeacherLocationMap,
+    SimpleFaceCamera,
   ],
   selector: 'app-home-page',
   styleUrl: './home-page.scss',
   templateUrl: './home-page.html',
 })
 export class HomePage {
+  @ViewChild(SimpleFaceCamera) private faceCamera?:SimpleFaceCamera;
+  readonly faceLocationReady=signal(false);
+  private faceCancelled=false;
+  private faceAbort:AbortController|null=null;
   private readonly auth = inject(AuthService);
   private readonly attendanceService = inject(AttendanceService);
   private readonly destroyRef = inject(DestroyRef);
@@ -181,6 +187,7 @@ export class HomePage {
 
   constructor() {
     this.destroyRef.onDestroy(() => {
+      this.faceAbort?.abort();
       this.destroyed = true;
       this.cachedAttendanceLocation = null;
       this.clearLocationExpiryTimer();
@@ -199,8 +206,8 @@ export class HomePage {
     this.locationPreviewError.set(null);
     this.successMessage.set(null);
     try {
-      const location = await this.attendanceLocation();
-      const attendance = await this.attendanceService.checkIn(location);
+      const attendance = this.today()?.faceVerificationMode==='SIMPLE_LOCAL' && this.user()?.role==='USER'
+        ?await this.faceAttendance('CHECK_IN'):await this.attendanceService.checkIn(await this.attendanceLocation());
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
@@ -217,6 +224,7 @@ export class HomePage {
         this.errorMessage.set(await this.apiErrorText(error, 'check-in'));
       }
     } finally {
+      this.faceCamera?.close();
       this.actionInProgress.set(false);
     }
   }
@@ -228,8 +236,9 @@ export class HomePage {
     this.locationPreviewError.set(null);
     this.successMessage.set(null);
     try {
-      const location = await this.attendanceLocation();
-      const attendance = await this.attendanceService.checkout(location);
+      const attendance = this.today()?.faceVerificationMode==='SIMPLE_LOCAL' && this.user()?.role==='USER'
+        ?await this.faceAttendance('CHECKOUT'):await this.attendanceService.checkout(await this.attendanceLocation());
+      if(attendance.status!=='COMPLETED')throw new Error('Absen pulang belum tersimpan.');
       await this.todayQuery.refetch();
       if (this.user()?.role === 'SECURITY_GUARD') await this.securityDashboardQuery.refetch();
       this.successMessage.set(
@@ -246,9 +255,33 @@ export class HomePage {
         this.errorMessage.set(await this.apiErrorText(error, 'checkout'));
       }
     } finally {
+      this.faceCamera?.close();
       this.actionInProgress.set(false);
     }
   }
+
+  private async faceAttendance(action:'CHECK_IN'|'CHECKOUT') {
+    this.faceCancelled=false;
+    this.faceAbort=new AbortController();
+    this.faceLocationReady.set(false);
+    if(!this.faceCamera)throw new Error('Kamera belum tersedia.');
+    const capture=Promise.all([
+      this.attendanceService.faceSession(action),this.faceCamera.capture(),
+      this.attendanceLocation().then(value=>{this.faceLocationReady.set(true);return value;}),
+    ]);
+    let onCancel!:()=>void;
+    const aborted=new Promise<never>((_resolve,reject)=>{
+      onCancel=()=>reject(new FaceCameraError('Pemeriksaan dibatalkan.'));
+      this.faceAbort!.signal.addEventListener('abort',onCancel,{once:true});
+    });
+    let captured:Awaited<typeof capture>;
+    try{captured=await Promise.race([capture,aborted]);}
+    finally{this.faceAbort.signal.removeEventListener('abort',onCancel);}
+    const [session,frame,location]=captured;
+    if(this.destroyed||this.faceCancelled)throw new Error('Pemeriksaan dibatalkan.');
+    return this.attendanceService.faceSubmit({sessionId:session.sessionId,frame,location},this.faceAbort.signal);
+  }
+  cancelFaceAttendance(){this.faceCancelled=true;this.faceAbort?.abort();}
 
   toggleLateArrival(): void {
     if (!this.lateArrivalAvailable()) return;
@@ -558,6 +591,8 @@ export class HomePage {
     error: unknown,
     action: 'check-in' | 'checkout' | 'izin terlambat',
   ): Promise<string> {
+    if(this.faceCancelled)return 'Pemeriksaan dibatalkan. Periksa status absensi sebelum mencoba kembali.';
+    if(error instanceof FaceCameraError)return error.message;
     if (error instanceof HttpErrorResponse) {
       const { ApiErrorSchema } = await import('@absensi/contracts');
       const parsed = ApiErrorSchema.safeParse(error.error);

@@ -129,7 +129,7 @@ function time(value: string): string {
   return value.slice(0, 5);
 }
 
-function toAttendance(value: unknown): PersistedAttendanceRecord {
+export function toAttendance(value: unknown): PersistedAttendanceRecord {
   const row = AttendanceRowSchema.parse(value);
   const base = {
     id: row.id,
@@ -181,6 +181,11 @@ function toAttendance(value: unknown): PersistedAttendanceRecord {
     workDeficitMinutes: row.work_deficit_minutes,
     status: row.status,
   });
+}
+
+export function toFaceAttendance(value:unknown):PersistedAttendanceRecord {
+  const row=AttendanceRowSchema.extend({teacher_id:z.uuid(),created_at:z.string(),updated_at:z.string()}).parse(value);
+  return toAttendance(AttendanceRowSchema.strip().parse(row));
 }
 
 function toCalendarException(value: unknown): CalendarException {
@@ -428,29 +433,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
   async saveCheckIn(input: SaveCheckInInput): Promise<PersistedAttendanceRecord> {
     const { data, error } = await this.client
       .from('attendance_records')
-      .insert({
-        teacher_id: input.teacherId,
-        work_date: input.workDate,
-        check_in_at: input.checkInAt,
-        check_in_latitude: input.location.latitude,
-        check_in_longitude: input.location.longitude,
-        check_in_accuracy_meters: input.location.accuracyMeters,
-        check_in_distance_meters: input.distanceMeters,
-        check_in_boundary_clearance_meters: input.boundaryClearanceMeters,
-        work_start: input.schedule.workStart,
-        work_end: input.schedule.workEnd,
-        checkout_close: input.schedule.checkoutClose,
-        target_minutes: input.schedule.targetMinutes,
-        arrival_late_minutes: input.arrivalLateMinutes,
-        schedule_type: input.schedule.scheduleType,
-        check_in_open_at: input.boundaries.checkInOpenAt,
-        work_start_at: input.boundaries.workStartAt,
-        check_in_close_at: input.boundaries.checkInCloseAt,
-        checkout_open_at: input.boundaries.checkoutOpenAt,
-        work_end_at: input.boundaries.workEndAt,
-        checkout_close_at: input.boundaries.checkoutCloseAt,
-        status: 'CHECKED_IN',
-      })
+      .insert(checkInStorageRecord(input))
       .select(ATTENDANCE_FIELDS)
       .single();
     if (!error && data) return toAttendance(data);
@@ -475,17 +458,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
   async saveCheckout(input: SaveCheckoutInput): Promise<CompletedAttendanceRecord> {
     const { data, error } = await this.client
       .from('attendance_records')
-      .update({
-        check_out_at: input.checkOutAt,
-        check_out_latitude: input.location.latitude,
-        check_out_longitude: input.location.longitude,
-        check_out_accuracy_meters: input.location.accuracyMeters,
-        check_out_distance_meters: input.distanceMeters,
-        check_out_boundary_clearance_meters: input.boundaryClearanceMeters,
-        worked_minutes: input.workedMinutes,
-        work_deficit_minutes: input.workDeficitMinutes,
-        status: 'COMPLETED',
-      })
+      .update(checkoutStorageRecord(input))
       .eq('id', input.attendanceId)
       .eq('teacher_id', input.teacherId)
       .eq('status', 'CHECKED_IN')
@@ -547,4 +520,44 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       totalItems: count ?? 0,
     };
   }
+}
+
+export function checkInStorageRecord(input: SaveCheckInInput) {
+  return {
+        teacher_id: input.teacherId,
+        work_date: input.workDate,
+        check_in_at: input.checkInAt,
+        check_in_latitude: input.location.latitude,
+        check_in_longitude: input.location.longitude,
+        check_in_accuracy_meters: input.location.accuracyMeters,
+        check_in_distance_meters: input.distanceMeters,
+        check_in_boundary_clearance_meters: input.boundaryClearanceMeters,
+        work_start: input.schedule.workStart,
+        work_end: input.schedule.workEnd,
+        checkout_close: input.schedule.checkoutClose,
+        target_minutes: input.schedule.targetMinutes,
+        arrival_late_minutes: input.arrivalLateMinutes,
+        schedule_type: input.schedule.scheduleType,
+        check_in_open_at: input.boundaries.checkInOpenAt,
+        work_start_at: input.boundaries.workStartAt,
+        check_in_close_at: input.boundaries.checkInCloseAt,
+        checkout_open_at: input.boundaries.checkoutOpenAt,
+        work_end_at: input.boundaries.workEndAt,
+        checkout_close_at: input.boundaries.checkoutCloseAt,
+        status: 'CHECKED_IN',
+      };
+}
+
+export function checkoutStorageRecord(input: SaveCheckoutInput) {
+  return {
+        check_out_at: input.checkOutAt,
+        check_out_latitude: input.location.latitude,
+        check_out_longitude: input.location.longitude,
+        check_out_accuracy_meters: input.location.accuracyMeters,
+        check_out_distance_meters: input.distanceMeters,
+        check_out_boundary_clearance_meters: input.boundaryClearanceMeters,
+        worked_minutes: input.workedMinutes,
+        work_deficit_minutes: input.workDeficitMinutes,
+        status: 'COMPLETED',
+      };
 }

@@ -14,6 +14,8 @@ function isSensitiveKey(key: string): boolean {
     /(password|passphrase|token|secret|cookie|authorization|apikey|servicekey)$/.test(
       normalized,
     ) || /(latitude|longitude)$/.test(normalized)
+    || /^(frames?|images?|templates?|ciphertext|nonce|authtag)$/.test(normalized)
+    || /(embedding|facetemplate|encryptedtemplate|rawimage|rawframe|capturedframe|biometric|facematchscore|padscore|spoofscore|livenessscore)/.test(normalized)
   );
 }
 

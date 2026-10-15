@@ -8,7 +8,7 @@ import type {
 } from '@absensi/contracts';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, fromEvent, takeUntil } from 'rxjs';
 import { QueryGateway } from '../../core/query/query-gateway';
 import { queryKeys } from '../../core/query/query-keys';
 
@@ -41,6 +41,18 @@ export class AttendanceService {
     const { CheckInRecordSchema } = await import('@absensi/contracts');
     return CheckInRecordSchema.parse(value);
     }, [queryKeys.attendance('today'), queryKeys.attendance('history')]);
+  }
+  async faceSession(action:'CHECK_IN'|'CHECKOUT') {
+    const {SimpleFaceSessionSchema}=await import('@absensi/contracts');
+    return SimpleFaceSessionSchema.parse(await firstValueFrom(this.http.post<unknown>('/api/attendance/face/sessions',{action},{withCredentials:true})));
+  }
+  async faceSubmit(input:import('@absensi/contracts').SimpleFaceAttendanceSubmission,signal?:AbortSignal) {
+    return this.queries.write(async()=>{
+      const {SimpleFaceAttendanceResultSchema,SimpleFaceAttendanceSubmissionSchema}=await import('@absensi/contracts');
+      if(signal?.aborted)throw new Error('Pemeriksaan dibatalkan.');
+      const request=this.http.post<unknown>('/api/attendance/face/submit',SimpleFaceAttendanceSubmissionSchema.parse(input),{withCredentials:true});
+      return SimpleFaceAttendanceResultSchema.parse(await firstValueFrom(signal?request.pipe(takeUntil(fromEvent(signal,'abort'))):request));
+    },[queryKeys.attendance('today'),queryKeys.attendance('history')]);
   }
 
   async checkout(location: LocationInput): Promise<CompletedAttendanceRecord> {
